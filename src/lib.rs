@@ -1,3 +1,6 @@
+mod http;
+mod constants;
+
 #[cfg(test)]
 mod tests {
     #[test]

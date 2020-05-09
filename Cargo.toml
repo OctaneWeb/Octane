@@ -1,7 +1,7 @@
 [package]
 name = "rusty-ws"
 version = "0.1.0"
-authors = ["weegee <somilsharma627@gmail.com>"]
+authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -18,17 +18,20 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn request_line_fail_1() {
-        assert!(http::RequestLine::parse("POST /abc/def HTTP/1.1 x".to_string()).is_none());
+        http::RequestLine::parse("POST /abc/def HTTP/1.1 x".to_string()).unwrap();
     }
 
     #[test]
+    #[should_panic]
     fn request_line_fail_2() {
-        assert!(http::RequestLine::parse("POST /abc/def HTDP/1.1".to_string()).is_none());
+        http::RequestLine::parse("POST /abc/def HTDP/1.1".to_string()).unwrap();
     }
 
     #[test]
+    #[should_panic]
     fn request_line_fail_3() {
-        assert!(http::RequestLine::parse("POST /abc/def".to_string()).is_none());
+        http::RequestLine::parse("POST /abc/def".to_string()).unwrap();
     }
 }

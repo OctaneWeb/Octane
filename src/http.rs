@@ -23,7 +23,7 @@ pub struct Request<'a> {
 impl<'a> Request<'a> {
     pub fn new(repsonse: &'a str) -> Self {
         Request {
-            repsonse: repsonse,
+            repsonse,
             version: Self::get_version(repsonse),
             host: Self::get_host(repsonse),
             path: Self::get_path(repsonse),

@@ -8,6 +8,7 @@ pub enum RequestMethod {
     Head,
     Trace,
     Connect,
+    Unkwown,
 }
 
 pub struct Request<'a> {
@@ -84,7 +85,7 @@ impl<'a> Request<'a> {
             "HEAD" => RequestMethod::Head,
             "TRACE" => RequestMethod::Trace,
             "CONNECT" => RequestMethod::Connect,
-            _ => panic!("{:?}", "invalid method specified in the request"),
+            _ => RequestMethod::Unkwown,
         }
     }
     fn get_host(repsonse: &'a str) -> &'a str {

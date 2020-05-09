@@ -1,6 +1,5 @@
 use crate::constants::*;
 use std::cfg;
-use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RequestMethod<'a> {
@@ -13,21 +12,6 @@ pub enum RequestMethod<'a> {
     Trace,
     Connect,
     Other(&'a str),
-}
-
-lazy_static! {
-    pub static ref HEADER_STRINGS: HashMap<&'static str, RequestMethod<'static>> = {
-        let mut m: HashMap<&'static str, RequestMethod> = HashMap::new();
-        m.insert("OPTIONS", RequestMethod::Options);
-        m.insert("GET", RequestMethod::Get);
-        m.insert("HEAD", RequestMethod::Head);
-        m.insert("POST", RequestMethod::Post);
-        m.insert("PUT", RequestMethod::Put);
-        m.insert("DELETE", RequestMethod::Delete);
-        m.insert("TRACE", RequestMethod::Trace);
-        m.insert("CONNECT", RequestMethod::Connect);
-        m
-    };
 }
 
 pub struct RequestLine<'a> {
@@ -52,18 +36,24 @@ impl<'a> RequestLine<'a> {
             None => return None,
         };
         let (first, ver) = version.split_at(5);
+
         if cfg!(feature = "faithful") && (first != "HTTP/" || toks.next().is_some()) {
             return None;
         }
+        let request_method = match method {
+            "POST" => RequestMethod::Post,
+            "GET" => RequestMethod::Get,
+            "DELETE" => RequestMethod::Delete,
+            "PUT" => RequestMethod::Put,
+            "OPTIONS" => RequestMethod::Options,
+            "HEAD" => RequestMethod::Head,
+            "TRACE" => RequestMethod::Trace,
+            "CONNECT" => RequestMethod::Connect,
+            _ => RequestMethod::Other(method),
+        };
         Some(Self {
-            method: {
-                if let Some(v) = HEADER_STRINGS.get(&method) {
-                    (*v).clone()
-                } else {
-                    RequestMethod::Other(method)
-                }
-            },
-            path: path,
+            method: request_method,
+            path,
             version: ver,
         })
     }

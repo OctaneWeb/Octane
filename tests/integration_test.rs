@@ -12,7 +12,16 @@ fn it_works() {
 fn request_line_success() {
     // Parsing should work as expected.
     let req = http::RequestLine::parse("POST /abc/def HTTP/1.1").unwrap();
-    assert_eq!(req.method, "POST");
+    assert_eq!(req.method, http::RequestMethod::Post);
+    assert_eq!(req.path, "/abc/def");
+    assert_eq!(req.version, "1.1");
+}
+
+#[test]
+fn request_line_success_other_method() {
+    // Non-documented methods should also work.
+    let req = http::RequestLine::parse("PATCH /abc/def HTTP/1.1").unwrap();
+    assert_eq!(req.method, http::RequestMethod::Other("PATCH"));
     assert_eq!(req.path, "/abc/def");
     assert_eq!(req.version, "1.1");
 }

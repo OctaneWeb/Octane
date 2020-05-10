@@ -35,6 +35,7 @@ fn fail_empty_name() {
 
 #[test]
 #[should_panic]
+#[cfg_attr(not(feature = "faithful"), ignore)]
 fn fail_malformed_name() {
     // Having separators in the name should fail.
     http::Header::parse("Test Header: test").unwrap();

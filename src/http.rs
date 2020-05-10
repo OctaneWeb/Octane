@@ -1,5 +1,6 @@
 use crate::constants::*;
 use std::cfg;
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RequestMethod<'a> {
@@ -14,6 +15,7 @@ pub enum RequestMethod<'a> {
     Other(&'a str),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestLine<'a> {
     pub method: RequestMethod<'a>,
     pub path: &'a str,
@@ -59,6 +61,7 @@ impl<'a> RequestLine<'a> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Header<'a> {
     pub name: &'a str,
     pub value: &'a str,
@@ -94,6 +97,52 @@ impl<'a> Header<'a> {
         Some(Self {
             name: name,
             value: value,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Request<'a> {
+    pub method: RequestMethod<'a>,
+    pub path: &'a str,
+    pub version: &'a str,
+    pub headers: HashMap<String, String>,
+    #[cfg(feature = "raw_headers")]
+    pub raw_headers: Vec<Header<'a>>,
+}
+
+impl<'a> Request<'a> {
+    pub fn parse(request: &'a str) -> Option<Self> {
+        let mut toks = request.split(CRLF).skip_while(|v| v.len() == 0);
+        let line = match toks.next().map(RequestLine::parse).flatten() {
+            Some(v) => v,
+            None => return None,
+        };
+        let mut headers: HashMap<String, String> = HashMap::new();
+        let mut raw_headers: Vec<Header> = Vec::new();
+        for tok in toks.by_ref() {
+            if tok.len() == 0 {
+                break;
+            }
+            let parsed = match Header::parse(tok) {
+                Some(v) => v,
+                None => return None,
+            };
+            headers
+                .entry(parsed.name.to_ascii_lowercase())
+                .and_modify(|v| *v = format!("{}, {}", v, parsed.value))
+                .or_insert(parsed.value.to_string());
+            if cfg!(feature = "raw_headers") {
+                raw_headers.push(parsed);
+            }
+        }
+        Some(Self {
+            method: line.method,
+            path: line.path,
+            version: line.version,
+            headers: headers,
+            #[cfg(feature = "raw_headers")]
+            raw_headers: raw_headers,
         })
     }
 }

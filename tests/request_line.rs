@@ -23,6 +23,7 @@ fn success_other_method() {
 
 #[test]
 #[should_panic]
+#[cfg_attr(not(feature = "faithful"), ignore)]
 fn fail_extra_1() {
     // Extra clauses should error.
     http::RequestLine::parse("POST /abc/def HTTP/1.1 x").unwrap();
@@ -37,6 +38,7 @@ fn fail_extra_2() {
 
 #[test]
 #[should_panic]
+#[cfg_attr(not(feature = "faithful"), ignore)]
 fn fail_malformed_version() {
     // Malformed versions should error.
     http::RequestLine::parse("POST /abc/def HTDP/1.1").unwrap();

@@ -1,5 +1,6 @@
 use crate::constants::*;
 use std::cfg;
+use std::iter::FusedIterator;
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -107,21 +108,77 @@ pub struct Request<'a> {
     pub path: &'a str,
     pub version: &'a str,
     pub headers: HashMap<String, String>,
+    pub body: &'a str,
     #[cfg(feature = "raw_headers")]
     pub raw_headers: Vec<Header<'a>>,
 }
 
+struct Spliterator<'a> {
+    string: &'a str,
+    finished: bool,
+    seq: &'a str,
+    seqlen: usize,
+}
+
+impl<'a> Spliterator<'a> {
+    fn new(string: &'a str, seq: &'a str) -> Self {
+        Self {
+            string: string,
+            finished: false,
+            seq: seq,
+            seqlen: seq.len(),
+        }
+    }
+
+    fn skip_empty(&mut self) {
+        while let Some(0) = self.string.find(self.seq) {
+            self.next();
+        }
+    }
+}
+
+impl<'a> Iterator for Spliterator<'a> {
+    type Item = &'a str;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        match self.string.find(self.seq) {
+            Some(v) => {
+                let (ret, rest) = self.string.split_at(v);
+                self.string = &rest[self.seqlen..];
+                Some(ret)
+            },
+            None => {
+                self.finished = true;
+                Some(self.string)
+            }
+        }
+    }
+}
+
+impl<'a> FusedIterator for Spliterator<'a> {}
+
 impl<'a> Request<'a> {
     pub fn parse(request: &'a str) -> Option<Self> {
-        let mut toks = request.split(CRLF).skip_while(|v| v.len() == 0);
+        let mut toks = Spliterator::new(request, CRLF);
+        toks.skip_empty();
         let line = match toks.next().map(RequestLine::parse).flatten() {
             Some(v) => v,
             None => return None,
         };
         let mut headers: HashMap<String, String> = HashMap::new();
+        #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
+        let mut found_empty: bool = false;
         for tok in toks.by_ref() {
             if tok.len() == 0 {
+                if cfg!(feature = "faithful") {
+                    if toks.finished {
+                        return None;
+                    }
+                    found_empty = true;
+                }
                 break;
             }
             let parsed = match Header::parse(tok) {
@@ -132,10 +189,13 @@ impl<'a> Request<'a> {
                 .entry(parsed.name.to_ascii_lowercase())
                 .and_modify(|v| *v = format!("{}, {}", v, parsed.value))
                 .or_insert(parsed.value.to_string());
-            if cfg!(feature = "raw_headers") {
-                raw_headers.push(parsed);
-            }
+            #[cfg(feature = "raw_headers")]
+            raw_headers.push(parsed);
         }
+        if cfg!(feature = "faithful") && !found_empty {
+            return None;
+        }
+        let body = toks.string;
         Some(Self {
             method: line.method,
             path: line.path,
@@ -143,6 +203,7 @@ impl<'a> Request<'a> {
             headers: headers,
             #[cfg(feature = "raw_headers")]
             raw_headers: raw_headers,
+            body: body,
         })
     }
 }

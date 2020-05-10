@@ -85,3 +85,18 @@ fn fail_no_empty_line() {
     )
     .unwrap();
 }
+
+#[test]
+#[should_panic]
+#[cfg_attr(not(feature = "faithful"), ignore)]
+#[ignore]
+fn fail_no_ending_crlf() {
+    // Parsing should require a crlf at the end of every header.
+    // Will complete when body parsing is added.
+    http::Request::parse(
+        "GET /abc/def HTTP/1.1\r\n\
+        Host: localhost:12345\r\n\
+        User-Agent: curl/7.58.0",
+    )
+    .unwrap();
+}

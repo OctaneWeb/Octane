@@ -1,5 +1,5 @@
 [package]
-name = "rusty-ws"
+name = "octane"
 version = "0.1.0"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
 edition = "2018"
@@ -13,6 +13,7 @@ smol = "0.1.4"
 futures = "0.3"
 
 [features]
-default = ["faithful"]
+default = ["faithful", "query_strings"]
 faithful = []
 raw_headers = []
+query_strings = []

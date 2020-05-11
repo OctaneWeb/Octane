@@ -3,3 +3,4 @@ extern crate lazy_static;
 mod constants;
 pub mod http;
 pub mod server;
+pub mod query;

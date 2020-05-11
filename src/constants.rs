@@ -16,3 +16,20 @@ lazy_static! {
 pub fn is_ctl(c: char) -> bool {
     c < '\x1f' || c == '\x7f'
 }
+
+pub fn from_hex(chr: char) -> Option<u8> {
+    if chr > 'f' {
+        return None;
+    }
+    let c = chr as u8;
+    if c >= ('0' as u8) && c <= ('9' as u8) {
+        return Some(c - ('0' as u8));
+    }
+    if c >= ('A' as u8) && c <= ('F' as u8) {
+        return Some(c - ('A' as u8) + 10);
+    }
+    if c >= ('a' as u8) && c <= ('f' as u8) {
+        return Some(c - ('a' as u8) + 10);
+    }
+    None
+}

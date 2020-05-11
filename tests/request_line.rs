@@ -1,5 +1,5 @@
-extern crate rusty_ws;
-use rusty_ws::http;
+extern crate octane;
+use octane::http;
 
 mod common;
 

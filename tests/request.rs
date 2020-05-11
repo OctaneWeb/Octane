@@ -70,6 +70,21 @@ fn success_no_body() {
 }
 
 #[test]
+fn success_same_header() {
+    // Requests with no body should not have a body.
+    let req = http::Request::parse(
+        "GET /abc/def HTTP/1.1\r\n\
+        Host: localhost:12345\r\n\
+        Header: a\r\n\
+        Header: b\r\n\
+        \r\n",
+    )
+    .unwrap();
+    assert_eq!(*req.headers.get("header").unwrap(), "a, b".to_string());
+}
+
+
+#[test]
 #[cfg(feature = "raw_headers")]
 fn success_raw_headers() {
     // Parsing should work as expected.

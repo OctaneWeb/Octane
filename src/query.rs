@@ -21,7 +21,7 @@ where
         let cache: [T; 2] = Default::default();
         Self {
             iter: it,
-            cache: cache,
+            cache,
             stored: 0,
             unpeek: false,
         }
@@ -38,11 +38,11 @@ where
         }
         let item = self.iter.next();
         match item {
-            None => return None,
+            None => None,
             Some(v) => {
                 self.cache[self.stored] = v;
                 self.stored += 1;
-                return Some(&self.cache[self.stored - 1]);
+                Some(&self.cache[self.stored - 1])
             }
         }
     }
@@ -56,10 +56,10 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         if self.stored == 1 {
             self.stored = 0;
-            return Some(mem::replace(&mut self.cache[0], Default::default()));
+            return Some(mem::take(&mut self.cache[0]));
         } else if self.stored == 2 {
             self.stored = 1;
-            let dat1 = mem::replace(&mut self.cache[1], Default::default());
+            let dat1 = mem::take(&mut self.cache[1]);
             return Some(mem::replace(&mut self.cache[0], dat1));
         }
         self.iter.next()
@@ -70,11 +70,7 @@ pub fn unescape_hex(string: &str) -> String {
     let mut ret = "".to_string();
     let mut chars = string.chars();
     let mut peekable = DoublePeek::new(&mut chars);
-    loop {
-        let val = match peekable.next() {
-            Some(v) => v,
-            None => break,
-        };
+    while let Some(val) = peekable.next() {
         if val != '%' {
             ret.push(val);
         } else {
@@ -107,17 +103,17 @@ pub fn unescape_hex(string: &str) -> String {
 }
 
 #[cfg(feature = "query_strings")]
-pub fn parse_query<'a>(query: &'a str) -> HashMap<String, String> {
+pub fn parse_query(query: &str) -> HashMap<String, String> {
     let toks = query.split('&');
     let mut ret: HashMap<String, String> = HashMap::new();
     for tok in toks {
-        if cfg!(feature = "faithful") && tok.len() == 0 {
+        if cfg!(feature = "faithful") && tok.is_empty() {
             continue;
         }
         match tok.find('=') {
             Some(v) => {
                 let (name, val) = tok.split_at(v);
-                if cfg!(feature = "faithful") && name.len() == 0 {
+                if cfg!(feature = "faithful") && name.is_empty() {
                     continue;
                 }
                 ret.insert(unescape_hex(name), unescape_hex(&val[1..]));

@@ -31,14 +31,14 @@ pub fn from_hex(chr: char) -> Option<u8> {
         return None;
     }
     let c = chr as u8;
-    if c >= ('0' as u8) && c <= ('9' as u8) {
-        return Some(c - ('0' as u8));
+    if c >= b'0' && c <= b'9' {
+        return Some(c - b'0');
     }
-    if c >= ('A' as u8) && c <= ('F' as u8) {
-        return Some(c - ('A' as u8) + 10);
+    if c >= b'A' && c <= b'F' {
+        return Some(c - b'A' + 10);
     }
-    if c >= ('a' as u8) && c <= ('f' as u8) {
-        return Some(c - ('a' as u8) + 10);
+    if c >= b'a' && c <= b'f' {
+        return Some(c - b'a' + 10);
     }
     None
 }

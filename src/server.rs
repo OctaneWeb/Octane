@@ -12,7 +12,7 @@ async fn echo(stream: Async<TcpStream>) -> io::Result<()> {
 pub struct Server;
 
 impl Server {
-    pub fn new<'a>(addr: &'a str) -> io::Result<()> {
+    pub fn listen(addr: &str) -> io::Result<()> {
         smol::run(async {
             let listener = Async::<TcpListener>::bind(addr)?;
             loop {

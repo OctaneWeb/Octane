@@ -75,14 +75,12 @@ impl<'a> Header<'a> {
             Some(v) => v,
             None => return None,
         };
-        if name.len() == 0 {
+        if name.is_empty() {
             return None;
         }
         if cfg!(feature = "faithful") {
             for c in name.chars() {
-                if TOKEN_CHARS.get(&c).is_none() {
-                    return None;
-                }
+                TOKEN_CHARS.get(&c)?;
             }
         }
         let value = match toks.next() {
@@ -90,14 +88,12 @@ impl<'a> Header<'a> {
             None => return None,
         }
         .trim_start_matches(|c| c == SP || c == HT);
-        if cfg!(feature = "faithful") {
-            if value.chars().any(is_ctl) {
-                return None;
-            }
+        if cfg!(feature = "faithful") && value.chars().any(is_ctl){
+            return None;
         }
         Some(Self {
-            name: name,
-            value: value,
+            name,
+            value,
         })
     }
 }
@@ -123,9 +119,9 @@ struct Spliterator<'a> {
 impl<'a> Spliterator<'a> {
     fn new(string: &'a str, seq: &'a str) -> Self {
         Self {
-            string: string,
+            string,
             finished: false,
-            seq: seq,
+            seq,
             seqlen: seq.len(),
         }
     }
@@ -172,7 +168,7 @@ impl<'a> Request<'a> {
         let mut raw_headers: Vec<Header> = Vec::new();
         let mut found_empty: bool = false;
         for tok in toks.by_ref() {
-            if tok.len() == 0 {
+            if tok.is_empty() {
                 if cfg!(feature = "faithful") {
                     if toks.finished {
                         return None;
@@ -188,7 +184,7 @@ impl<'a> Request<'a> {
             headers
                 .entry(parsed.name.to_ascii_lowercase())
                 .and_modify(|v| *v = format!("{}, {}", v, parsed.value))
-                .or_insert(parsed.value.to_string());
+                .or_insert_with(|| parsed.value.to_string());
             #[cfg(feature = "raw_headers")]
             raw_headers.push(parsed);
         }
@@ -200,10 +196,10 @@ impl<'a> Request<'a> {
             method: line.method,
             path: line.path,
             version: line.version,
-            headers: headers,
+            headers,
             #[cfg(feature = "raw_headers")]
-            raw_headers: raw_headers,
-            body: body,
+            raw_headers,
+            body,
         })
     }
 }

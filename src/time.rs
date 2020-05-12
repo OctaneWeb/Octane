@@ -136,8 +136,8 @@ impl Time {
         let mut final_year = years + 100;
         let mut final_mon = (month as i64) + 2;
         if final_mon >= 12 {
-            final_mon = final_mon - 12;
-            final_year = final_year + 1;
+            final_mon -= 12;
+            final_year += 1;
         }
         Some(Time {
             min: (remsecs / 60) % 60,

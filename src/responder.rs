@@ -51,7 +51,6 @@ impl<'a> Response<'a> {
         if let Some(date) = Time::now() {
             self.headers.insert(String::from("Date"), date.format());
         }
-
         self.headers
             .insert(String::from("Content-Type"), String::from("text/plain"));
         // TODO: Add more default headers

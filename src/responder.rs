@@ -48,16 +48,22 @@ impl<'a> Response<'a> {
             String::from("Cache-Control"),
             String::from("no-cache, private"),
         );
-        self.headers
-            .insert(String::from("Date"), Time::now().format());
+        if let Some(date) = Time::now() {
+            self.headers.insert(String::from("Date"), date.format());
+        }
+
         self.headers
             .insert(String::from("Content-Type"), String::from("text/plain"));
         // TODO: Add more default headers
         self
     }
     pub fn with_time(&'a mut self, stamp: i64) -> &mut Self {
-        self.headers
-            .insert(String::from("Date"), Time::now().with_stamp(stamp).format());
+        if let Some(time) = Time::now() {
+            if let Some(with_stamp) = time.with_stamp(stamp) {
+                self.headers
+                    .insert(String::from("Date"), with_stamp.format());
+            }
+        }
         self
     }
     pub fn get_string(&mut self) -> String {

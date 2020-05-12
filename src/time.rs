@@ -26,54 +26,75 @@ impl Padding for i64 {
 }
 
 impl Time {
-    pub fn now() -> Self {
+    pub fn now() -> Option<Self> {
         let stamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(n) => n.as_secs().try_into().unwrap(),
+            Ok(n) => {
+                if let Ok(x) = n.as_secs().try_into() {
+                    x
+                } else {
+                    return None;
+                }
+            }
             Err(_) => panic!("Invalid date"),
         };
         Self::time(stamp)
     }
     pub fn format(&self) -> String {
-        let date = format!(
-            "{}{}{}{}{}",
-            self.day.pad_zero(),
-            SP,
-            self.month_day(),
-            SP,
-            self.year
-        );
-        let time = format!(
-            "{}:{}:{}",
-            self.hour.pad_zero(),
-            self.min.pad_zero(),
-            self.sec.pad_zero()
-        );
-        format!("{},{}{}{}{}{}GMT", self.week_day(), SP, date, SP, time, SP)
+        if let Some(month_day) = self.month_day() {
+            if let Some(week_day) = self.week_day() {
+                let date = format!(
+                    "{}{}{}{}{}",
+                    self.day.pad_zero(),
+                    SP,
+                    month_day,
+                    SP,
+                    self.year
+                );
+                let time = format!(
+                    "{}:{}:{}",
+                    self.hour.pad_zero(),
+                    self.min.pad_zero(),
+                    self.sec.pad_zero()
+                );
+                format!("{},{}{}{}{}{}GMT", week_day, SP, date, SP, time, SP)
+            } else {
+                "".to_owned()
+            }
+        } else {
+            "".to_owned()
+        }
     }
-    pub fn with_stamp(self, stamp: i64) -> Self {
+    pub fn with_stamp(self, stamp: i64) -> Option<Self> {
         Self::time(stamp)
     }
-    fn week_day(&self) -> String {
-        WEEKS
-            .iter()
-            .enumerate()
-            .find(|(i, _)| *i == self.week.try_into().unwrap())
-            .unwrap()
-            .1
-            .to_string()
+    fn week_day(&self) -> Option<String> {
+        if let Some(week) = WEEKS.iter().enumerate().find(|(i, _)| {
+            if let Ok(week_day) = self.week.try_into() {
+                *i == week_day
+            } else {
+                false
+            }
+        }) {
+            Some(week.1.to_string())
+        } else {
+            None
+        }
     }
-    fn month_day(&self) -> String {
-        println!("{:?}", self.month);
-        MONTHS
-            .iter()
-            .enumerate()
-            .find(|(i, _)| *i == self.month.try_into().unwrap())
-            .unwrap()
-            .1
-            .to_string()
+    fn month_day(&self) -> Option<String> {
+        if let Some(month) = MONTHS.iter().enumerate().find(|(i, _)| {
+            if let Ok(month_day) = self.month.try_into() {
+                *i == month_day
+            } else {
+                false
+            }
+        }) {
+            Some(month.1.to_string())
+        } else {
+            None
+        }
     }
 
-    fn time(stamp: i64) -> Self {
+    fn time(stamp: i64) -> Option<Self> {
         let secs = (stamp) - LEAPOCH;
         let mut days = secs / 86400;
         let mut remsecs = secs % 86400;
@@ -115,10 +136,10 @@ impl Time {
         let mut final_year = years + 100;
         let mut final_mon = (month as i64) + 2;
         if final_mon >= 12 {
-            final_mon -= 12;
-            final_year += 1;
+            final_mon = final_mon - 12;
+            final_year = final_year + 1;
         }
-        Time {
+        Some(Time {
             min: (remsecs / 60) % 60,
             sec: remsecs % 60,
             hour: remsecs / 3600,
@@ -126,6 +147,6 @@ impl Time {
             day: remdays + 1,
             year: 1900 + final_year,
             month: final_mon,
-        }
+        })
     }
 }

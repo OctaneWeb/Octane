@@ -1,6 +1,6 @@
 #![cfg(feature = "query_strings")]
-extern crate octane;
 use octane::query;
+extern crate octane;
 
 mod common;
 

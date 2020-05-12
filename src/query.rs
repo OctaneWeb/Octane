@@ -67,7 +67,7 @@ where
 }
 
 pub fn unescape_hex(string: &str) -> String {
-    let mut ret = "".to_string();
+    let mut ret = "".to_owned();
     let mut chars = string.chars();
     let mut peekable = DoublePeek::new(&mut chars);
     while let Some(val) = peekable.next() {
@@ -119,7 +119,7 @@ pub fn parse_query(query: &str) -> HashMap<String, String> {
                 ret.insert(unescape_hex(name), unescape_hex(&val[1..]));
             }
             None => {
-                ret.insert(unescape_hex(tok), "".to_string());
+                ret.insert(unescape_hex(tok), "".to_owned());
             }
         }
     }

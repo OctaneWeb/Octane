@@ -28,7 +28,7 @@ pub struct Response<'a> {
 
 impl<'a> Response<'a> {
     pub fn with_header(&mut self, key: &'a str, value: &'a str) -> &mut Self {
-        self.headers.insert(key.to_string(), value.to_string());
+        self.headers.insert(key.to_owned(), value.to_owned());
 
         self
     }

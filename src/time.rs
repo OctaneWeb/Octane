@@ -21,7 +21,7 @@ trait Padding {
 impl Padding for i64 {
     fn pad_zero(self) -> String {
         let day_string = format!("{}{}", 0, self);
-        (&day_string[day_string.len() - 2..]).to_string()
+        (&day_string[day_string.len() - 2..]).to_owned()
     }
 }
 

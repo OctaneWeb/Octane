@@ -184,7 +184,7 @@ impl<'a> Request<'a> {
             headers
                 .entry(parsed.name.to_ascii_lowercase())
                 .and_modify(|v| *v = format!("{}, {}", v, parsed.value))
-                .or_insert_with(|| parsed.value.to_string());
+                .or_insert_with(|| parsed.value.to_owned());
             #[cfg(feature = "raw_headers")]
             raw_headers.push(parsed);
         }

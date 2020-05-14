@@ -1,7 +1,8 @@
 use crate::constants::*;
 use std::cfg;
-use std::iter::FusedIterator;
 use std::collections::HashMap;
+use std::iter::FusedIterator;
+use std::str;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RequestMethod<'a> {
@@ -88,13 +89,10 @@ impl<'a> Header<'a> {
             None => return None,
         }
         .trim_start_matches(|c| c == SP || c == HT);
-        if cfg!(feature = "faithful") && value.chars().any(is_ctl){
+        if cfg!(feature = "faithful") && value.chars().any(is_ctl) {
             return None;
         }
-        Some(Self {
-            name,
-            value,
-        })
+        Some(Self { name, value })
     }
 }
 
@@ -104,20 +102,20 @@ pub struct Request<'a> {
     pub path: &'a str,
     pub version: &'a str,
     pub headers: HashMap<String, String>,
-    pub body: &'a str,
+    pub body: &'a [u8],
     #[cfg(feature = "raw_headers")]
     pub raw_headers: Vec<Header<'a>>,
 }
 
 struct Spliterator<'a> {
-    string: &'a str,
+    string: &'a [u8],
     finished: bool,
-    seq: &'a str,
+    seq: &'a [u8],
     seqlen: usize,
 }
 
 impl<'a> Spliterator<'a> {
-    fn new(string: &'a str, seq: &'a str) -> Self {
+    fn new(string: &'a [u8], seq: &'a [u8]) -> Self {
         Self {
             string,
             finished: false,
@@ -126,25 +124,41 @@ impl<'a> Spliterator<'a> {
         }
     }
 
+    fn find_seq(&self) -> Option<usize> {
+        for i in 0..self.string.len() {
+            let mut matching = true;
+            for j in 0..self.seqlen {
+                if self.string[i + j] != self.seq[j] {
+                    matching = false;
+                    break;
+                }
+            }
+            if matching {
+                return Some(i);
+            }
+        }
+        None
+    }
+
     fn skip_empty(&mut self) {
-        while let Some(0) = self.string.find(self.seq) {
+        while let Some(0) = self.find_seq() {
             self.next();
         }
     }
 }
 
 impl<'a> Iterator for Spliterator<'a> {
-    type Item = &'a str;
+    type Item = &'a [u8];
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {
             return None;
         }
-        match self.string.find(self.seq) {
+        match self.find_seq() {
             Some(v) => {
                 let (ret, rest) = self.string.split_at(v);
                 self.string = &rest[self.seqlen..];
                 Some(ret)
-            },
+            }
             None => {
                 self.finished = true;
                 Some(self.string)
@@ -156,10 +170,17 @@ impl<'a> Iterator for Spliterator<'a> {
 impl<'a> FusedIterator for Spliterator<'a> {}
 
 impl<'a> Request<'a> {
-    pub fn parse(request: &'a str) -> Option<Self> {
-        let mut toks = Spliterator::new(request, CRLF);
+    pub fn parse(request: &'a [u8]) -> Option<Self> {
+        let mut toks = Spliterator::new(request, B_CRLF);
         toks.skip_empty();
-        let line = match toks.next().map(RequestLine::parse).flatten() {
+        let line = match toks
+            .next()
+            .map(|v| match str::from_utf8(v) {
+                Ok(s) => RequestLine::parse(s),
+                Err(_) => return None,
+            })
+            .flatten()
+        {
             Some(v) => v,
             None => return None,
         };
@@ -177,7 +198,10 @@ impl<'a> Request<'a> {
                 }
                 break;
             }
-            let parsed = match Header::parse(tok) {
+            let parsed = match Header::parse(match str::from_utf8(tok) {
+                Ok(s) => s,
+                Err(_) => return None,
+            }) {
                 Some(v) => v,
                 None => return None,
             };

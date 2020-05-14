@@ -28,7 +28,7 @@ impl Server {
         let response = std::str::from_utf8(&data)
             .expect("Found invalid UTF-8")
             .trim_matches(char::from(0));
-        if let Some(response) = Request::parse(response) {
+        if let Some(response) = Request::parse(response.as_bytes()) {
             if let RequestMethod::Get = response.method {
                 if response.path.contains("html") {
                     println!("{:?}", response.path);

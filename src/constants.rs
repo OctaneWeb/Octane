@@ -6,6 +6,7 @@ pub const HT: char = '\t';
 pub const CR: char = '\r';
 pub const LF: char = '\n';
 pub const CRLF: &str = "\r\n";
+pub const B_CRLF: &[u8] = b"\r\n";
 pub const WEEKS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 pub const MONTHS: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec",

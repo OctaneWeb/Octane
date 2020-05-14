@@ -14,7 +14,8 @@ fn success_standard() {
         Content-Length: 20\r\n\
         Content-Type: application/x-www-form-urlencoded\r\n\
         \r\n\
-        field1=a%2Fb&field2=",
+        field1=a%2Fb&field2="
+            .as_bytes(),
     )
     .unwrap();
     assert_eq!(req.method, http::RequestMethod::Post);
@@ -37,23 +38,20 @@ fn success_standard() {
         *req.headers.get("content-type").unwrap(),
         "application/x-www-form-urlencoded".to_string()
     );
-    assert_eq!(req.body, "field1=a%2Fb&field2=");
+    assert_eq!(req.body, b"field1=a%2Fb&field2=");
 }
 
 #[test]
 fn success_binary_body() {
     // Response body should be able to have binary data.
-    let bin_vec = (0..255).collect::<Vec<u8>>();
-    let bin = String::from_utf8_lossy(&bin_vec[..]);
-    let bod = format!(
-        "POST /abc/def HTTP/1.1\r\n\
-        Host: localhost:12345\r\n\
-        \r\n\
-        {}",
-        bin
-    );
+    let mut bod: Vec<u8> =
+        b"POST /abc/def HTTP/1.1\r\n\
+          Host: localhost:12345\r\n\
+          \r\n"
+        .to_vec();
+    bod.extend(0..255);
     let req = http::Request::parse(&bod[..]).unwrap();
-    assert_eq!(req.body, bin);
+    assert_eq!(req.body, &(0..255).collect::<Vec<u8>>()[..]);
 }
 
 #[test]
@@ -63,10 +61,11 @@ fn success_no_body() {
         "GET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n\
-        \r\n",
+        \r\n"
+            .as_bytes(),
     )
     .unwrap();
-    assert_eq!(req.body, "");
+    assert_eq!(req.body, b"");
 }
 
 #[test]
@@ -77,12 +76,12 @@ fn success_same_header() {
         Host: localhost:12345\r\n\
         Header: a\r\n\
         Header: b\r\n\
-        \r\n",
+        \r\n"
+            .as_bytes(),
     )
     .unwrap();
     assert_eq!(*req.headers.get("header").unwrap(), "a, b".to_string());
 }
-
 
 #[test]
 #[cfg(feature = "raw_headers")]
@@ -92,7 +91,8 @@ fn success_raw_headers() {
         "GET /abc/def HTTP/1.1\r\n\
         HOst: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n\
-        \r\n",
+        \r\n"
+            .as_bytes(),
     )
     .unwrap();
     assert_eq!(req.raw_headers[0].name, "HOst");
@@ -108,7 +108,8 @@ fn success_empty_lines() {
         "\r\nGET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n\
-        \r\n",
+        \r\n"
+            .as_bytes(),
     )
     .unwrap();
 }
@@ -122,7 +123,8 @@ fn fail_no_empty_line() {
     http::Request::parse(
         "GET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
-        User-Agent: curl/7.58.0\r\n",
+        User-Agent: curl/7.58.0\r\n"
+            .as_bytes(),
     )
     .unwrap();
 }
@@ -136,7 +138,8 @@ fn fail_no_ending_crlf() {
     http::Request::parse(
         "GET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
-        User-Agent: curl/7.58.0",
+        User-Agent: curl/7.58.0"
+            .as_bytes(),
     )
     .unwrap();
 }

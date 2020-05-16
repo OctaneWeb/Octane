@@ -1,7 +1,6 @@
 use crate::constants::*;
 use crate::time::Time;
 use std::collections::HashMap;
-use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
 pub enum StatusCode {
@@ -11,11 +10,19 @@ pub enum StatusCode {
     NoContent = 204,
     ResetContent = 205,
     PartialContent = 206,
+    BadRequest = 400,
+    NotFound = 404,
 }
 
-impl fmt::Display for StatusCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+impl StatusCode {
+    pub fn to_string(self) -> String {
+        match self {
+            StatusCode::NotFound => "Not Found",
+            StatusCode::Ok => "OK",
+            StatusCode::BadRequest => "BAD REQUEST",
+            _ => "",
+        }
+        .to_owned()
     }
 }
 
@@ -44,10 +51,6 @@ impl<'a> Response<'a> {
     pub fn default_headers(&mut self) -> &mut Self {
         self.headers
             .insert(String::from("Content-Length"), self.body.len().to_string());
-        self.headers.insert(
-            String::from("Cache-Control"),
-            String::from("no-cache, private"),
-        );
         if let Some(date) = Time::now() {
             self.headers.insert(String::from("Date"), date.format());
         }

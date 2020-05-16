@@ -1,78 +1,84 @@
-use crate::http::{Request, RequestMethod};
-use crate::responder::Response;
+use crate::error::Error;
+use crate::file_handler::FileHandler;
+use crate::http::Request;
+use crate::responder::{Response, StatusCode};
 use futures::prelude::*;
 use smol::{Async, Task};
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::BufReader;
-use std::io::ErrorKind;
-use std::net::TcpListener;
-use std::net::TcpStream;
+use std::collections::HashSet;
+use std::net::{TcpListener, TcpStream};
 
-pub struct Server;
+#[derive(Clone)]
+pub struct Server {
+    static_dir: Option<String>,
+    get_paths: HashSet<String>,
+    post_paths: HashSet<String>,
+}
 
 impl Server {
-    pub fn listen(addr: &str) -> std::io::Result<()> {
+    pub fn new() -> Self {
+        Server {
+            static_dir: None,
+            get_paths: HashSet::new(),
+            post_paths: HashSet::new(),
+        }
+    }
+    pub fn listen(self, port: u16) -> std::io::Result<()> {
         smol::run(async {
-            let listener = Async::<TcpListener>::bind(addr)?;
+            let listener = Async::<TcpListener>::bind(format!("0.0.0.0:{}", port))?;
+
             loop {
                 let (stream, _addr) = listener.with(|l| l.accept()).await?;
-                Task::spawn(Self::handle_request(stream)).await?;
+                Task::spawn(self.clone().catch_request(stream)).await?;
             }
         })
     }
-    async fn handle_request(stream: TcpStream) -> std::io::Result<()> {
+    pub fn static_dir<'a>(&mut self, dir_name: &'a str) -> &mut Self {
+        if !dir_name.trim().is_empty() {
+            self.static_dir = Some(dir_name.to_owned())
+        }
+        self
+    }
+    pub fn get<'a>(mut self, path: &'a str, clouse: fn(Request, Server)) {
+        self.get_paths.insert(path.to_owned());
+        clouse(Request::parse(b"").unwrap(), self);
+    }
+    async fn catch_request(self, stream: TcpStream) -> std::io::Result<()> {
         let mut data = [0; 512];
-        let mut stream_async = Async::new(stream.try_clone()?)?;
+        let mut stream_async = Async::new(stream)?;
         stream_async.read(&mut data).await?;
-        let response = std::str::from_utf8(&data)
-            .expect("Found invalid UTF-8")
-            .trim_matches(char::from(0));
-        if let Some(response) = Request::parse(response.as_bytes()) {
-            if let RequestMethod::Get = response.method {
-                if response.path.contains("html") {
-                    println!("{:?}", response.path);
-                    match Task::spawn(Self::handle_file(response.path.to_string())).await {
-                        Ok(string) => {
-                            let response_back = Response::new(&string)
-                                .with_header("Content-Type", "text/html")
-                                .get_string();
-                            println!("{:?}", response_back);
-                            std::io::copy(&mut response_back.as_bytes(), &mut stream.try_clone()?);
-                        }
-                        Err(e) => {
-                            if let ErrorKind::NotFound = e.kind() {
-                                match Task::spawn(Self::handle_file("error.html".to_owned())).await
-                                {
-                                    Ok(string) => {
-                                        let response_back = Response::new(&string)
-                                            .with_header("Content-Type", "text/html")
-                                            .get_string();
-                                        println!("{:?}", response_back);
-                                        std::io::copy(
-                                            &mut response_back.as_bytes(),
-                                            &mut stream.try_clone()?,
-                                        );
-                                    }
-                                    Err(e) => println!("{:?}", e),
-                                }
-                            }
-                        }
+        if let Ok(mut request) = std::str::from_utf8(&data) {
+            request = request.trim_matches(char::from(0));
+            if let Some(parsed_request) = Request::parse(request.as_bytes()) {
+                if let Some(dir) = &self.static_dir {
+                    if let Some(file) =
+                        self.server_static_dir(parsed_request.path.to_owned(), dir.to_owned())?
+                    {
+                        let response = Response::new(&file.contents)
+                            .with_header("Content-Type", &file.get_mime_type())
+                            .get_string();
+                        Self::send(response, stream_async).await?;
+                    } else {
+                        Error::err(StatusCode::NotFound).send(stream_async).await?;
                     }
                 }
+            } else {
+                Error::err(StatusCode::BadRequest)
+                    .send(stream_async)
+                    .await?;
             }
+        } else {
+            Error::err(StatusCode::BadRequest)
+                .send(stream_async)
+                .await?
         }
         Ok(())
     }
-    async fn handle_file(path: String) -> std::io::Result<String> {
-        let mut templates_dir = "templates/".to_owned();
-        templates_dir.push_str(&path);
-        println!("{:?}", templates_dir);
-        let file = File::open(templates_dir)?;
-        let mut buf_reader = BufReader::new(file);
-        let mut contents = String::new();
-        buf_reader.read_to_string(&mut contents)?;
-
-        Ok(contents)
+    async fn send(response: String, stream: Async<TcpStream>) -> std::io::Result<()> {
+        futures::io::copy(response.as_bytes(), &mut &stream).await?;
+        Ok(())
+    }
+    fn server_static_dir(&self, path: String, dir: String) -> std::io::Result<Option<FileHandler>> {
+        let final_path = format!("{}/{}", dir, path);
+        FileHandler::handle_file(&final_path)
     }
 }

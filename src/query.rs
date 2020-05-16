@@ -158,30 +158,33 @@ pub fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
                                 Ok(v) => v,
                                 Err(_) => continue,
                             };
-                            let inside = match String::from_utf8((&bytes[ind + 1..bytelen - 1]).to_vec()) {
-                                Ok(v) => v,
-                                Err(_) => continue,
-                            };
+                            let inside =
+                                match String::from_utf8((&bytes[ind + 1..bytelen - 1]).to_vec()) {
+                                    Ok(v) => v,
+                                    Err(_) => continue,
+                                };
                             if inside.is_empty() {
-                                ret.entry(outside.clone()).or_insert_with(|| QueryValue::Arr(Vec::new()));
+                                ret.entry(outside.clone())
+                                    .or_insert_with(|| QueryValue::Arr(Vec::new()));
                                 match ret.get_mut(&outside) {
                                     Some(QueryValue::Arr(v)) => {
                                         v.push(unescaped_val);
                                         continue;
-                                    },
-                                    _ => continue
+                                    }
+                                    _ => continue,
                                 }
                             } else {
-                                ret.entry(outside.clone()).or_insert_with(|| QueryValue::Obj(HashMap::new()));
+                                ret.entry(outside.clone())
+                                    .or_insert_with(|| QueryValue::Obj(HashMap::new()));
                                 match ret.get_mut(&outside) {
                                     Some(QueryValue::Obj(v)) => {
                                         v.insert(inside, unescaped_val);
                                         continue;
-                                    },
-                                    _ => continue
+                                    }
+                                    _ => continue,
                                 }
                             }
-                        },
+                        }
                         None => {}
                     }
                 }

@@ -20,6 +20,7 @@ impl StatusCode {
             StatusCode::NotFound => "Not Found",
             StatusCode::Ok => "OK",
             StatusCode::BadRequest => "BAD REQUEST",
+            StatusCode::Created => "CREATED",
             _ => "",
         }
         .to_owned()

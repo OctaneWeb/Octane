@@ -14,5 +14,5 @@ use crate::server::Server;
 async fn main() {
     let mut app = Server::new();
     app.static_dir("templates");
-    app.listen(8080).await;
+    app.listen(12369).await;
 }

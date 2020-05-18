@@ -11,6 +11,8 @@ use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
 
+const BUF_SIZE: usize = 512;
+
 #[derive(Clone)]
 struct ServerConfig {
     static_dir: String,
@@ -71,31 +73,32 @@ impl Server {
         mut stream_async: TcpStream,
         config: ServerConfig,
     ) -> std::io::Result<()> {
-        let mut data = [0; 512];
-        stream_async.read(&mut data).await?;
-        if let Ok(mut request) = std::str::from_utf8(&data) {
-            request = request.trim_matches(char::from(0));
-            if let Some(parsed_request) = Request::parse(request.as_bytes()) {
-                if let Some(file) = Self::server_static_dir(
-                    parsed_request.path.to_owned(),
-                    config.static_dir.to_owned(),
-                )? {
-                    let response = Response::new(&file.contents)
-                        .with_header("Content-Type", &file.get_mime_type())
-                        .get_string();
-                    Self::send_data(response, stream_async).await?;
-                } else {
-                    Error::err(StatusCode::NotFound).send(stream_async).await?;
-                }
+        let mut data = Vec::<u8>::new();
+        let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
+        loop {
+            let read = stream_async.read(&mut buf).await?;
+            data.extend_from_slice(&buf);
+            if read < BUF_SIZE {
+                break;
+            }
+        }
+        if let Some(parsed_request) = Request::parse(&data[..]) {
+            if let Some(file) = Self::server_static_dir(
+                parsed_request.path.to_owned(),
+                config.static_dir.to_owned(),
+            )? {
+                let response = Response::new(&file.contents)
+                    .with_header("Content-Type", &file.get_mime_type())
+                    .get_string();
+                Self::send_data(response, stream_async).await?;
             } else {
-                Error::err(StatusCode::BadRequest)
-                    .send(stream_async)
-                    .await?;
+                Error::err(StatusCode::NotFound).send(stream_async).await?;
             }
         } else {
+            println!("bad request wtf");
             Error::err(StatusCode::BadRequest)
                 .send(stream_async)
-                .await?
+                .await?;
         }
         Ok(())
     }

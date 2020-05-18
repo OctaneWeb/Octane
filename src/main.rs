@@ -10,8 +10,9 @@ pub mod server;
 pub mod time;
 
 use crate::server::Server;
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut app = Server::new();
     app.static_dir("templates");
-    app.listen(8080).unwrap();
+    app.listen(8080).await;
 }

@@ -2,6 +2,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use std::path::Path;
+use tokio::io::AsyncReadExt;
 
 pub struct FileHandler {
     pub file_name: String,

@@ -1,6 +1,5 @@
 extern crate octane;
 use octane::time;
-mod common;
 
 #[test]
 fn start_date() {

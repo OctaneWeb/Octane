@@ -2,8 +2,6 @@
 use octane::query::{self, QueryValue};
 extern crate octane;
 
-mod common;
-
 #[test]
 fn success_standard() {
     // Parsing should work as expected.
@@ -12,7 +10,7 @@ fn success_standard() {
     assert_eq!(query["ab"], QueryValue::Str("ab cdJ".to_string()));
     assert_eq!(
         query["arr"],
-        QueryValue::Arr(["x", "y", "z"].into_iter().map(|v| v.to_string()).collect())
+        QueryValue::Arr(["x", "y", "z"].iter().map(|v| v.to_string()).collect())
     );
     let obj = match query["obj"].clone() {
         QueryValue::Obj(v) => v,

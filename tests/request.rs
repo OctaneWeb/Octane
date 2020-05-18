@@ -1,8 +1,6 @@
 extern crate octane;
 use octane::http;
 
-mod common;
-
 #[test]
 fn success_standard() {
     // Parsing should work as expected.

@@ -2,8 +2,6 @@
 use octane::query;
 extern crate octane;
 
-mod common;
-
 #[test]
 fn success_standard() {
     // Parsing should work as expected.

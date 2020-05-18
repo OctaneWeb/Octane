@@ -1,7 +1,5 @@
 extern crate octane;
 use octane::responder;
-use octane::time;
-mod common;
 
 #[test]
 fn success_standard() {

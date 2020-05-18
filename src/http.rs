@@ -177,7 +177,7 @@ impl<'a> Request<'a> {
             .next()
             .map(|v| match str::from_utf8(v) {
                 Ok(s) => RequestLine::parse(s),
-                Err(_) => return None,
+                Err(_) => None,
             })
             .flatten()
         {

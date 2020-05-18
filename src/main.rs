@@ -13,5 +13,5 @@ use crate::server::Server;
 fn main() {
     let mut app = Server::new();
     app.static_dir("templates");
-    app.listen(8080);
+    app.listen(8080).unwrap();
 }

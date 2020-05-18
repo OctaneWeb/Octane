@@ -5,12 +5,12 @@ use std::path::Path;
 
 pub struct FileHandler {
     pub file_name: String,
-    pub contents: String,
+    pub contents: Vec<u8>,
     extension: String,
 }
 
 impl FileHandler {
-    pub fn handle_file<'a>(file_name: &'a str) -> std::io::Result<Option<Self>> {
+    pub fn handle_file(file_name: &str) -> std::io::Result<Option<Self>> {
         let file = File::open(file_name)?;
         if file.metadata()?.file_type().is_file() {
             let extension = Path::new(&file_name)
@@ -18,8 +18,8 @@ impl FileHandler {
                 .and_then(OsStr::to_str)
                 .unwrap();
             let mut buf_reader = BufReader::new(file);
-            let mut contents = String::new();
-            buf_reader.read_to_string(&mut contents)?;
+            let mut contents = Vec::new();
+            buf_reader.read_to_end(&mut contents)?;
             Ok(Some(FileHandler {
                 file_name: file_name.to_owned(),
                 contents,

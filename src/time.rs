@@ -35,7 +35,7 @@ impl Time {
                     return None;
                 }
             }
-            Err(_) => panic!("Invalid date"),
+            Err(m) => panic!("Got time error: {}", m),
         };
         Self::time(stamp)
     }

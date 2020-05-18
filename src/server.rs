@@ -7,7 +7,7 @@ use smol::{Async, Task};
 use std::collections::HashSet;
 use std::net::{TcpListener, TcpStream};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Server {
     static_dir: Option<String>,
     get_paths: HashSet<String>,
@@ -38,7 +38,7 @@ impl Server {
         }
         self
     }
-    pub fn get<'a>(mut self, path: &'a str, clouse: fn(Request, Server)) {
+    pub fn get(mut self, path: &str, clouse: fn(Request, Server)) {
         self.get_paths.insert(path.to_owned());
         clouse(Request::parse(b"").unwrap(), self);
     }
@@ -53,10 +53,11 @@ impl Server {
                     if let Some(file) =
                         self.server_static_dir(parsed_request.path.to_owned(), dir.to_owned())?
                     {
+                        let mime = file.get_mime_type();
                         let response = Response::new(&file.contents)
-                            .with_header("Content-Type", &file.get_mime_type())
+                            .with_header("Content-Type", &mime)
                             .get_string();
-                        Self::send(response, stream_async).await?;
+                        Self::send(&response[..], stream_async).await?;
                     } else {
                         Error::err(StatusCode::NotFound).send(stream_async).await?;
                     }
@@ -73,8 +74,8 @@ impl Server {
         }
         Ok(())
     }
-    async fn send(response: String, stream: Async<TcpStream>) -> std::io::Result<()> {
-        futures::io::copy(response.as_bytes(), &mut &stream).await?;
+    async fn send(response: &[u8], stream: Async<TcpStream>) -> std::io::Result<()> {
+        futures::io::copy(response, &mut &stream).await?;
         Ok(())
     }
     fn server_static_dir(&self, path: String, dir: String) -> std::io::Result<Option<FileHandler>> {

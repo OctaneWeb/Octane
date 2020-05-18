@@ -1,6 +1,7 @@
 use crate::constants::*;
 use crate::time::Time;
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
 pub enum StatusCode {
@@ -14,22 +15,25 @@ pub enum StatusCode {
     NotFound = 404,
 }
 
-impl StatusCode {
-    pub fn to_string(self) -> String {
-        match self {
-            StatusCode::NotFound => "Not Found",
-            StatusCode::Ok => "OK",
-            StatusCode::BadRequest => "BAD REQUEST",
-            StatusCode::Created => "CREATED",
-            _ => "",
-        }
-        .to_owned()
+impl fmt::Display for StatusCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                StatusCode::NotFound => "Not Found",
+                StatusCode::Ok => "OK",
+                StatusCode::BadRequest => "BAD REQUEST",
+                StatusCode::Created => "CREATED",
+                _ => "",
+            }
+        )
     }
 }
 
 pub struct Response<'a> {
     pub status_code: StatusCode,
-    pub body: &'a str,
+    pub body: &'a [u8],
     pub http_version: &'a str,
     pub headers: HashMap<String, String>,
 }
@@ -40,7 +44,7 @@ impl<'a> Response<'a> {
 
         self
     }
-    pub fn new(body: &'a str) -> Self {
+    pub fn new(body: &'a [u8]) -> Self {
         Response {
             status_code: StatusCode::Ok,
             body,
@@ -69,16 +73,16 @@ impl<'a> Response<'a> {
         }
         self
     }
-    pub fn get_string(&mut self) -> String {
+    pub fn get_string(&mut self) -> Vec<u8> {
         let mut headers_str = String::from("");
         self.headers
             .iter()
             .for_each(|data| headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF)));
-        if self.body.trim().is_empty() {
-            format!("{}{}", self.status_line(), headers_str)
-        } else {
-            format!("{}{}{}{}", self.status_line(), headers_str, CRLF, self.body)
-        }
+        [
+            format!("{}{}{}", self.status_line(), headers_str, CRLF).as_bytes(),
+            self.body,
+        ]
+        .concat()
     }
     fn status_line(&self) -> String {
         format!(

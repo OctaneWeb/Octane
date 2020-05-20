@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::io::copy;
-use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
 
@@ -86,7 +86,9 @@ impl Server {
             if let Some(file) = Self::server_static_dir(
                 parsed_request.path.to_owned(),
                 config.static_dir.to_owned(),
-            )? {
+            )
+            .await?
+            {
                 let response = Response::new(&file.contents)
                     .with_header("Content-Type", &file.get_mime_type())
                     .get_string();
@@ -106,8 +108,8 @@ impl Server {
         copy(&mut &response[..], &mut stream).await?;
         Ok(())
     }
-    fn server_static_dir(path: String, dir: String) -> std::io::Result<Option<FileHandler>> {
+    async fn server_static_dir(path: String, dir: String) -> std::io::Result<Option<FileHandler>> {
         let final_path = format!("{}/{}", dir, path);
-        FileHandler::handle_file(&final_path)
+        FileHandler::handle_file(&final_path).await
     }
 }

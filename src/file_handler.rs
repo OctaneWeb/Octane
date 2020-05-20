@@ -1,8 +1,8 @@
 use std::ffi::OsStr;
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
 use std::path::Path;
+use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tokio::io::BufReader;
 
 pub struct FileHandler {
     pub file_name: String,
@@ -11,16 +11,16 @@ pub struct FileHandler {
 }
 
 impl FileHandler {
-    pub fn handle_file(file_name: &str) -> std::io::Result<Option<Self>> {
-        let file = File::open(file_name)?;
-        if file.metadata()?.file_type().is_file() {
+    pub async fn handle_file(file_name: &str) -> std::io::Result<Option<Self>> {
+        let file = File::open(file_name).await?;
+        if file.metadata().await?.file_type().is_file() {
             let extension = Path::new(&file_name)
                 .extension()
                 .and_then(OsStr::to_str)
                 .unwrap();
             let mut buf_reader = BufReader::new(file);
             let mut contents = Vec::new();
-            buf_reader.read_to_end(&mut contents)?;
+            buf_reader.read_to_end(&mut contents).await?;
             Ok(Some(FileHandler {
                 file_name: file_name.to_owned(),
                 contents,

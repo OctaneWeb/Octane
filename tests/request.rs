@@ -1,10 +1,10 @@
 extern crate octane;
-use octane::http;
+use octane::request::{Request, RequestMethod};
 
 #[test]
 fn success_standard() {
     // Parsing should work as expected.
-    let req = http::Request::parse(
+    let req = Request::parse(
         "POST /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n\
@@ -16,7 +16,7 @@ fn success_standard() {
             .as_bytes(),
     )
     .unwrap();
-    assert_eq!(req.method, http::RequestMethod::Post);
+    assert_eq!(req.method, RequestMethod::Post);
     assert_eq!(req.path, "/abc/def");
     assert_eq!(req.version, "1.1");
     assert_eq!(
@@ -42,20 +42,19 @@ fn success_standard() {
 #[test]
 fn success_binary_body() {
     // Response body should be able to have binary data.
-    let mut bod: Vec<u8> =
-        b"POST /abc/def HTTP/1.1\r\n\
+    let mut bod: Vec<u8> = b"POST /abc/def HTTP/1.1\r\n\
           Host: localhost:12345\r\n\
           \r\n"
         .to_vec();
     bod.extend(0..255);
-    let req = http::Request::parse(&bod[..]).unwrap();
+    let req = Request::parse(&bod[..]).unwrap();
     assert_eq!(req.body, &(0..255).collect::<Vec<u8>>()[..]);
 }
 
 #[test]
 fn success_no_body() {
     // Requests with no body should not have a body.
-    let req = http::Request::parse(
+    let req = Request::parse(
         "GET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n\
@@ -69,7 +68,7 @@ fn success_no_body() {
 #[test]
 fn success_same_header() {
     // Requests with no body should not have a body.
-    let req = http::Request::parse(
+    let req = Request::parse(
         "GET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         Header: a\r\n\
@@ -85,7 +84,7 @@ fn success_same_header() {
 #[cfg(feature = "raw_headers")]
 fn success_raw_headers() {
     // Parsing should work as expected.
-    let req = http::Request::parse(
+    let req = Request::parse(
         "GET /abc/def HTTP/1.1\r\n\
         HOst: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n\
@@ -102,7 +101,7 @@ fn success_raw_headers() {
 #[test]
 fn success_empty_lines() {
     // Parsing should ignore leading empty lines.
-    http::Request::parse(
+    Request::parse(
         "\r\nGET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n\
@@ -118,7 +117,7 @@ fn success_empty_lines() {
 fn fail_no_empty_line() {
     // Parsing should require an empty line at the end.
     // Will complete when body parsing is added.
-    http::Request::parse(
+    Request::parse(
         "GET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         User-Agent: curl/7.58.0\r\n"
@@ -133,7 +132,7 @@ fn fail_no_empty_line() {
 fn fail_no_ending_crlf() {
     // Parsing should require a crlf at the end of every header.
     // Will complete when body parsing is added.
-    http::Request::parse(
+    Request::parse(
         "GET /abc/def HTTP/1.1\r\n\
         Host: localhost:12345\r\n\
         User-Agent: curl/7.58.0"

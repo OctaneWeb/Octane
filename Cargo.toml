@@ -4,13 +4,14 @@ version = "0.1.0"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 lazy_static = "1.4.0"
 rustls = { version = "0.17.0", optional = true }
 tokio = { version = "0.2.21", features = ["tcp", "fs", "stream", "macros", "io-util"] }
 futures = "0.3"
+
+[dependencies.macros]
+path = "macros"
 
 [features]
 default = ["faithful", "query_strings"]
@@ -19,3 +20,8 @@ raw_headers = []
 query_strings = []
 extended_queries = []
 https = ["rustls"]
+
+[workspace]
+members = [
+    "macros"
+]

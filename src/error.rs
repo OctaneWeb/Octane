@@ -1,9 +1,10 @@
-use crate::responder::{Response, StatusCode};
+use crate::responder::Response;
 use tokio::fs::File;
 use tokio::io::copy;
 use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
 use tokio::net::TcpStream;
+use crate::constants::*;
 
 pub struct Error {
     pub kind: StatusCode,

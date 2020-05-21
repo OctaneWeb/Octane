@@ -1,35 +1,6 @@
 use crate::constants::*;
 use crate::time::Time;
 use std::collections::HashMap;
-use std::fmt;
-
-#[derive(Debug, Copy, Clone)]
-pub enum StatusCode {
-    Ok = 200,
-    Created = 201,
-    Accepted = 202,
-    NoContent = 204,
-    ResetContent = 205,
-    PartialContent = 206,
-    BadRequest = 400,
-    NotFound = 404,
-}
-
-impl fmt::Display for StatusCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                StatusCode::NotFound => "Not Found",
-                StatusCode::Ok => "OK",
-                StatusCode::BadRequest => "BAD REQUEST",
-                StatusCode::Created => "CREATED",
-                _ => "",
-            }
-        )
-    }
-}
 
 pub struct Response<'a> {
     pub status_code: StatusCode,
@@ -107,7 +78,7 @@ impl<'a> Response<'a> {
         self.http_version = version;
         self
     }
-    fn status_code(&self) -> u16 {
-        self.status_code as u16
+    fn status_code(&self) -> i32 {
+        self.status_code.into()
     }
 }

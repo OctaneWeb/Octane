@@ -1,8 +1,8 @@
 use crate::error::Error;
 use crate::file_handler::FileHandler;
 use crate::request::Request;
-use crate::responder::{Response, StatusCode};
-use futures::prelude::*;
+use crate::responder::Response;
+use crate::constants::*;
 use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::sync::Arc;

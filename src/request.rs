@@ -175,11 +175,10 @@ impl<'a> Request<'a> {
         toks.skip_empty();
         let line = match toks
             .next()
-            .map(|v| match str::from_utf8(v) {
+            .and_then(|v| match str::from_utf8(v) {
                 Ok(s) => RequestLine::parse(s),
                 Err(_) => None,
             })
-            .flatten()
         {
             Some(v) => v,
             None => return None,

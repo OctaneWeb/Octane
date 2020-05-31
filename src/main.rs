@@ -9,10 +9,12 @@ pub mod responder;
 pub mod server;
 pub mod time;
 
-use crate::server::Server;
+use crate::server::Octane;
 #[tokio::main]
 async fn main() {
-    let mut app = Server::new();
-    app.static_dir("templates");
-    app.listen(12369).await;
+    let mut app = Octane::new();
+    app.get("/", |req| {
+        println!("{:?}", req.headers);
+    });
+    let _res = app.listen(8080).await;
 }

@@ -1,6 +1,10 @@
 use crate::constants::*;
 use crate::error::Error;
 use crate::request::Request;
+use crate::responder::Response;
+use core::future::Future;
+use core::pin::Pin;
+use futures::future::BoxFuture;
 use std::fmt;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::sync::Arc;
@@ -10,10 +14,13 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
 
+type Closure = for<'a> fn(Request, &'a mut Response) -> BoxFuture<'a, ()>;
+
 #[derive(Clone)]
+
 struct ServerConfig {
     static_dir: Option<String>,
-    get_paths: Option<Vec<(String, fn(Request) -> ())>>,
+    get_paths: Option<Vec<(String, Closure)>>,
 }
 
 impl fmt::Debug for ServerConfig {
@@ -60,12 +67,12 @@ impl Octane {
         Ok(())
     }
 
-    pub fn get<'a>(&mut self, path: &'a str, closure: fn(Request) -> ()) {
+    pub fn get<'a>(&mut self, path: &'a str, closure: Closure) {
         if let Some(mut paths) = self.clone().meta_data.get_paths {
-            paths.push((path.to_string(), closure));
+            paths.push((path.to_string(), *Box::new(closure)));
             self.meta_data.get_paths = Some(paths);
         } else {
-            self.meta_data.get_paths = Some(vec![(path.to_string(), closure)]);
+            self.meta_data.get_paths = Some(vec![(path.to_string(), *Box::new(closure))]);
         }
     }
 
@@ -83,11 +90,13 @@ impl Octane {
             }
         }
         if let Some(parsed_request) = Request::parse(&data[..]) {
-            config.get_paths.as_ref().unwrap().iter().for_each(|data| {
+            let mut res = Response::new(b"");
+            for data in config.get_paths.as_ref().unwrap().iter() {
                 if parsed_request.path == data.0 {
-                    data.1(parsed_request.clone())
+                    data.1(parsed_request.clone(), &mut res).await;
                 }
-            });
+            }
+            Self::send_data(res.get_data(), stream_async).await?;
         } else {
             Error::err(StatusCode::BadRequest)
                 .send(stream_async)

@@ -1,27 +1,45 @@
 use crate::constants::*;
+use crate::file_handler::FileHandler;
 use crate::time::Time;
 use std::collections::HashMap;
+use std::fmt;
 
 pub struct Response<'a> {
     pub status_code: StatusCode,
-    pub body: &'a [u8],
+    pub body: Vec<u8>,
     pub http_version: &'a str,
     pub headers: HashMap<String, String>,
 }
 
+impl<'a> fmt::Debug for Response<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Response")
+            .field("status_code", &self.status_code)
+            .field("http_version", &self.http_version)
+            .field("body", &std::str::from_utf8(&self.body))
+            .finish()
+    }
+}
+
 impl<'a> Response<'a> {
-    pub fn with_header(&mut self, key: &'a str, value: &'a str) -> &mut Self {
-        self.headers.insert(key.to_owned(), value.to_owned());
+    pub fn with_header(&mut self, key: &'a str, value: String) -> &mut Self {
+        self.headers.insert(key.to_owned(), value);
 
         self
     }
     pub fn new(body: &'a [u8]) -> Self {
         Response {
             status_code: StatusCode::Ok,
-            body,
+            body: body.to_vec(),
             http_version: "1.1",
             headers: HashMap::new(),
         }
+    }
+    pub fn send(&mut self, body: &'a str) {
+        let heading_one = b"<!DOCTYPE html><html><head></head><body>";
+        let heading_two = b"</body></html>";
+        let data = &[heading_one, body.as_bytes(), heading_two].concat();
+        self.body = data.to_vec();
     }
 
     pub fn default_headers(&mut self) -> &mut Self {
@@ -31,7 +49,7 @@ impl<'a> Response<'a> {
             self.headers.insert(String::from("Date"), date.format());
         }
         self.headers
-            .insert(String::from("Content-Type"), String::from("text/plain"));
+            .insert(String::from("Content-Type"), String::from("text/html"));
         // TODO: Add more default headers
         self
     }
@@ -44,16 +62,26 @@ impl<'a> Response<'a> {
         }
         self
     }
-    pub fn get_string(&mut self) -> Vec<u8> {
+    pub fn get_data(&mut self) -> Vec<u8> {
         let mut headers_str = String::from("");
         self.headers
             .iter()
             .for_each(|data| headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF)));
         [
             format!("{}{}{}", self.status_line(), headers_str, CRLF).as_bytes(),
-            self.body,
+            &self.body,
         ]
         .concat()
+    }
+    pub async fn send_file(&mut self, file_name: &'a str) -> std::io::Result<()> {
+        if let Some(file) = FileHandler::handle_file(file_name).await? {
+            let mime_type = file.get_mime_type();
+            self.with_header("Content-Type", mime_type);
+            self.body = file.contents;
+        } else {
+            // TODO: Send a 404 here
+        }
+        Ok(())
     }
     fn status_line(&self) -> String {
         format!(
@@ -70,7 +98,7 @@ impl<'a> Response<'a> {
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()
     }
-    pub fn with_status(&mut self, code: StatusCode) -> &mut Self {
+    pub fn status(&mut self, code: StatusCode) -> &mut Self {
         self.status_code = code;
         self
     }

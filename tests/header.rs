@@ -57,7 +57,7 @@ fn success_keepalive_edge() {
 
 #[test]
 fn success_cookies() {
-    // Edge cases should work as expected.
+    // Parsing should work as expected.
     let cookies = Cookies::parse("a=asdf; b=fdsa; c=; d=x=5");
     assert_eq!(cookies.get("a"), Some(&"asdf"));
     assert_eq!(cookies.get("b"), Some(&"fdsa"));

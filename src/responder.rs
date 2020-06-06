@@ -35,10 +35,10 @@ impl<'a> Response<'a> {
             headers: HashMap::new(),
         }
     }
-    pub fn send(&mut self, body: &'a str) {
+    pub fn send(&mut self, body: &'a [u8]) {
         let heading_one = b"<!DOCTYPE html><html><head></head><body>";
         let heading_two = b"</body></html>";
-        let data = &[heading_one, body.as_bytes(), heading_two].concat();
+        let data = &[heading_one, body, heading_two].concat();
         self.body = data.to_vec();
     }
 

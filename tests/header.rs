@@ -1,5 +1,5 @@
 extern crate octane;
-use octane::request::Header;
+use octane::request::{Header, KeepAlive, Cookies};
 
 #[test]
 fn success_standard() {
@@ -37,4 +37,30 @@ fn fail_empty_name() {
 fn fail_malformed_name() {
     // Having separators in the name should fail.
     Header::parse("Test Header: test").unwrap();
+}
+
+#[test]
+fn success_keepalive() {
+    // Parsing should work as expected.
+    let req = KeepAlive::parse("timeout=5, max=1000");
+    assert_eq!(req.timeout, Some(5));
+    assert_eq!(req.max, Some(1000));
+}
+
+#[test]
+fn success_keepalive_edge() {
+    // Edge cases should work as expected.
+    let req = KeepAlive::parse("timeout=,test,max=a, timeout=5");
+    assert_eq!(req.timeout, Some(5));
+    assert_eq!(req.max, None);
+}
+
+#[test]
+fn success_cookies() {
+    // Edge cases should work as expected.
+    let cookies = Cookies::parse("a=asdf; b=fdsa; c=; d=x=5");
+    assert_eq!(cookies.get("a"), Some(&"asdf"));
+    assert_eq!(cookies.get("b"), Some(&"fdsa"));
+    assert_eq!(cookies.get("c"), Some(&""));
+    assert_eq!(cookies.get("d"), Some(&"x=5"));
 }

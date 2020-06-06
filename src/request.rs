@@ -3,6 +3,7 @@ use std::cfg;
 use std::collections::HashMap;
 use std::iter::FusedIterator;
 use std::str;
+use std::ops::Deref;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RequestMethod<'a> {
@@ -173,13 +174,10 @@ impl<'a> Request<'a> {
     pub fn parse(request: &'a [u8]) -> Option<Self> {
         let mut toks = Spliterator::new(request, B_CRLF);
         toks.skip_empty();
-        let line = match toks
-            .next()
-            .and_then(|v| match str::from_utf8(v) {
-                Ok(s) => RequestLine::parse(s),
-                Err(_) => None,
-            })
-        {
+        let line = match toks.next().and_then(|v| match str::from_utf8(v) {
+            Ok(s) => RequestLine::parse(s),
+            Err(_) => None,
+        }) {
             Some(v) => v,
             None => return None,
         };
@@ -224,5 +222,69 @@ impl<'a> Request<'a> {
             raw_headers,
             body,
         })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct KeepAlive {
+    pub timeout: Option<u64>,
+    pub max: Option<u64>,
+}
+
+impl KeepAlive {
+    pub fn parse(header: &str) -> Self {
+        let mut ret = Self {
+            timeout: None,
+            max: None,
+        };
+        for tok in header.split(',') {
+            let trimmed = tok.trim();
+            let eq_ind = match trimmed.find("=") {
+                Some(v) => v,
+                None => continue,
+            };
+            let (name, val_str) = trimmed.split_at(eq_ind);
+            let val: u64 = match (&val_str[1..]).parse() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            match name {
+                "timeout" => ret.timeout = Some(val),
+                "max" => ret.max = Some(val),
+                _ => continue
+            };
+        }
+        ret
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Cookies<'a> {
+    pub cookies: HashMap<&'a str, &'a str>,
+}
+
+impl<'a> Deref for Cookies<'a> {
+    type Target = HashMap<&'a str, &'a str>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.cookies
+    }
+}
+
+impl<'a> Cookies<'a> {
+    pub fn parse(header: &'a str) -> Self {
+        let mut hashmap: HashMap<&'a str, &'a str> = HashMap::new();
+        for tok in header.split("; ") {
+            let eq_ind = match tok.find("=") {
+                Some(v) => v,
+                None => continue,
+            };
+            let (first, second) = tok.split_at(eq_ind);
+            hashmap.insert(first, &second[1..]);
+        }
+        Self {
+            cookies: hashmap
+        }
     }
 }

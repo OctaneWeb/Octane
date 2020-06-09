@@ -40,6 +40,36 @@ fn success_standard() {
 }
 
 #[test]
+#[cfg(feature = "cookies")]
+fn success_cookies() {
+    // Parsing should work as expected.
+    let req = Request::parse(
+        "GET /abc/def HTTP/1.1\r\n\
+        Host: localhost:12345\r\n\
+        Cookie: a=1; b=2\r\n\
+        \r\n"
+            .as_bytes(),
+    )
+    .unwrap();
+    assert_eq!(req.cookies["a"], "1".to_string());
+    assert_eq!(req.cookies["b"], "2".to_string());
+}
+
+#[test]
+#[cfg(feature = "cookies")]
+fn success_cookies_no_header() {
+    // Having no Cookie header should yield an empty hashmap.
+    let req = Request::parse(
+        "GET /abc/def HTTP/1.1\r\n\
+        Host: localhost:12345\r\n\
+        \r\n"
+            .as_bytes(),
+    )
+    .unwrap();
+    assert_eq!(req.cookies.len(), 0);
+}
+
+#[test]
 fn success_binary_body() {
     // Response body should be able to have binary data.
     let mut bod: Vec<u8> = b"POST /abc/def HTTP/1.1\r\n\

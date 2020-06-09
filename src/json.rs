@@ -15,84 +15,84 @@ impl Value {
     pub fn as_number(&self) -> Option<&f64> {
         match self {
             Value::Number(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_boolean(&self) -> Option<&bool> {
         match self {
             Value::Boolean(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_string(&self) -> Option<&String> {
         match self {
             Value::String(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_array(&self) -> Option<&Vec<Value>> {
         match self {
             Value::Array(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_object(&self) -> Option<&HashMap<String, Value>> {
         match self {
             Value::Object(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_null(&self) -> Option<()> {
         match self {
             Value::Null => Some(()),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn is_number(&self) -> bool {
         match self {
             Value::Number(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_boolean(&self) -> bool {
         match self {
             Value::Boolean(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_string(&self) -> bool {
         match self {
             Value::String(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_array(&self) -> bool {
         match self {
             Value::Array(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_object(&self) -> bool {
         match self {
             Value::Object(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_null(&self) -> bool {
         match self {
             Value::Null => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -193,9 +193,11 @@ pub fn parse_object(dat: &str) -> Option<(HashMap<String, Value>, &str)> {
         ret.insert(key, val);
         cur = remainder;
         match *cur.as_bytes().get(0)? {
-            b',' => {cur = consume_ws(&cur[1..]);},
+            b',' => {
+                cur = consume_ws(&cur[1..]);
+            }
             b'}' => return Some((ret, &cur[1..])),
-            _ => return None
+            _ => return None,
         }
     }
     None
@@ -209,9 +211,14 @@ pub fn parse_array(dat: &str) -> Option<(Vec<Value>, &str)> {
         let (val, rest) = parse_element(cur)?;
         ret.push(val);
         match *rest.as_bytes().get(0)? {
-            b',' => {cur = consume_ws(&rest[1..]);},
-            b']' => {cur = &rest[1..]; break;},
-            _ => return None
+            b',' => {
+                cur = consume_ws(&rest[1..]);
+            }
+            b']' => {
+                cur = &rest[1..];
+                break;
+            }
+            _ => return None,
         };
     }
     Some((ret, cur))

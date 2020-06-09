@@ -1,6 +1,6 @@
 use crate::constants::*;
 use std::cfg;
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
 use std::iter::FusedIterator;
 use std::str;
 use std::ops::Deref;
@@ -106,6 +106,8 @@ pub struct Request<'a> {
     pub body: &'a [u8],
     #[cfg(feature = "raw_headers")]
     pub raw_headers: Vec<Header<'a>>,
+    #[cfg(feature = "cookies")]
+    pub cookies: Cookies,
 }
 
 struct Spliterator<'a> {
@@ -213,6 +215,14 @@ impl<'a> Request<'a> {
             return None;
         }
         let body = toks.string;
+        #[cfg(feature = "cookies")]
+        let cookies: Cookies;
+        #[cfg(feature = "cookies")]
+        if let Some(v) = headers.get("cookie") {
+            cookies = Cookies::parse(v);
+        } else {
+            cookies = Default::default();
+        }
         Some(Self {
             method: line.method,
             path: line.path,
@@ -220,6 +230,8 @@ impl<'a> Request<'a> {
             headers,
             #[cfg(feature = "raw_headers")]
             raw_headers,
+            #[cfg(feature = "cookies")]
+            cookies,
             body,
         })
     }
@@ -259,29 +271,37 @@ impl KeepAlive {
 }
 
 
-#[derive(Debug, Clone)]
-pub struct Cookies<'a> {
-    pub cookies: HashMap<&'a str, &'a str>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cookies {
+    pub cookies: HashMap<String, String>,
 }
 
-impl<'a> Deref for Cookies<'a> {
-    type Target = HashMap<&'a str, &'a str>;
+impl Deref for Cookies {
+    type Target = HashMap<String, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.cookies
     }
 }
 
-impl<'a> Cookies<'a> {
-    pub fn parse(header: &'a str) -> Self {
-        let mut hashmap: HashMap<&'a str, &'a str> = HashMap::new();
+impl Default for Cookies {
+    fn default() -> Self {
+        Self {
+            cookies: HashMap::new()
+        }
+    }
+}
+
+impl Cookies {
+    pub fn parse(header: &str) -> Self {
+        let mut hashmap: HashMap<String, String> = HashMap::new();
         for tok in header.split("; ") {
             let eq_ind = match tok.find("=") {
                 Some(v) => v,
                 None => continue,
             };
             let (first, second) = tok.split_at(eq_ind);
-            hashmap.insert(first, &second[1..]);
+            hashmap.insert(first.to_owned(), second[1..].to_owned());
         }
         Self {
             cookies: hashmap

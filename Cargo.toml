@@ -14,11 +14,12 @@ futures = "0.3"
 path = "macros"
 
 [features]
-default = ["faithful", "query_strings"]
+default = ["faithful", "query_strings", "cookies"]
 faithful = []
 raw_headers = []
 query_strings = []
 extended_queries = []
+cookies = []
 https = ["rustls"]
 
 [workspace]

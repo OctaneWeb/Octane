@@ -1,5 +1,5 @@
 extern crate octane;
-use octane::request::{Header, KeepAlive, Cookies};
+use octane::request::{Cookies, Header, KeepAlive};
 
 #[test]
 fn success_standard() {

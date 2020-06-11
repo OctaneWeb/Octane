@@ -1,8 +1,8 @@
 # Contributing
 
 Before contributing, make sure you are following 
-1. Branch naming standards
-2. Committing standards
+1. [Branch naming standards](https://github.com/OctaneWeb/Octane/wiki/Branch-naming-scheme)
+2. [Committing standards](https://github.com/OctaneWeb/Octane/wiki/Commit-guidelines)
 
 # How to pickup a issue? 
 

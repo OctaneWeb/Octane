@@ -5,7 +5,7 @@
 
 A no-nonsense, high-powered web server aimed at minimizing dependencies while maintaining speed. Modeled after Express, a popular Javascript web framework, Octane combines the speed of Rust with the ease-of-use and flexibility of Express to create the optimal user experience.
 
-# Usage 
+#  Basic Usage 
 
 Create an octane instance, and then you can register your methods on it using `app.METOHD()`
 
@@ -14,7 +14,7 @@ let mut app = Octane::new();
 app.get("/", |_req, res| {
     Box::pin(async move {
         if let Ok(result) = res.send_file("templates/test.html").await {
-            // yay! :rocket:
+            // yay!
         }
     })
 });

@@ -7,7 +7,7 @@ A no-nonsense, high-powered web server aimed at minimizing dependencies while ma
 
 #  Basic Usage 
 
-Create an octane instance, and then you can register your methods on it using `app.METOHD()`
+Create an octane instance, and then you can register your methods on it using `app.METHOD()`
 
 ```rust
 let mut app = Octane::new();

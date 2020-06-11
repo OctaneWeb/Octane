@@ -2,6 +2,10 @@
 name = "octane"
 version = "0.1.0"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
+description = "A web server built from the ground up."
+license-file = "LICENSE"
+homepage = "https://github.com/OctaneWeb/Octane"
+readme = "README.md"
 edition = "2018"
 
 [dependencies]
@@ -10,8 +14,9 @@ rustls = { version = "0.17.0", optional = true }
 tokio = { version = "0.2.21", features = ["tcp", "fs", "stream", "macros", "io-util"] }
 futures = "0.3"
 
-[dependencies.macros]
-path = "macros"
+[dependencies.octane_macros]
+path = "octane_macros"
+version = "0.1.0"
 
 [features]
 default = ["faithful", "query_strings", "cookies"]
@@ -24,5 +29,5 @@ https = ["rustls"]
 
 [workspace]
 members = [
-    "macros"
+    "octane_macros"
 ]

@@ -1,4 +1,4 @@
-use macros::status_codes;
+use octane_macros::status_codes;
 use std::collections::HashSet;
 use std::fmt;
 use std::iter::FromIterator;

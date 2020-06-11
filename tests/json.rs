@@ -40,7 +40,10 @@ fn success_null() {
 #[test]
 fn success_number() {
     // Parsing should work as expected.
-    assert_eq!((-1.23e+2, "asdf"), json::parse_number("-1.23e+2asdf").unwrap());
+    assert_eq!(
+        (-1.23e+2, "asdf"),
+        json::parse_number("-1.23e+2asdf").unwrap()
+    );
     assert!(json::parse_number("1..").is_none());
 }
 
@@ -58,11 +61,19 @@ fn success_object() {
     let (obj, rest) = json::parse_object(r#"{"a" : 1 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}asdf"#).unwrap();
     assert!(approx_equal(*obj["a"].as_number().unwrap(), 1.0));
     assert_eq!(*obj["b"].as_string().unwrap(), "two".to_string());
-    assert!(approx_equal(*obj["c"].as_object().unwrap()["x"].as_number().unwrap(), 3.0));
+    assert!(approx_equal(
+        *obj["c"].as_object().unwrap()["x"].as_number().unwrap(),
+        3.0
+    ));
     assert_eq!(*obj["d"].as_boolean().unwrap(), true);
     assert_eq!(*obj["e"].as_boolean().unwrap(), false);
     assert_eq!(obj["f"].as_null().unwrap(), ());
-    assert!(obj["g"].as_array().unwrap().into_iter().map(|v| *v.as_boolean().unwrap()).eq(vec![true, false].into_iter()));
+    assert!(obj["g"]
+        .as_array()
+        .unwrap()
+        .into_iter()
+        .map(|v| *v.as_boolean().unwrap())
+        .eq(vec![true, false].into_iter()));
     assert_eq!(rest, "asdf");
 }
 

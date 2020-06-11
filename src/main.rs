@@ -16,7 +16,7 @@ async fn main() {
     let mut app = Octane::new();
     app.get("/", |_req, res| {
         Box::pin(async move {
-            let _file = res.send_file("templates/tess.html").await;
+            let _file = res.send_file("templates/test.html").await;
         })
     });
     let _res = app.listen(8080).await;

@@ -18,7 +18,7 @@ pub const DAYS_PER_400Y: i64 = 365 * 400 + 97;
 pub const DAYS_PER_100Y: i64 = 365 * 100 + 24;
 pub const DAYS_PER_4Y: i64 = 365 * 4 + 1;
 pub static DAYS_IN_MONTH: [i64; 12] = [31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29];
-pub const BUF_SIZE: usize = 512;
+pub const BUF_SIZE: usize = 3;
 // TOKEN_CHARS needs to be defined somehow
 lazy_static! {
     pub static ref TOKEN_CHARS: HashSet<char> = HashSet::from_iter(

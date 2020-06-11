@@ -1,9 +1,9 @@
 use crate::constants::*;
 use std::cfg;
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{hash_map::Entry, HashMap};
 use std::iter::FusedIterator;
-use std::str;
 use std::ops::Deref;
+use std::str;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RequestMethod<'a> {
@@ -263,13 +263,12 @@ impl KeepAlive {
             match name {
                 "timeout" => ret.timeout = Some(val),
                 "max" => ret.max = Some(val),
-                _ => continue
+                _ => continue,
             };
         }
         ret
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cookies {
@@ -287,7 +286,7 @@ impl Deref for Cookies {
 impl Default for Cookies {
     fn default() -> Self {
         Self {
-            cookies: HashMap::new()
+            cookies: HashMap::new(),
         }
     }
 }
@@ -303,8 +302,6 @@ impl Cookies {
             let (first, second) = tok.split_at(eq_ind);
             hashmap.insert(first.to_owned(), second[1..].to_owned());
         }
-        Self {
-            cookies: hashmap
-        }
+        Self { cookies: hashmap }
     }
 }

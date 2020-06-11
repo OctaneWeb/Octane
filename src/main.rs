@@ -19,5 +19,15 @@ async fn main() {
             let _file = res.send_file("templates/test.html").await;
         })
     });
+    app.get("/test.js", |_req, res| {
+        Box::pin(async move {
+            let _file = res.send_file("templates/test.js").await;
+        })
+    });
+    app.get("/test.css", |_req, res| {
+        Box::pin(async move {
+            let _file = res.send_file("templates/test.css").await;
+        })
+    });
     let _res = app.listen(8080).await;
 }

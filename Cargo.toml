@@ -1,6 +1,6 @@
 [package]
 name = "octane"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
 description = "A web server built from the ground up."
 license-file = "LICENSE"

@@ -1,5 +1,5 @@
-use std::mem;
 use std::iter::FusedIterator;
+use std::mem;
 
 pub fn from_hex(chr: char) -> Option<u8> {
     if chr > 'f' {

@@ -2,7 +2,6 @@ use crate::constants::*;
 use crate::util::Spliterator;
 use std::cfg;
 use std::collections::HashMap;
-use std::iter::FusedIterator;
 use std::ops::Deref;
 use std::str;
 

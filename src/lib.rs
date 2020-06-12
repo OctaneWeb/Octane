@@ -5,6 +5,7 @@ pub mod constants;
 pub mod error;
 pub mod file_handler;
 pub mod json;
+pub mod path;
 pub mod query;
 pub mod request;
 pub mod responder;

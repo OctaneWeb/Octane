@@ -19,8 +19,10 @@ async fn main() {
     let mut app = Octane::new();
     app.get(
         "/",
-        Route!(_req, res => {
-            res.send_file("templates/test.html").await.expect("cannot find file");
+        route!(|_req, res| {
+            res.send_file("templates/test.html")
+                .await
+                .expect("cannot find file");
         }),
     );
     app.listen(8080).await.expect("Cannot establish connection");

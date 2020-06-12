@@ -8,8 +8,8 @@ pub enum Flow {
 }
 
 #[macro_export]
-macro_rules! Route {
-    ( $req : ident, $res : ident => $body : expr ) => {
+macro_rules! route {
+    ( | $req : ident, $res : ident | $body : expr ) => {
         Box::new(move |$req, $res| Box::pin(async move { $body }))
     };
 }

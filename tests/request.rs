@@ -1,5 +1,5 @@
 extern crate octane;
-use octane::request::{Request, RequestMethod};
+use octane::request::{HttpVersion, Request, RequestMethod};
 
 #[test]
 fn success_standard() {
@@ -18,7 +18,7 @@ fn success_standard() {
     .unwrap();
     assert_eq!(req.method, RequestMethod::Post);
     assert_eq!(req.path, "/abc/def");
-    assert_eq!(req.version, "1.1");
+    assert_eq!(req.version, HttpVersion::Http11);
     assert_eq!(
         *req.headers.get("host").unwrap(),
         "localhost:12345".to_string()

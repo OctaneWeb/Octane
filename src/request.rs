@@ -1,6 +1,6 @@
 use crate::constants::*;
 use std::cfg;
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 use std::iter::FusedIterator;
 use std::ops::Deref;
 use std::str;
@@ -17,12 +17,20 @@ pub enum RequestMethod<'a> {
     Connect,
     Other(&'a str),
 }
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum HttpVersion {
+    Http11,
+    Http10,
+    Http02,
+    Http09,
+    HttpInvalid,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestLine<'a> {
     pub method: RequestMethod<'a>,
     pub path: &'a str,
-    pub version: &'a str,
+    pub version: HttpVersion,
 }
 
 impl<'a> RequestLine<'a> {
@@ -41,6 +49,13 @@ impl<'a> RequestLine<'a> {
             None => return None,
         };
         let (first, ver) = version.split_at(5);
+        let enum_ver = match ver {
+            "1.1" => HttpVersion::Http11,
+            "1.0" => HttpVersion::Http10,
+            "2.0" => HttpVersion::Http02,
+            "0.9" => HttpVersion::Http09,
+            _ => HttpVersion::HttpInvalid,
+        };
 
         if cfg!(feature = "faithful") && (first != "HTTP/" || toks.next().is_some()) {
             return None;
@@ -59,7 +74,7 @@ impl<'a> RequestLine<'a> {
         Some(Self {
             method: request_method,
             path,
-            version: ver,
+            version: enum_ver,
         })
     }
 }
@@ -101,7 +116,7 @@ impl<'a> Header<'a> {
 pub struct Request<'a> {
     pub method: RequestMethod<'a>,
     pub path: &'a str,
-    pub version: &'a str,
+    pub version: HttpVersion,
     pub headers: HashMap<String, String>,
     pub body: &'a [u8],
     #[cfg(feature = "raw_headers")]

@@ -8,6 +8,7 @@ pub struct Response<'a> {
     pub status_code: StatusCode,
     pub body: Vec<u8>,
     pub http_version: &'a str,
+    pub static_folder: Option<String>,
     pub headers: HashMap<String, String>,
 }
 
@@ -29,11 +30,15 @@ impl<'a> Response<'a> {
     }
     pub fn new(body: &'a [u8]) -> Self {
         Response {
+            static_folder: None,
             status_code: StatusCode::Ok,
             body: body.to_vec(),
             http_version: "1.1",
             headers: HashMap::new(),
         }
+    }
+    pub fn set_static_dir(&mut self, location: String) {
+        self.static_folder = Some(location);
     }
     pub fn send(&mut self, body: &'a [u8]) {
         let heading_one = b"<!DOCTYPE html><html><head></head><body>";
@@ -74,12 +79,12 @@ impl<'a> Response<'a> {
         .concat()
     }
     pub async fn send_file(&mut self, file_name: &'a str) -> std::io::Result<()> {
-        if let Some(file) = FileHandler::handle_file(file_name).await? {
+        if let Some(file) = FileHandler::handle_file(file_name)? {
             let mime_type = file.get_mime_type();
             self.with_header("Content-Type", mime_type);
             self.body = file.contents;
         } else {
-            // TODO: Send a 404 here
+            self.declare_error(StatusCode::NotFound)?.default_headers();
         }
         Ok(())
     }
@@ -94,6 +99,11 @@ impl<'a> Response<'a> {
             self.reason_phrase(),
             CRLF
         )
+    }
+    pub fn declare_error(&mut self, error_kind: StatusCode) -> std::io::Result<&mut Self> {
+        self.status_code = error_kind;
+        self.body = FileHandler::get_404_file()?;
+        Ok(self)
     }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()

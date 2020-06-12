@@ -1,5 +1,5 @@
 extern crate octane;
-use octane::request::{RequestLine, RequestMethod};
+use octane::request::{HttpVersion, RequestLine, RequestMethod};
 
 #[test]
 fn success_standard() {
@@ -7,7 +7,7 @@ fn success_standard() {
     let req = RequestLine::parse("POST /abc/def HTTP/1.1").unwrap();
     assert_eq!(req.method, RequestMethod::Post);
     assert_eq!(req.path, "/abc/def");
-    assert_eq!(req.version, "1.1");
+    assert_eq!(req.version, HttpVersion::Http11);
 }
 
 #[test]
@@ -16,7 +16,7 @@ fn success_other_method() {
     let req = RequestLine::parse("PATCH /abc/def HTTP/1.1").unwrap();
     assert_eq!(req.method, RequestMethod::Other("PATCH"));
     assert_eq!(req.path, "/abc/def");
-    assert_eq!(req.version, "1.1");
+    assert_eq!(req.version, HttpVersion::Http11);
 }
 
 #[test]

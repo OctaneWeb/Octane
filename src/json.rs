@@ -106,7 +106,7 @@ pub fn parse_string(dat: &str) -> Option<(String, &str)> {
     let mut ret = String::with_capacity(dat.len());
     let mut cur = &dat[1..];
     while !cur.is_empty() {
-        let x = cur.find('\\');
+        let _x = cur.find('\\');
         if let Some(i) = cur.find('\\') {
             ret.push_str(&cur[..i]);
             let chr = cur.as_bytes()[i + 1];

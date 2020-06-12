@@ -9,6 +9,8 @@ Before contributing, make sure you are following
 To get recommendations for an issue, you can join in our [discord server](https://discord.gg/j6PsmNC) and get recommendations for issues, you can also get support there.
 If you see a issue opened [here](https://github.com/OctaneWeb/Octane/issues) and does not have the being-worked-on label then feel free to comment and ask to pickup!. 
 
+We have put effort into labelling issues in terms of difficulty so people can pickup any issue with any difficulty they want to work with.
+
 # How to open a issue?
 
 If you find a issue in the code, feel free to [open one](https://github.com/OctaneWeb/Octane/issues), make sure you follow template and include a MCVE. 

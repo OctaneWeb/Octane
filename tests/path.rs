@@ -9,6 +9,7 @@ fn success_standard() {
 }
 
 #[test]
+#[cfg(feature = "url_variables")]
 fn success_matching() {
     // Parsing should work as expected.
     let path1 = PathBuf::parse("/asdf/:var/foo/").unwrap();
@@ -19,6 +20,18 @@ fn success_matching() {
     assert_eq!(path1.check_matches(&path3).unwrap()["var"], "test".to_string());
     assert!(path1.check_matches(&path4).is_none());
 }
+
+#[test]
+#[cfg(not(feature = "url_variables"))]
+fn success_matching() {
+    // Parsing should work as expected.
+    let path1 = PathBuf::parse("/asdf/test/foo/").unwrap();
+    let path2 = PathBuf::parse("asdf/test/foo").unwrap();
+    let path3 = PathBuf::parse("asdf/test/bad").unwrap();
+    path1.check_matches(&path2).unwrap();
+    assert!(path1.check_matches(&path3).is_none());
+}
+
 
 #[test]
 fn success_subtraction() {

@@ -125,6 +125,7 @@ pub struct Request<'a> {
     pub cookies: Cookies,
 }
 
+#[rustfmt::skip]
 impl<'a> Request<'a> {
     pub fn parse(request: &'a [u8]) -> Option<Self> {
         let mut toks = Spliterator::new(request, B_CRLF);

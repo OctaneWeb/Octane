@@ -12,8 +12,7 @@ Create an octane instance, and then you can register your methods on it using `a
 ```rust
 let mut app = Octane::new();
 app.get("/", route!(|_req, res| {
-        res.send_file("templates/test.html").await.expect("File not found");
-    })
+    res.send_file("templates/test.html").await.expect("File not found");
 });
 ```
 

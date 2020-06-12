@@ -56,7 +56,7 @@ impl Octane {
         self
     }
     pub async fn listen(self, port: u16) -> std::io::Result<()> {
-        let mut listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port))
+        let mut listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port))
             .await
             .unwrap();
         let server = Arc::new(self);

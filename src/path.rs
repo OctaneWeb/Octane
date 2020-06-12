@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ops::Deref;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathBuf {
@@ -64,7 +64,7 @@ impl PathBuf {
             return None;
         }
         Some(PathBuf {
-            chunks: self.chunks[other.len()..].to_vec()
+            chunks: self.chunks[other.len()..].to_vec(),
         })
     }
 }

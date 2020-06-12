@@ -27,5 +27,21 @@ async fn main() {
                 .expect("cannot find file");
         }),
     );
+    app.get(
+        "/test.js",
+        route!(|_req, res| {
+            res.send_file("templates/test.js")
+                .await
+                .expect("cannot find file");
+        }),
+    );
+    app.get(
+        "/test.css",
+        route!(|_req, res| {
+            res.send_file("templates/test.css")
+                .await
+                .expect("cannot find file");
+        }),
+    );
     app.listen(8080).await.expect("Cannot establish connection");
 }

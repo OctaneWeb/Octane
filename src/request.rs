@@ -1,7 +1,7 @@
 use crate::constants::*;
+use crate::util::Spliterator;
 use std::cfg;
-use std::collections::{hash_map::Entry, HashMap};
-use std::iter::FusedIterator;
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::str;
 
@@ -110,68 +110,6 @@ pub struct Request<'a> {
     pub cookies: Cookies,
 }
 
-struct Spliterator<'a> {
-    string: &'a [u8],
-    finished: bool,
-    seq: &'a [u8],
-    seqlen: usize,
-}
-
-impl<'a> Spliterator<'a> {
-    fn new(string: &'a [u8], seq: &'a [u8]) -> Self {
-        Self {
-            string,
-            finished: false,
-            seq,
-            seqlen: seq.len(),
-        }
-    }
-
-    fn find_seq(&self) -> Option<usize> {
-        for i in 0..self.string.len() {
-            let mut matching = true;
-            for j in 0..self.seqlen {
-                if self.string[i + j] != self.seq[j] {
-                    matching = false;
-                    break;
-                }
-            }
-            if matching {
-                return Some(i);
-            }
-        }
-        None
-    }
-
-    fn skip_empty(&mut self) {
-        while let Some(0) = self.find_seq() {
-            self.next();
-        }
-    }
-}
-
-impl<'a> Iterator for Spliterator<'a> {
-    type Item = &'a [u8];
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.finished {
-            return None;
-        }
-        match self.find_seq() {
-            Some(v) => {
-                let (ret, rest) = self.string.split_at(v);
-                self.string = &rest[self.seqlen..];
-                Some(ret)
-            }
-            None => {
-                self.finished = true;
-                Some(self.string)
-            }
-        }
-    }
-}
-
-impl<'a> FusedIterator for Spliterator<'a> {}
-
 impl<'a> Request<'a> {
     pub fn parse(request: &'a [u8]) -> Option<Self> {
         let mut toks = Spliterator::new(request, B_CRLF);
@@ -251,7 +189,7 @@ impl KeepAlive {
         };
         for tok in header.split(',') {
             let trimmed = tok.trim();
-            let eq_ind = match trimmed.find("=") {
+            let eq_ind = match trimmed.find('=') {
                 Some(v) => v,
                 None => continue,
             };
@@ -295,7 +233,7 @@ impl Cookies {
     pub fn parse(header: &str) -> Self {
         let mut hashmap: HashMap<String, String> = HashMap::new();
         for tok in header.split("; ") {
-            let eq_ind = match tok.find("=") {
+            let eq_ind = match tok.find('=') {
                 Some(v) => v,
                 None => continue,
             };

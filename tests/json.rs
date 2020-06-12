@@ -1,5 +1,5 @@
 extern crate octane;
-use octane::json::{self, Value};
+use octane::json;
 pub mod common;
 use crate::common::*;
 

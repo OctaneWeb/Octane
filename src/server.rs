@@ -2,8 +2,6 @@ use crate::constants::*;
 use crate::error::Error;
 use crate::request::Request;
 use crate::responder::Response;
-use core::future::Future;
-use core::pin::Pin;
 use futures::future::BoxFuture;
 use std::fmt;
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -107,5 +105,11 @@ impl Octane {
     async fn send_data(response: Vec<u8>, mut stream_async: TcpStream) -> std::io::Result<()> {
         copy(&mut &response[..], &mut stream_async).await?;
         Ok(())
+    }
+}
+
+impl Default for Octane {
+    fn default() -> Self {
+        Self::new()
     }
 }

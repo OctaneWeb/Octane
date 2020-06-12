@@ -30,23 +30,6 @@ pub fn is_ctl(c: char) -> bool {
     c < '\x1f' || c == '\x7f'
 }
 
-pub fn from_hex(chr: char) -> Option<u8> {
-    if chr > 'f' {
-        return None;
-    }
-    let c = chr as u8;
-    if c >= b'0' && c <= b'9' {
-        return Some(c - b'0');
-    }
-    if c >= b'A' && c <= b'F' {
-        return Some(c - b'A' + 10);
-    }
-    if c >= b'a' && c <= b'f' {
-        return Some(c - b'a' + 10);
-    }
-    None
-}
-
 status_codes! {
     100 "Continue"
     101 "Switching Protocol"

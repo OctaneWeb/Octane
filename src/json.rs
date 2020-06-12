@@ -106,7 +106,6 @@ pub fn parse_string(dat: &str) -> Option<(String, &str)> {
     let mut ret = String::with_capacity(dat.len());
     let mut cur = &dat[1..];
     while !cur.is_empty() {
-        let x = cur.find('\\');
         if let Some(i) = cur.find('\\') {
             ret.push_str(&cur[..i]);
             let chr = cur.as_bytes()[i + 1];
@@ -164,8 +163,8 @@ pub fn parse_null(dat: &str) -> Option<((), &str)> {
 pub fn parse_number(dat: &str) -> Option<(f64, &str)> {
     let mut end = dat.len();
     let dat_bytes = dat.as_bytes();
-    for i in 0..dat.len() {
-        match dat_bytes[i] {
+    for (i, v) in dat_bytes.iter().enumerate() {
+        match v {
             b'0'..=b'9' | b'e' | b'.' | b'-' | b'+' => {}
             _ => {
                 end = i;

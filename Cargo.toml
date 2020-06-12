@@ -19,12 +19,13 @@ path = "octane_macros"
 version = "0.1.0"
 
 [features]
-default = ["faithful", "query_strings", "cookies"]
+default = ["faithful", "query_strings", "cookies", "url_variables"]
 faithful = []
 raw_headers = []
 query_strings = []
 extended_queries = []
 cookies = []
+url_variables = []
 https = ["rustls"]
 
 [workspace]

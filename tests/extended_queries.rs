@@ -1,6 +1,5 @@
 #![cfg(all(feature = "query_strings", feature = "extended_queries"))]
 use octane::query::{self, parse_extended_query, QueryValue};
-extern crate octane;
 
 #[test]
 fn success_standard() {

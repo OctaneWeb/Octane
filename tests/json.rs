@@ -1,4 +1,3 @@
-extern crate octane;
 use octane::json;
 pub mod common;
 use crate::common::*;

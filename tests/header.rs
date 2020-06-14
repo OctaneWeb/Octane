@@ -1,4 +1,3 @@
-extern crate octane;
 use octane::request::{Cookies, Header, KeepAlive};
 
 #[test]

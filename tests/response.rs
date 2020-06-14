@@ -1,4 +1,3 @@
-extern crate octane;
 use octane::constants::StatusCode;
 use octane::responder::Response;
 

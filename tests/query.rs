@@ -1,6 +1,5 @@
 #![cfg(feature = "query_strings")]
 use octane::query;
-extern crate octane;
 
 #[test]
 fn success_standard() {

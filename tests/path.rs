@@ -1,4 +1,3 @@
-extern crate octane;
 use octane::path::PathBuf;
 
 #[test]

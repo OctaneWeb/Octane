@@ -16,9 +16,9 @@ fn success_standard() {
             .as_bytes(),
     )
     .unwrap();
-    assert_eq!(req.method, RequestMethod::Post);
-    assert_eq!(req.path, "/abc/def");
-    assert_eq!(req.version, HttpVersion::Http11);
+    assert_eq!(req.request_line.method, RequestMethod::Post);
+    assert_eq!(req.request_line.path, "/abc/def");
+    assert_eq!(req.request_line.version, HttpVersion::Http11);
     assert_eq!(
         *req.headers.get("host").unwrap(),
         "localhost:12345".to_string()

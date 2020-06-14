@@ -96,14 +96,14 @@ impl Octane {
         if let Some(parsed_request) = Request::parse(&data[..]) {
             if let Some(connection_type) = parsed_request.headers.get("connection") {
                 if connection_type.to_lowercase() == "keep-alive" {
-                    if parsed_request.version == HttpVersion::Http10 {
+                    if parsed_request.request_line.version == HttpVersion::Http10 {
                         if let Some(keep_alive_header) = parsed_request.headers.get("keep-alive") {
                             let header_details = KeepAlive::parse(keep_alive_header);
                             stream_async.set_keepalive(Some(Duration::from_secs(
                                 header_details.timeout.unwrap_or(0),
                             )))?;
                         }
-                    } else if parsed_request.version == HttpVersion::Http11 {
+                    } else if parsed_request.request_line.version == HttpVersion::Http11 {
                         stream_async.set_keepalive(server.settings.keep_alive)?;
                     }
                 }

@@ -114,9 +114,7 @@ impl<'a> Header<'a> {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Request<'a> {
-    pub method: RequestMethod<'a>,
-    pub path: &'a str,
-    pub version: HttpVersion,
+    pub request_line: RequestLine<'a>,
     pub headers: HashMap<String, String>,
     pub body: &'a [u8],
     #[cfg(feature = "raw_headers")]
@@ -177,9 +175,7 @@ impl<'a> Request<'a> {
             cookies = Default::default();
         }
         Some(Self {
-            method: line.method,
-            path: line.path,
-            version: line.version,
+            request_line: line,
             headers,
             #[cfg(feature = "raw_headers")]
             raw_headers,

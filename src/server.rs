@@ -1,9 +1,10 @@
 use crate::config::OctaneConfig;
 use crate::constants::*;
 use crate::error::Error;
-use crate::request::{HttpVersion, KeepAlive, Request};
+use crate::request::{HttpVersion, KeepAlive, Request, RequestLine, Headers, parse_without_body};
 use crate::responder::Response;
 use crate::router::{Closure, ClosureFlow, Flow, Route, Router};
+use crate::util::find_in_slice;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,6 +12,7 @@ use tokio::io::copy;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
+use std::str;
 
 pub struct Octane {
     pub settings: OctaneConfig,
@@ -56,8 +58,8 @@ impl Octane {
         self
     }
     pub async fn listen(self, port: u16) -> std::io::Result<()> {
-        let mut listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port))
-            .await?;
+        let mut listener =
+            TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
         let server = Arc::new(self);
         while let Some(stream) = StreamExt::next(&mut listener).await {
             let server_clone = Arc::clone(&server);
@@ -85,14 +87,59 @@ impl Octane {
     ) -> std::io::Result<()> {
         let mut data = Vec::<u8>::new();
         let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
+        let body: &[u8];
+        let request_line: RequestLine;
+        let headers: Headers;
+        let body_remainder: &[u8];
         loop {
             let read = stream_async.read(&mut buf).await?;
-            data.extend_from_slice(&buf);
-            if read < BUF_SIZE {
-                break;
+            if read == 0 {
+                Error::err(StatusCode::BadRequest)
+                    .send(stream_async)
+                    .await?;
+                return Ok(());
+            }
+            let cur = &buf[..read];
+            data.extend_from_slice(cur);
+            if let Some(i) = find_in_slice(&data[..], b"\r\n\r\n") {
+                let first = &data[..i];
+                body_remainder = &data[i + 4..];
+                if let Ok(decoded) = str::from_utf8(first) {
+                    if let Some((rl, heads)) = parse_without_body(decoded) {
+                        request_line = rl;
+                        headers = heads;
+                        break;
+                    } else {
+                        Error::err(StatusCode::BadRequest)
+                            .send(stream_async)
+                            .await?;
+                        return Ok(());
+                    }
+                } else {
+                    Error::err(StatusCode::BadRequest)
+                        .send(stream_async)
+                        .await?;
+                    return Ok(());
+                }
             }
         }
-        if let Some(parsed_request) = Request::parse(&data[..]) {
+        let body_len = headers.get("content-length").map(|s| s.parse().unwrap_or(0)).unwrap_or(0);
+        let mut body_vec: Vec<u8>;
+        if body_len > 0 {
+            if body_remainder.len() < body_len {
+                let mut temp: Vec<u8> = vec![0; body_len - body_remainder.len()];
+                stream_async.read_exact(&mut temp[..]).await?;
+                body_vec = Vec::with_capacity(body_len);
+                body_vec.extend_from_slice(body_remainder);
+                body_vec.extend_from_slice(&temp[..]);
+                body = &body_vec[..];
+            } else {
+                body = body_remainder;
+            }
+        } else {
+            body = &[];
+        }
+        if let Some(parsed_request) = Request::parse(request_line, headers, body) {
             if let Some(connection_type) = parsed_request.headers.get("connection") {
                 if connection_type.to_lowercase() == "keep-alive" {
                     if parsed_request.request_line.version == HttpVersion::Http10 {

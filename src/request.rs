@@ -2,6 +2,8 @@ use crate::constants::*;
 use crate::util::Spliterator;
 use std::cfg;
 use std::collections::HashMap;
+#[cfg(not(feature = "raw_headers"))]
+use std::marker::PhantomData;
 use std::ops::Deref;
 use std::str;
 
@@ -97,38 +99,21 @@ impl<'a> Header<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Request<'a> {
-    pub request_line: RequestLine<'a>,
-    pub headers: HashMap<String, String>,
-    pub body: &'a [u8],
+pub struct Headers<'a> {
+    pub parsed: HashMap<String, String>,
     #[cfg(feature = "raw_headers")]
-    pub raw_headers: Vec<Header<'a>>,
-    #[cfg(feature = "cookies")]
-    pub cookies: Cookies,
+    pub raw: Vec<Header<'a>>,
+    #[cfg(not(feature = "raw_headers"))]
+    pub raw: PhantomData<&'a ()>,
 }
 
-impl<'a> Request<'a> {
-    pub fn parse(request: &'a [u8]) -> Option<Self> {
-        let mut toks = Spliterator::new(request, B_CRLF);
-        toks.skip_empty();
-        let line = toks.next().and_then(|v| match str::from_utf8(v) {
-            Ok(s) => RequestLine::parse(s),
-            Err(_) => None,
-        })?;
+impl<'a> Headers<'a> {
+    pub fn parse(request: &'a str) -> Option<Self> {
+        let mut toks = Spliterator::new(request.as_bytes(), B_CRLF);
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
-        let mut found_empty: bool = false;
         for tok in toks.by_ref() {
-            if tok.is_empty() {
-                if cfg!(feature = "faithful") {
-                    if toks.finished {
-                        return None;
-                    }
-                    found_empty = true;
-                }
-                break;
-            }
             let parsed = Header::parse(match str::from_utf8(tok) {
                 Ok(s) => s,
                 Err(_) => return None,
@@ -140,10 +125,43 @@ impl<'a> Request<'a> {
             #[cfg(feature = "raw_headers")]
             raw_headers.push(parsed);
         }
-        if cfg!(feature = "faithful") && !found_empty {
-            return None;
-        }
-        let body = toks.string;
+        Some(Self {
+            parsed: headers,
+            #[cfg(feature = "raw_headers")]
+            raw: raw_headers,
+            #[cfg(not(feature = "raw_headers"))]
+            raw: PhantomData,
+        })
+    }
+}
+
+impl<'a> Deref for Headers<'a> {
+    type Target = HashMap<String, String>;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.parsed
+    }
+}
+
+pub fn parse_without_body<'a>(data: &'a str) -> Option<(RequestLine<'a>, Headers<'a>)> {
+    let n = data.find("\r\n")?;
+    let (line, rest) = data.split_at(n);
+    let request_line = RequestLine::parse(line)?;
+    let headers = Headers::parse(&rest[2..])?;
+    Some((request_line, headers))
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Request<'a> {
+    pub request_line: RequestLine<'a>,
+    pub headers: Headers<'a>,
+    pub body: &'a [u8],
+    #[cfg(feature = "cookies")]
+    pub cookies: Cookies,
+}
+
+impl<'a> Request<'a> {
+    pub fn parse(request_line: RequestLine<'a>, headers: Headers<'a>, body: &'a [u8]) -> Option<Self> {
         #[cfg(feature = "cookies")]
         let cookies: Cookies;
         #[cfg(feature = "cookies")]
@@ -153,10 +171,8 @@ impl<'a> Request<'a> {
             cookies = Default::default();
         }
         Some(Self {
-            request_line: line,
+            request_line,
             headers,
-            #[cfg(feature = "raw_headers")]
-            raw_headers,
             #[cfg(feature = "cookies")]
             cookies,
             body,

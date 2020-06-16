@@ -113,22 +113,7 @@ impl<'a> Headers<'a> {
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
-<<<<<<< HEAD
-        for tok in toks {
-            if tok.is_empty() {
-                if cfg!(feature = "faithful") {
-                    if toks.finished {
-                        return None;
-                    }
-                    found_empty = true;
-                }
-                break;
-            }
             let parsed = Header::parse(match str::from_utf8(tok) {
-=======
-        for tok in toks.by_ref() {
-            let parsed = match Header::parse(match str::from_utf8(tok) {
->>>>>>> e4b7287... Functional (but not pretty) TCP listener.
                 Ok(s) => s,
                 Err(_) => return None,
             })?;

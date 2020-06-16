@@ -16,11 +16,7 @@ pub fn derive_from_json(toks: TokenStream) -> TokenStream {
     for tok in tok_iter {
         if let TokenTree::Group(grp) = tok {
             match grp.delimiter() {
-                Delimiter::Brace => {
-                    let yes = process_braces(grp.stream(), name);
-                    println!("{}", yes);
-                    return yes;
-                }
+                Delimiter::Brace => return process_braces(grp.stream(), name),
                 _ => {}
             };
         }

@@ -8,7 +8,7 @@ pub struct PathBuf {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InvalidPathError {}
+pub struct InvalidPathError;
 
 impl PathBuf {
     pub fn new() -> Self {
@@ -23,7 +23,7 @@ impl PathBuf {
             }
             if chunk == ".." {
                 if chunks.pop().is_none() {
-                    return Err(InvalidPathError {});
+                    return Err(InvalidPathError);
                 }
                 continue;
             }

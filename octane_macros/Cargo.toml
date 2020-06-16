@@ -9,7 +9,6 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-quote = "1.0.6"
 
 [lib]
 proc-macro = true

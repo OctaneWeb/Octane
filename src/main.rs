@@ -4,6 +4,7 @@ pub mod config;
 pub mod constants;
 pub mod error;
 pub mod file_handler;
+pub mod json;
 pub mod path;
 pub mod query;
 pub mod request;
@@ -13,35 +14,16 @@ pub mod server;
 pub mod time;
 pub mod util;
 
-use crate::router::Route;
-use crate::server::Octane;
+use crate::json::{FromJSON, Value};
 
-#[tokio::main]
-async fn main() {
-    let mut app = Octane::new();
-    app.get(
-        "/",
-        route!(|_req, res| {
-            res.send_file("templates/test.html")
-                .await
-                .expect("cannot find file");
-        }),
-    );
-    app.get(
-        "test.js",
-        route!(|_req, res| {
-            res.send_file("templates/test.js")
-                .await
-                .expect("cannot find file");
-        }),
-    );
-    app.get(
-        "test.css",
-        route!(|_req, res| {
-            res.send_file("templates/test.css")
-                .await
-                .expect("cannot find file");
-        }),
-    );
-    app.listen(8080).await.expect("Cannot establish connection");
+#[derive(FromJSON, Debug, Clone)]
+pub struct UhWhat {
+    a: i32,
+    b: String,
+}
+
+fn main() {
+    let hmm = Value::parse(r#"{"a": "abc", "b": "asf"}"#).unwrap();
+
+    println!("{:?}", UhWhat::from_json(hmm));
 }

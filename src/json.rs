@@ -1,3 +1,4 @@
+pub use octane_macros::FromJSON;
 use std::char;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
@@ -64,10 +65,41 @@ impl Value {
             false
         }
     }
+
+    pub fn parse(dat: &str) -> Option<Self> {
+        let (val, rest) = parse_element(dat)?;
+        if !rest.is_empty() {
+            return None;
+        }
+        Some(val)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InvalidTypeError {}
+pub struct InvalidTypeError;
+
+pub trait FromJSON
+where
+    Self: Sized,
+{
+    fn from_json(val: Value) -> Result<Self, InvalidTypeError>;
+}
+
+impl<T> FromJSON for T
+where
+    T: TryFrom<Value, Error = InvalidTypeError>,
+{
+    fn from_json(val: Value) -> Result<Self, InvalidTypeError> {
+        Self::try_from(val)
+    }
+}
+
+// Until the never type gets stabilized this'll have to do
+impl FromJSON for Value {
+    fn from_json(val: Value) -> Result<Self, InvalidTypeError> {
+        Ok(val)
+    }
+}
 
 macro_rules! make_tryfrom {
     ($type: ty, $variant: ident) => {
@@ -78,18 +110,48 @@ macro_rules! make_tryfrom {
                 if let Value::$variant(x) = v {
                     Ok(x)
                 } else {
-                    Err(InvalidTypeError {})
+                    Err(InvalidTypeError)
                 }
             }
         }
     };
 }
 
-make_tryfrom!(String, String);
-make_tryfrom!(Vec<Value>, Array);
-make_tryfrom!(HashMap<String, Value>, Object);
 make_tryfrom!(bool, Boolean);
 make_tryfrom!(f64, Number);
+make_tryfrom!(String, String);
+
+impl<T> TryFrom<Value> for Vec<T>
+where
+    T: FromJSON,
+{
+    type Error = InvalidTypeError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        if let Value::Array(arr) = v {
+            arr.into_iter().map(T::from_json).collect::<Result<_, _>>()
+        } else {
+            Err(InvalidTypeError)
+        }
+    }
+}
+
+impl<T> TryFrom<Value> for HashMap<String, T>
+where
+    T: FromJSON,
+{
+    type Error = InvalidTypeError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        if let Value::Object(map) = v {
+            map.into_iter()
+                .map(|(k, v)| Ok((k, T::from_json(v)?)))
+                .collect::<Result<_, _>>()
+        } else {
+            Err(InvalidTypeError)
+        }
+    }
+}
 
 impl TryFrom<Value> for () {
     type Error = InvalidTypeError;
@@ -98,7 +160,7 @@ impl TryFrom<Value> for () {
         if let Value::Null = v {
             Ok(())
         } else {
-            Err(InvalidTypeError {})
+            Err(InvalidTypeError)
         }
     }
 }
@@ -114,7 +176,7 @@ macro_rules! make_numeric_tryfrom {
                 if num == (num as $type) as f64 {
                     Ok(num as $type)
                 } else {
-                    Err(InvalidTypeError {})
+                    Err(InvalidTypeError)
                 }
             }
         }

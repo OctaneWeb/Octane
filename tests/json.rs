@@ -1,6 +1,7 @@
 use octane::json;
 pub mod common;
 use crate::common::*;
+use std::convert::{TryInto, TryFrom};
 
 #[test]
 fn success_string() {
@@ -40,8 +41,8 @@ fn success_null() {
 fn success_number() {
     // Parsing should work as expected.
     assert_eq!(
-        (-1.23e+2, "asdf"),
-        json::parse_number("-1.23e+2asdf").unwrap()
+        (-1.23e-2, "asdf"),
+        json::parse_number("-1.23e-2asdf").unwrap()
     );
     assert!(json::parse_number("1..").is_none());
 }
@@ -51,14 +52,16 @@ fn success_element() {
     // Parsing should work as expected.
     let (val, rest) = json::parse_element(" 123 asdf").unwrap();
     assert_eq!(rest, "asdf");
+    assert!(val.is_number());
+    assert!(!val.is_string());
     assert!(approx_equal(*val.as_number().unwrap(), 123.0));
 }
 
 #[test]
 fn success_object() {
     // Parsing should work as expected.
-    let (obj, rest) = json::parse_object(r#"{"a" : 1 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}asdf"#).unwrap();
-    assert!(approx_equal(*obj["a"].as_number().unwrap(), 1.0));
+    let (obj, rest) = json::parse_object(r#"{"a" : 1.0 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}asdf"#).unwrap();
+    assert_eq!(u64::try_from(obj["a"].clone()).unwrap(), 1u64);
     assert_eq!(*obj["b"].as_string().unwrap(), "two".to_string());
     assert!(approx_equal(
         *obj["c"].as_object().unwrap()["x"].as_number().unwrap(),

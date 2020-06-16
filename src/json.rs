@@ -1,5 +1,6 @@
 use std::char;
 use std::collections::HashMap;
+use std::convert::{TryInto, TryFrom};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -11,91 +12,125 @@ pub enum Value {
     Null,
 }
 
-impl Value {
-    pub fn as_number(&self) -> Option<&f64> {
-        match self {
-            Value::Number(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_boolean(&self) -> Option<&bool> {
-        match self {
-            Value::Boolean(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_string(&self) -> Option<&String> {
-        match self {
-            Value::String(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_array(&self) -> Option<&Vec<Value>> {
-        match self {
-            Value::Array(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_object(&self) -> Option<&HashMap<String, Value>> {
-        match self {
-            Value::Object(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_null(&self) -> Option<()> {
-        match self {
-            Value::Null => Some(()),
-            _ => None,
-        }
-    }
-
-    pub fn is_number(&self) -> bool {
-        match self {
-            Value::Number(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_boolean(&self) -> bool {
-        match self {
-            Value::Boolean(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_string(&self) -> bool {
-        match self {
-            Value::String(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_array(&self) -> bool {
-        match self {
-            Value::Array(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_object(&self) -> bool {
-        match self {
-            Value::Object(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_null(&self) -> bool {
-        match self {
-            Value::Null => true,
-            _ => false,
+macro_rules! make_as_func {
+    ($name: ident, $type: ty, $variant: ident) => {
+        pub fn $name(&self) -> Option<&$type> {
+            if let Value::$variant(x) = self {
+                Some(x)
+            } else {
+                None
+            }
         }
     }
 }
+
+macro_rules! make_is_func {
+    ($name: ident, $variant: ident) => {
+        pub fn $name(&self) -> bool {
+            if let Value::$variant(_) = self {
+                true
+            } else {
+                false
+            }
+        }
+    }
+}
+
+impl Value {
+    make_as_func!(as_number, f64, Number);
+    make_as_func!(as_boolean, bool, Boolean);
+    make_as_func!(as_string, String, String);
+    make_as_func!(as_array, Vec<Value>, Array);
+    make_as_func!(as_object, HashMap<String, Value>, Object);
+
+    pub fn as_null(&self) -> Option<()> {
+        if let Value::Null = self {
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    make_is_func!(is_number, Number);
+    make_is_func!(is_boolean, Boolean);
+    make_is_func!(is_string, String);
+    make_is_func!(is_array, Array);
+    make_is_func!(is_object, Object);
+
+    pub fn is_null(&self) -> bool {
+        if let Value::Null = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidTypeError {}
+
+macro_rules! make_tryfrom {
+    ($type: ty, $variant: ident) => {
+        impl TryFrom<Value> for $type {
+            type Error = InvalidTypeError;
+
+            fn try_from(v: Value) -> Result<Self, Self::Error> {
+                if let Value::$variant(x) = v {
+                    Ok(x)
+                } else {
+                    Err(InvalidTypeError {})
+                }
+            }
+        }
+    }
+}
+
+make_tryfrom!(String, String);
+make_tryfrom!(Vec<Value>, Array);
+make_tryfrom!(HashMap<String, Value>, Object);
+make_tryfrom!(bool, Boolean);
+make_tryfrom!(f64, Number);
+
+impl TryFrom<Value> for () {
+    type Error = InvalidTypeError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        if let Value::Null = v {
+            Ok(())
+        } else {
+            Err(InvalidTypeError {})
+        }
+    }
+}
+
+macro_rules! make_numeric_tryfrom {
+    ($type: ty) => {
+        impl TryFrom<Value> for $type {
+            type Error = InvalidTypeError;
+
+            fn try_from(v: Value) -> Result<Self, Self::Error> {
+                let num: f64 = v.try_into()?;
+                if num == (num as $type) as f64 {
+                    Ok(num as $type)
+                } else {
+                    Err(InvalidTypeError {})
+                }
+            }
+        }
+    }
+}
+
+make_numeric_tryfrom!(u128);
+make_numeric_tryfrom!(u64);
+make_numeric_tryfrom!(u32);
+make_numeric_tryfrom!(u16);
+make_numeric_tryfrom!(u8);
+make_numeric_tryfrom!(i128);
+make_numeric_tryfrom!(i64);
+make_numeric_tryfrom!(i32);
+make_numeric_tryfrom!(i16);
+make_numeric_tryfrom!(i8);
+make_numeric_tryfrom!(f32);
 
 pub fn consume_ws(dat: &str) -> &str {
     dat.trim_start()

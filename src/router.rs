@@ -69,3 +69,9 @@ impl Route for Router {
         self.add_paths.push((None, Box::new(entity)))
     }
 }
+
+impl Default for Router {
+    fn default() -> Self {
+        Self::new()
+    }
+}

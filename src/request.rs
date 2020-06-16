@@ -109,7 +109,7 @@ pub struct Headers<'a> {
 
 impl<'a> Headers<'a> {
     pub fn parse(request: &'a str) -> Option<Self> {
-        let mut toks = Spliterator::new(request.as_bytes(), B_CRLF);
+        let toks = Spliterator::new(request.as_bytes(), B_CRLF);
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
@@ -137,13 +137,13 @@ impl<'a> Headers<'a> {
 
 impl<'a> Deref for Headers<'a> {
     type Target = HashMap<String, String>;
-    
+
     fn deref(&self) -> &Self::Target {
         &self.parsed
     }
 }
 
-pub fn parse_without_body<'a>(data: &'a str) -> Option<(RequestLine<'a>, Headers<'a>)> {
+pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
     let n = data.find("\r\n")?;
     let (line, rest) = data.split_at(n);
     let request_line = RequestLine::parse(line)?;
@@ -161,7 +161,11 @@ pub struct Request<'a> {
 }
 
 impl<'a> Request<'a> {
-    pub fn parse(request_line: RequestLine<'a>, headers: Headers<'a>, body: &'a [u8]) -> Option<Self> {
+    pub fn parse(
+        request_line: RequestLine<'a>,
+        headers: Headers<'a>,
+        body: &'a [u8],
+    ) -> Option<Self> {
         #[cfg(feature = "cookies")]
         let cookies: Cookies;
         #[cfg(feature = "cookies")]

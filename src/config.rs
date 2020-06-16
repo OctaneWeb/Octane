@@ -14,3 +14,9 @@ impl OctaneConfig {
         self
     }
 }
+
+impl Default for OctaneConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -22,7 +22,7 @@ impl PathBuf {
                 continue;
             }
             if chunk == ".." {
-                if let None = chunks.pop() {
+                if chunks.pop().is_none() {
                     return Err(InvalidPathError {});
                 }
                 continue;

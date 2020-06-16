@@ -1,6 +1,6 @@
 use std::char;
 use std::collections::HashMap;
-use std::convert::{TryInto, TryFrom};
+use std::convert::{TryFrom, TryInto};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -21,7 +21,7 @@ macro_rules! make_as_func {
                 None
             }
         }
-    }
+    };
 }
 
 macro_rules! make_is_func {
@@ -33,7 +33,7 @@ macro_rules! make_is_func {
                 false
             }
         }
-    }
+    };
 }
 
 impl Value {
@@ -82,7 +82,7 @@ macro_rules! make_tryfrom {
                 }
             }
         }
-    }
+    };
 }
 
 make_tryfrom!(String, String);
@@ -108,6 +108,7 @@ macro_rules! make_numeric_tryfrom {
         impl TryFrom<Value> for $type {
             type Error = InvalidTypeError;
 
+            #[allow(clippy::float_cmp)]
             fn try_from(v: Value) -> Result<Self, Self::Error> {
                 let num: f64 = v.try_into()?;
                 if num == (num as $type) as f64 {
@@ -117,7 +118,7 @@ macro_rules! make_numeric_tryfrom {
                 }
             }
         }
-    }
+    };
 }
 
 make_numeric_tryfrom!(u128);

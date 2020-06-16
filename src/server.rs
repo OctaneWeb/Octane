@@ -1,18 +1,18 @@
 use crate::config::OctaneConfig;
 use crate::constants::*;
 use crate::error::Error;
-use crate::request::{HttpVersion, KeepAlive, Request, RequestLine, Headers, parse_without_body};
+use crate::request::{parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine};
 use crate::responder::Response;
 use crate::router::{Closure, ClosureFlow, Flow, Route, Router};
 use crate::util::find_in_slice;
 use std::net::{Ipv4Addr, SocketAddrV4};
+use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::copy;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
-use std::str;
 
 pub struct Octane {
     pub settings: OctaneConfig,
@@ -123,7 +123,10 @@ impl Octane {
                 }
             }
         }
-        let body_len = headers.get("content-length").map(|s| s.parse().unwrap_or(0)).unwrap_or(0);
+        let body_len = headers
+            .get("content-length")
+            .map(|s| s.parse().unwrap_or(0))
+            .unwrap_or(0);
         let mut body_vec: Vec<u8>;
         if body_len > 0 {
             if body_remainder.len() < body_len {

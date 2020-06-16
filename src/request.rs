@@ -38,18 +38,9 @@ pub struct RequestLine<'a> {
 impl<'a> RequestLine<'a> {
     pub fn parse(request_line: &'a str) -> Option<Self> {
         let mut toks = request_line.split(SP);
-        let method = match toks.next() {
-            Some(v) => v,
-            None => return None,
-        };
-        let path = match toks.next() {
-            Some(v) => v,
-            None => return None,
-        };
-        let version = match toks.next() {
-            Some(v) => v,
-            None => return None,
-        };
+        let method = toks.next()?;
+        let path = toks.next()?;
+        let version = toks.next()?;
         let (first, ver) = version.split_at(5);
         let enum_ver = match ver {
             "1.1" => HttpVersion::Http11,
@@ -90,10 +81,7 @@ pub struct Header<'a> {
 impl<'a> Header<'a> {
     pub fn parse(header: &'a str) -> Option<Self> {
         let mut toks = header.splitn(2, ':');
-        let name = match toks.next() {
-            Some(v) => v,
-            None => return None,
-        };
+        let name = toks.next()?;
         if name.is_empty() {
             return None;
         }
@@ -102,11 +90,7 @@ impl<'a> Header<'a> {
                 TOKEN_CHARS.get(&c)?;
             }
         }
-        let value = match toks.next() {
-            Some(v) => v,
-            None => return None,
-        }
-        .trim_start_matches(|c| c == SP || c == HT);
+        let value = toks.next()?.trim_start_matches(|c| c == SP || c == HT);
         if cfg!(feature = "faithful") && value.chars().any(is_ctl) {
             return None;
         }
@@ -129,14 +113,11 @@ impl<'a> Headers<'a> {
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
-        for tok in toks.by_ref() {
-            let parsed = match Header::parse(match str::from_utf8(tok) {
+        for tok in toks {
+            let parsed = Header::parse(match str::from_utf8(tok) {
                 Ok(s) => s,
                 Err(_) => return None,
-            }) {
-                Some(v) => v,
-                None => return None,
-            };
+            })?;
             headers
                 .entry(parsed.name.to_ascii_lowercase())
                 .and_modify(|v| *v = format!("{}, {}", v, parsed.value))

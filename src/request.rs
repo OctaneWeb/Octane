@@ -113,6 +113,7 @@ impl<'a> Headers<'a> {
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
+        for tok in toks {
             let parsed = Header::parse(match str::from_utf8(tok) {
                 Ok(s) => s,
                 Err(_) => return None,

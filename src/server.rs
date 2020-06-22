@@ -1,9 +1,12 @@
 use crate::config::OctaneConfig;
 use crate::constants::*;
 use crate::error::Error;
-use crate::request::{parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine};
+use crate::path::PathBuf;
+use crate::request::{
+    parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
+};
 use crate::responder::Response;
-use crate::router::{Closure, ClosureFlow, Flow, Route, Router};
+use crate::router::{Closure, ClosureFlow, Flow, Route, Router, RouterResult};
 use crate::util::find_in_slice;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::str;
@@ -20,24 +23,26 @@ pub struct Octane {
 }
 
 impl Route for Octane {
-    fn get(&mut self, path: &str, closure: Closure) {
-        self.router
-            .get_paths
-            .push((path.to_string(), Box::new(closure)));
+    fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
+        if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Get) {
+            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+        }
+        Ok(())
     }
-    fn post(&mut self, path: &str, closure: Closure) {
-        self.router
-            .post_paths
-            .push((path.to_string(), Box::new(closure)));
+    fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
+        if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Post) {
+            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+        }
+        Ok(())
     }
-    fn all(&mut self, path: &str, closure: Closure) {
-        self.router
-            .all_paths
-            .push((path.to_string(), Box::new(closure)));
+    fn all(&mut self, path: &str, closure: Closure) -> RouterResult {
+        if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Post) {
+            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+        }
+        Ok(())
     }
-    fn add(&mut self, entity: ClosureFlow) {
-        self.router.add_paths.push((None, Box::new(entity)))
-    }
+
+    fn add(&mut self, _entity: ClosureFlow) {}
 }
 
 impl Octane {
@@ -158,10 +163,13 @@ impl Octane {
                 }
             }
             let mut res = Response::new(b"");
-            // server get paths
-            for get_paths in &server.router.get_paths {
-                get_paths.1(&parsed_request, &mut res).await;
-            }
+            let functions = (*server.router)
+                .get(&parsed_request.request_line.method)
+                .unwrap();
+
+            if let Some(method) = functions.get(&parsed_request.request_line.path) {
+                method(&parsed_request, &mut res).await;
+            };
 
             Self::send_data(res.get_data(), stream_async).await?;
         } else {

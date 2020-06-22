@@ -1,6 +1,10 @@
-use crate::request::Request;
+use crate::path::{InvalidPathError, PathBuf};
+use crate::request::{Request, RequestMethod};
 use crate::responder::Response;
 use futures::future::BoxFuture;
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::result::Result;
 
 pub enum Flow {
     Stop,
@@ -19,55 +23,67 @@ pub type Closure =
 pub type ClosureFlow =
     Box<dyn for<'a> Fn(&'a Request, &'a mut Response) -> BoxFuture<'a, Flow> + Send + Sync>;
 
+pub type RouterResult = Result<(), InvalidPathError>;
+
+pub type Paths = HashMap<RequestMethod, HashMap<PathBuf, Closure>>;
+
 pub enum UseMethods<'a> {
     Static(&'a str),
 }
 
 pub trait Route {
-    fn get(&mut self, path: &str, closure: Closure);
-    fn post(&mut self, path: &str, closure: Closure);
-    fn all(&mut self, path: &str, closure: Closure);
+    fn get(&mut self, path: &str, closure: Closure) -> RouterResult;
+    fn post(&mut self, path: &str, closure: Closure) -> RouterResult;
+    fn all(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn add(&mut self, entity: ClosureFlow);
 }
 
 pub struct Router {
-    pub get_paths: Vec<(String, Box<Closure>)>,
-    pub post_paths: Vec<(String, Box<Closure>)>,
-    pub all_paths: Vec<(String, Box<Closure>)>,
-    pub add_paths: Vec<(Option<String>, Box<ClosureFlow>)>,
+    pub paths: Paths,
+}
+
+impl Deref for Router {
+    type Target = Paths;
+
+    fn deref(&self) -> &Self::Target {
+        &self.paths
+    }
 }
 
 impl Router {
     pub fn new() -> Self {
-        Router {
-            add_paths: Vec::new(),
-            get_paths: Vec::new(),
-            post_paths: Vec::new(),
-            all_paths: Vec::new(),
+        let mut hashmap: Paths = HashMap::new();
+        for variants in RequestMethod::values().iter().cloned() {
+            hashmap.insert(variants, HashMap::new());
         }
+        Router { paths: hashmap }
     }
-    pub fn append(&mut self, mut router: Self) -> &mut Self {
-        router.get_paths.append(&mut self.get_paths);
-        router.post_paths.append(&mut self.post_paths);
-        router.all_paths.append(&mut self.all_paths);
-        router.add_paths.append(&mut self.add_paths);
+    pub fn append(&mut self, _router: Self) -> &mut Self {
+        // TODO: Append each of the routes with respective keys
         self
     }
 }
 
 impl Route for Router {
-    fn get(&mut self, path: &str, closure: Closure) {
-        self.get_paths.push((path.to_string(), Box::new(closure)));
+    fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
+        if let Some(paths) = self.paths.get_mut(&RequestMethod::Get) {
+            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+        }
+        Ok(())
     }
-    fn post(&mut self, path: &str, closure: Closure) {
-        self.post_paths.push((path.to_string(), Box::new(closure)));
+    fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
+        if let Some(paths) = self.paths.get_mut(&RequestMethod::Post) {
+            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+        }
+        Ok(())
     }
-    fn all(&mut self, path: &str, closure: Closure) {
-        self.all_paths.push((path.to_string(), Box::new(closure)));
+    fn all(&mut self, path: &str, closure: Closure) -> RouterResult {
+        if let Some(paths) = self.paths.get_mut(&RequestMethod::Post) {
+            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+        }
+        Ok(())
     }
-    fn add(&mut self, entity: ClosureFlow) {
-        self.add_paths.push((None, Box::new(entity)))
-    }
+    fn add(&mut self, _entity: ClosureFlow) {}
 }
 
 impl Default for Router {

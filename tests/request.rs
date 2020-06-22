@@ -1,3 +1,4 @@
+use octane::path::PathBuf;
 use octane::request::*;
 
 #[test]
@@ -5,7 +6,7 @@ fn success_standard() {
     // Parsing should work as expected.
     let reqline = RequestLine::parse("POST /abc/def HTTP/1.1").unwrap();
     assert_eq!(reqline.method, RequestMethod::Post);
-    assert_eq!(reqline.path, "/abc/def");
+    assert_eq!(reqline.path, PathBuf::parse("/abc/def").ok().unwrap());
     assert_eq!(reqline.version, HttpVersion::Http11);
     let headers = Headers::parse(
         "Host: localhost:12345\r\n\

@@ -1,4 +1,5 @@
 use crate::constants::*;
+use crate::path::PathBuf;
 use crate::util::Spliterator;
 use std::cfg;
 use std::collections::HashMap;
@@ -7,8 +8,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::str;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum RequestMethod<'a> {
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub enum RequestMethod {
     Options,
     Get,
     Head,
@@ -17,8 +18,26 @@ pub enum RequestMethod<'a> {
     Delete,
     Trace,
     Connect,
-    Other(&'a str),
+    None,
 }
+
+impl RequestMethod {
+    pub fn values() -> [Self; 9] {
+        use RequestMethod::*;
+        [
+            Options,
+            Get,
+            Head,
+            Post,
+            Put,
+            Delete,
+            Trace,
+            Connect,
+            RequestMethod::None,
+        ]
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HttpVersion {
     Http11,
@@ -29,17 +48,20 @@ pub enum HttpVersion {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct RequestLine<'a> {
-    pub method: RequestMethod<'a>,
-    pub path: &'a str,
+pub struct RequestLine {
+    pub method: RequestMethod,
+    pub path: PathBuf,
     pub version: HttpVersion,
 }
 
-impl<'a> RequestLine<'a> {
-    pub fn parse(request_line: &'a str) -> Option<Self> {
+impl RequestLine {
+    pub fn parse(request_line: &str) -> Option<Self> {
         let mut toks = request_line.split(SP);
         let method = toks.next()?;
-        let path = toks.next()?;
+        let path = match PathBuf::parse(toks.next()?) {
+            Ok(val) => val,
+            Err(e) => panic!("{:?}", e),
+        };
         let version = toks.next()?;
         let (first, ver) = version.split_at(5);
         let enum_ver = match ver {
@@ -62,7 +84,7 @@ impl<'a> RequestLine<'a> {
             "HEAD" => RequestMethod::Head,
             "TRACE" => RequestMethod::Trace,
             "CONNECT" => RequestMethod::Connect,
-            _ => RequestMethod::Other(method),
+            _ => RequestMethod::None,
         };
         Some(Self {
             method: request_method,
@@ -153,7 +175,7 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Request<'a> {
-    pub request_line: RequestLine<'a>,
+    pub request_line: RequestLine,
     pub headers: Headers<'a>,
     pub body: &'a [u8],
     #[cfg(feature = "cookies")]
@@ -161,11 +183,7 @@ pub struct Request<'a> {
 }
 
 impl<'a> Request<'a> {
-    pub fn parse(
-        request_line: RequestLine<'a>,
-        headers: Headers<'a>,
-        body: &'a [u8],
-    ) -> Option<Self> {
+    pub fn parse(request_line: RequestLine, headers: Headers<'a>, body: &'a [u8]) -> Option<Self> {
         #[cfg(feature = "cookies")]
         let cookies: Cookies;
         #[cfg(feature = "cookies")]

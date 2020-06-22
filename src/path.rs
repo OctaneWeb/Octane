@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ops::Deref;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
     pub chunks: Vec<String>,
 }

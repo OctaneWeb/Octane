@@ -32,8 +32,8 @@ pub trait Route {
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn all(&mut self, path: &str, closure: Closure) -> RouterResult;
-    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn add(&mut self, entity: ClosureFlow) -> RouterResult;
+    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
 }
 
 pub struct Router {

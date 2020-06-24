@@ -84,9 +84,8 @@ impl Octane {
         }
         Ok(())
     }
-    pub fn static_dir(&mut self, location: &'static str) -> ClosureFlow {
-        self.settings.static_dir.push((None, location.to_owned()));
-        Box::new(move |_req, _res| Box::pin(async move { Flow::Continue }))
+    pub fn static_dir(&mut self, location: &'static str) -> () {
+        // TODO: Implement static dir middleware
     }
 
     async fn catch_request(

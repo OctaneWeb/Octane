@@ -42,7 +42,12 @@ impl Route for Octane {
         Ok(())
     }
 
-    fn add(&mut self, _entity: ClosureFlow) {}
+    fn add(&mut self, _entity: ClosureFlow) -> RouterResult {
+        Ok(())
+    }
+    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
+        Ok(())
+    }
 }
 
 impl Octane {
@@ -79,11 +84,9 @@ impl Octane {
         }
         Ok(())
     }
-    pub fn static_dir(location: &'static str) -> ClosureFlow {
-        Box::new(move |_req, res| {
-            res.set_static_dir(location.to_owned());
-            Box::pin(async move { Flow::Continue })
-        })
+    pub fn static_dir(&mut self, location: &'static str) -> ClosureFlow {
+        self.settings.static_dir.push((None, location.to_owned()));
+        Box::new(move |_req, _res| Box::pin(async move { Flow::Continue }))
     }
 
     async fn catch_request(
@@ -163,15 +166,17 @@ impl Octane {
                 }
             }
             let mut res = Response::new(b"");
-            let functions = (*server.router)
-                .get(&parsed_request.request_line.method)
-                .unwrap();
+            if let Some(functions) = (*server.router).get(&parsed_request.request_line.method) {
+                if let Some(closure) = functions.get(&parsed_request.request_line.path) {
+                    closure(&parsed_request, &mut res).await;
+                };
 
-            if let Some(method) = functions.get(&parsed_request.request_line.path) {
-                method(&parsed_request, &mut res).await;
-            };
-
-            Self::send_data(res.get_data(), stream_async).await?;
+                Self::send_data(res.get_data(), stream_async).await?;
+            } else {
+                Error::err(StatusCode::NotImplemented)
+                    .send(stream_async)
+                    .await?;
+            }
         } else {
             Error::err(StatusCode::BadRequest)
                 .send(stream_async)

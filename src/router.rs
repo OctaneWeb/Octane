@@ -14,6 +14,7 @@ pub enum Flow {
 #[macro_export]
 macro_rules! route {
     ( | $req : ident, $res : ident | $body : expr ) => {
+        #[allow(unused_variables)]
         Box::new(move |$req, $res| Box::pin(async move { $body }))
     };
 }
@@ -27,15 +28,12 @@ pub type RouterResult = Result<(), InvalidPathError>;
 
 pub type Paths = HashMap<RequestMethod, HashMap<PathBuf, Closure>>;
 
-pub enum UseMethods<'a> {
-    Static(&'a str),
-}
-
 pub trait Route {
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn all(&mut self, path: &str, closure: Closure) -> RouterResult;
-    fn add(&mut self, entity: ClosureFlow);
+    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
+    fn add(&mut self, entity: ClosureFlow) -> RouterResult;
 }
 
 pub struct Router {
@@ -52,11 +50,11 @@ impl Deref for Router {
 
 impl Router {
     pub fn new() -> Self {
-        let mut hashmap: Paths = HashMap::new();
+        let mut paths: Paths = HashMap::new();
         for variants in RequestMethod::values().iter().cloned() {
-            hashmap.insert(variants, HashMap::new());
+            paths.insert(variants, HashMap::new());
         }
-        Router { paths: hashmap }
+        Router { paths }
     }
     pub fn append(&mut self, _router: Self) -> &mut Self {
         // TODO: Append each of the routes with respective keys
@@ -83,7 +81,12 @@ impl Route for Router {
         }
         Ok(())
     }
-    fn add(&mut self, _entity: ClosureFlow) {}
+    fn add(&mut self, _entity: ClosureFlow) -> RouterResult {
+        Ok(())
+    }
+    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
+        Ok(())
+    }
 }
 
 impl Default for Router {

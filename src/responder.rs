@@ -8,7 +8,6 @@ pub struct Response<'a> {
     pub status_code: StatusCode,
     pub body: Vec<u8>,
     pub http_version: &'a str,
-    pub static_folder: Option<String>,
     pub headers: HashMap<String, String>,
 }
 
@@ -30,15 +29,11 @@ impl<'a> Response<'a> {
     }
     pub fn new(body: &'a [u8]) -> Self {
         Response {
-            static_folder: None,
             status_code: StatusCode::Ok,
             body: body.to_vec(),
             http_version: "1.1",
             headers: HashMap::new(),
         }
-    }
-    pub fn set_static_dir(&mut self, location: String) {
-        self.static_folder = Some(location);
     }
     pub fn send(&mut self, body: &'a [u8]) {
         let heading_one = b"<!DOCTYPE html><html><head></head><body>";

@@ -13,7 +13,6 @@ pub mod server;
 pub mod time;
 pub mod util;
 
-use crate::path::InvalidPathError;
 use crate::router::Route;
 use crate::server::Octane;
 

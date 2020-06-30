@@ -26,7 +26,7 @@ async fn main() {
                 .await
                 .expect("cannot find file");
         }),
-    );
+    ).unwrap();
     app.get(
         "test.js",
         route!(|_req, res| {
@@ -34,7 +34,7 @@ async fn main() {
                 .await
                 .expect("cannot find file");
         }),
-    );
+    ).unwrap();
     app.get(
         "test.css",
         route!(|_req, res| {
@@ -42,6 +42,6 @@ async fn main() {
                 .await
                 .expect("cannot find file");
         }),
-    );
+    ).unwrap();
     app.listen(8080).await.expect("Cannot establish connection");
 }

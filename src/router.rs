@@ -84,7 +84,7 @@ impl Route for Router {
     fn add(&mut self, _entity: ClosureFlow) -> RouterResult {
         Ok(())
     }
-    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
+    fn add_route(&mut self, _path: &str, _closure: Closure) -> RouterResult {
         Ok(())
     }
 }

@@ -6,7 +6,7 @@ use crate::request::{
     parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
 };
 use crate::responder::Response;
-use crate::router::{Closure, ClosureFlow, Flow, Route, Router, RouterResult};
+use crate::router::{Closure, ClosureFlow, Route, Router, RouterResult};
 use crate::util::find_in_slice;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::str;
@@ -45,7 +45,7 @@ impl Route for Octane {
     fn add(&mut self, _entity: ClosureFlow) -> RouterResult {
         Ok(())
     }
-    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
+    fn add_route(&mut self, _path: &str, _closure: Closure) -> RouterResult {
         Ok(())
     }
 }
@@ -84,7 +84,7 @@ impl Octane {
         }
         Ok(())
     }
-    pub fn static_dir(&mut self, location: &'static str) -> () {
+    pub fn static_dir(&mut self, _location: &'static str) -> () {
         // TODO: Implement static dir middleware
     }
 

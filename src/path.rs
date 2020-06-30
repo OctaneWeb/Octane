@@ -226,10 +226,7 @@ impl<T: std::fmt::Debug> PathNode<T> {
         {
             var_chunks.push(&chunks[0]);
             if let Some(v) = cur.get(&PathChunk::CatchAll) {
-                let found = v.dfs(
-                    &chunks[1..],
-                    var_chunks
-                );
+                let found = v.dfs(&chunks[1..], var_chunks);
                 if found.is_some() {
                     return found;
                 }
@@ -239,43 +236,16 @@ impl<T: std::fmt::Debug> PathNode<T> {
         None
     }
 
-    // pub fn get(&self, path: &PathBuf) -> Option<MatchedPath<T>> {
-    //     let mut cur = self.unwrap_node();
-    //     #[cfg(feature = "url_variables")]
-    //     let mut var_chunks = Vec::new();
-    //     for chunk in path.iter() {
-    //         if let Some(v) = cur.get(&PathChunk::Chunk(chunk.clone())) {
-    //             cur = v.unwrap_node();
-    //             continue;
-    //         }
-    //         #[cfg(feature = "url_variables")]
-    //         {
-    //             var_chunks.push(chunk);
-    //             cur = cur.get(&PathChunk::CatchAll)?.unwrap_node();
-    //         }
-    //     }
-    //     #[cfg(feature = "url_variables")]
-    //     let mut vars = HashMap::new();
-    //     let data = cur.get(&PathChunk::End)?.unwrap_leaf();
-    //     #[cfg(feature = "url_variables")]
-    //     if data.vars.len() != var_chunks.len() {
-    //         panic!("PathNode structure is corrupted.");
-    //     }
-    //     #[cfg(feature = "url_variables")]
-    //     for (n, v) in data.vars.iter().zip(var_chunks.into_iter()) {
-    //         vars.insert(n, v.clone());
-    //     }
-    //     Some(MatchedPath {
-    //         #[cfg(feature = "url_variables")]
-    //         vars,
-    //         data: &data.data,
-    //     })
-    // }
-
     pub fn get(&self, path: &PathBuf) -> Option<MatchedPath<T>> {
         #[cfg(feature = "url_variables")]
         let mut var_chunks = Vec::new();
-        let data = self.dfs(path.chunks.as_slice(), #[cfg(feature = "url_variables")] &mut var_chunks)?.unwrap_leaf();
+        let data = self
+            .dfs(
+                path.chunks.as_slice(),
+                #[cfg(feature = "url_variables")]
+                &mut var_chunks,
+            )?
+            .unwrap_leaf();
         #[cfg(feature = "url_variables")]
         let mut vars = HashMap::new();
         #[cfg(feature = "url_variables")]

@@ -97,7 +97,7 @@ make_pe!(bool, Boolean);
 
 impl<T> PartialEq<Vec<T>> for Value
 where
-    Value: PartialEq<T>
+    Value: PartialEq<T>,
 {
     fn eq(&self, other: &Vec<T>) -> bool {
         if let Value::Array(x) = self {
@@ -110,7 +110,7 @@ where
 
 impl<T> PartialEq<HashMap<String, T>> for Value
 where
-    Value: PartialEq<T>
+    Value: PartialEq<T>,
 {
     fn eq(&self, other: &HashMap<String, T>) -> bool {
         if let Value::Object(x) = self {
@@ -146,7 +146,7 @@ impl PartialEq for Value {
             (Value::Array(x), Value::Array(y)) => x.eq(y),
             (Value::Object(x), Value::Object(y)) => x.eq(y),
             (Value::Null, Value::Null) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -205,7 +205,10 @@ where
 
     fn try_from(v: Value) -> Result<Self, Self::Error> {
         if let Value::Array(arr) = v {
-            arr.into_iter().map(T::from_json).collect::<Option<_>>().ok_or(InvalidTypeError)
+            arr.into_iter()
+                .map(T::from_json)
+                .collect::<Option<_>>()
+                .ok_or(InvalidTypeError)
         } else {
             Err(InvalidTypeError)
         }
@@ -328,7 +331,7 @@ impl<T: ToJSON> ToJSON for Vec<T> {
         let len = self.len();
         for (i, v) in self.iter().enumerate() {
             ret.push_str(&v.to_json()?);
-            ret.push(if i < len - 1 {','} else {']'});
+            ret.push(if i < len - 1 { ',' } else { ']' });
         }
         Some(ret)
     }
@@ -342,7 +345,7 @@ impl<T: ToJSON> ToJSON for HashMap<String, T> {
             ret.push_str(&k.to_json()?);
             ret.push(':');
             ret.push_str(&v.to_json()?);
-            ret.push(if i < len - 1 {','} else {'}'});
+            ret.push(if i < len - 1 { ',' } else { '}' });
         }
         Some(ret)
     }
@@ -356,7 +359,7 @@ impl ToJSON for Value {
             Value::Boolean(x) => x.to_json(),
             Value::Array(x) => x.to_json(),
             Value::Object(x) => x.to_json(),
-            Value::Null => ().to_json()
+            Value::Null => ().to_json(),
         }
     }
 }

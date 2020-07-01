@@ -1,5 +1,5 @@
-use proc_macro::{Delimiter, Ident, TokenStream, TokenTree};
 use crate::util::extend;
+use proc_macro::{Delimiter, Ident, TokenStream, TokenTree};
 
 pub fn derive_from_json(toks: TokenStream) -> TokenStream {
     let mut tok_iter = toks.into_iter();
@@ -44,9 +44,10 @@ pub fn derive_from_json(toks: TokenStream) -> TokenStream {
         if let TokenTree::Group(grp) = &tok {
             match grp.delimiter() {
                 Delimiter::Brace => {
-                    let proced =  process_braces(grp.stream(), name, gen_between, where_between, generics);
+                    let proced =
+                        process_braces(grp.stream(), name, gen_between, where_between, generics);
                     return proced;
-                },
+                }
                 _ => {}
             };
         }
@@ -60,7 +61,13 @@ pub fn derive_from_json(toks: TokenStream) -> TokenStream {
         .unwrap()
 }
 
-fn process_braces(toks: TokenStream, name: String, gen_between: TokenStream, mut where_between: TokenStream, generics: Vec<String>) -> TokenStream {
+fn process_braces(
+    toks: TokenStream,
+    name: String,
+    gen_between: TokenStream,
+    mut where_between: TokenStream,
+    generics: Vec<String>,
+) -> TokenStream {
     let mut fields: Vec<Ident> = Vec::new();
     let mut is_field = true;
     for tok in toks {
@@ -96,7 +103,11 @@ fn process_braces(toks: TokenStream, name: String, gen_between: TokenStream, mut
         gen_list.push('>');
     }
     for gen in generics {
-        where_between.extend::<TokenStream>(format!(", {}: octane::json::FromJSON", gen).parse().unwrap());
+        where_between.extend::<TokenStream>(
+            format!(", {}: octane::json::FromJSON", gen)
+                .parse()
+                .unwrap(),
+        );
     }
     format!(
         "\

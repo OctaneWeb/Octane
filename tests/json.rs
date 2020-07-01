@@ -120,5 +120,9 @@ fn success_derive() {
 fn fail_derive() {
     // The derive macro should error when converting decimals to integers.
     assert!(JSONable::<i32>::from_json(Value::parse(r#"{"x": 1.1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap()).is_none());
+    // Missing fields should error.
+    assert!(JSONable::<i32>::from_json(Value::parse(r#"{"x": 1, "y": "asdf"}"#).unwrap()).is_none());
+    // Extra fields should error.
+    assert!(JSONable::<i32>::from_json(Value::parse(r#"{"x": 1, "y": "asdf", "z": [1, 2, 3], "foo": "bar"}"#).unwrap()).is_none());
 }
 

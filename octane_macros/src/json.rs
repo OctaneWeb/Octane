@@ -103,9 +103,13 @@ fn process_braces(toks: TokenStream, name: String, gen_between: TokenStream, mut
     impl{} octane::json::FromJSON for {}{} {} {{\
         fn from_json(val: octane::json::Value) -> Option<Self> {{\
             if let octane::json::Value::Object(mut obj) = val {{\
-                Some(Self {{\
+                let ret = Self {{\
                     {}\
-                }})\
+                }};\
+                if !obj.is_empty() {{\
+                    return None;\
+                }}\
+                Some(ret)\
             }} else {{\
                 None\
             }}\

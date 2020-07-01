@@ -102,12 +102,17 @@ fn process_braces(
     if generics.len() > 0 {
         gen_list.push('>');
     }
+    let mut comma = ", ";
+    if where_between.clone().into_iter().last().map(|v| v.to_string() == ",").unwrap_or(true) {
+        comma = "";
+    }
     for gen in generics {
         where_between.extend::<TokenStream>(
-            format!(", {}: octane::json::FromJSON", gen)
+            format!("{}{}: octane::json::FromJSON", comma, gen)
                 .parse()
                 .unwrap(),
         );
+        comma = ", ";
     }
     format!(
         "\

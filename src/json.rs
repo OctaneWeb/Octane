@@ -260,6 +260,16 @@ macro_rules! make_numeric_tryfrom {
     };
 }
 
+macro_rules! make_numeric_tojson {
+    ($type: ty) => {
+        impl ToJSON for $type {
+            fn to_json(&self) -> Option<String> {
+                Some((*self as f64).to_string())
+            }
+        }
+    };
+}
+
 make_numeric_tryfrom!(u128);
 make_numeric_tryfrom!(u64);
 make_numeric_tryfrom!(u32);
@@ -271,6 +281,18 @@ make_numeric_tryfrom!(i32);
 make_numeric_tryfrom!(i16);
 make_numeric_tryfrom!(i8);
 make_numeric_tryfrom!(f32);
+
+make_numeric_tojson!(u128);
+make_numeric_tojson!(u64);
+make_numeric_tojson!(u32);
+make_numeric_tojson!(u16);
+make_numeric_tojson!(u8);
+make_numeric_tojson!(i128);
+make_numeric_tojson!(i64);
+make_numeric_tojson!(i32);
+make_numeric_tojson!(i16);
+make_numeric_tojson!(i8);
+make_numeric_tojson!(f32);
 
 impl ToJSON for f64 {
     fn to_json(&self) -> Option<String> {

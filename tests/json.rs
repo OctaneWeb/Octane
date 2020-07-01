@@ -98,8 +98,11 @@ fn failure_object() {
 }
 
 #[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
-struct JSONable {
-    x: i32,
+struct JSONable<T: Clone>
+where
+    T: Copy
+{
+    x: T,
     y: String,
     z: Vec<i32>
 }
@@ -107,7 +110,7 @@ struct JSONable {
 #[test]
 fn success_derive() {
     // The derive macro should work.
-    let obj = JSONable::from_json(Value::parse(r#"{"x": 1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap()).unwrap();
+    let obj = JSONable::<i32>::from_json(Value::parse(r#"{"x": 1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap()).unwrap();
     assert_eq!(obj.x, 1);
     assert_eq!(obj.y, "asdf".to_string());
     assert_eq!(obj.z, vec![1, 2, 3]);
@@ -116,6 +119,6 @@ fn success_derive() {
 #[test]
 fn fail_derive() {
     // The derive macro should error when converting decimals to integers.
-    assert!(JSONable::from_json(Value::parse(r#"{"x": 1.1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap()).is_none());
+    assert!(JSONable::<i32>::from_json(Value::parse(r#"{"x": 1.1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap()).is_none());
 }
 

@@ -37,6 +37,20 @@ macro_rules! make_is_func {
     };
 }
 
+macro_rules! make_pe {
+    ($type: ident, $variant: ident) => {
+        impl PartialEq<$type> for Value {
+            fn eq(&self, other: &$type) -> bool {
+                if let Value::$variant(x) = self {
+                    x.eq(other)
+                } else {
+                    false
+                }
+            }
+        }
+    };
+}
+
 impl Value {
     make_as_func!(as_number, f64, Number);
     make_as_func!(as_boolean, bool, Boolean);
@@ -75,6 +89,68 @@ impl Value {
     }
 }
 
+impl Eq for Value {}
+
+make_pe!(f64, Number);
+make_pe!(String, String);
+make_pe!(bool, Boolean);
+
+impl<T> PartialEq<Vec<T>> for Value
+where
+    Value: PartialEq<T>
+{
+    fn eq(&self, other: &Vec<T>) -> bool {
+        if let Value::Array(x) = self {
+            x.eq(other)
+        } else {
+            false
+        }
+    }
+}
+
+impl<T> PartialEq<HashMap<String, T>> for Value
+where
+    Value: PartialEq<T>
+{
+    fn eq(&self, other: &HashMap<String, T>) -> bool {
+        if let Value::Object(x) = self {
+            if x.len() != other.len() {
+                return false;
+            }
+            for (k, v1) in x {
+                if let Some(v2) = other.get(k) {
+                    if v1.ne(v2) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+        }
+        false
+    }
+}
+
+impl PartialEq<()> for Value {
+    fn eq(&self, _: &()) -> bool {
+        self.is_null()
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Number(x), Value::Number(y)) => x.eq(y),
+            (Value::String(x), Value::String(y)) => x.eq(y),
+            (Value::Boolean(x), Value::Boolean(y)) => x.eq(y),
+            (Value::Array(x), Value::Array(y)) => x.eq(y),
+            (Value::Object(x), Value::Object(y)) => x.eq(y),
+            (Value::Null, Value::Null) => true,
+            _ => false
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidTypeError;
 
@@ -82,22 +158,22 @@ pub trait FromJSON
 where
     Self: Sized,
 {
-    fn from_json(val: Value) -> Result<Self, InvalidTypeError>;
+    fn from_json(val: Value) -> Option<Self>;
+}
+
+pub trait ToJSON
+where
+    Self: Sized,
+{
+    fn to_json(&self) -> Option<String>;
 }
 
 impl<T> FromJSON for T
 where
-    T: TryFrom<Value, Error = InvalidTypeError>,
+    T: TryFrom<Value>,
 {
-    fn from_json(val: Value) -> Result<Self, InvalidTypeError> {
-        Self::try_from(val)
-    }
-}
-
-// Until the never type gets stabilized this'll have to do
-impl FromJSON for Value {
-    fn from_json(val: Value) -> Result<Self, InvalidTypeError> {
-        Ok(val)
+    fn from_json(val: Value) -> Option<Self> {
+        Self::try_from(val).ok()
     }
 }
 
@@ -129,7 +205,7 @@ where
 
     fn try_from(v: Value) -> Result<Self, Self::Error> {
         if let Value::Array(arr) = v {
-            arr.into_iter().map(T::from_json).collect::<Result<_, _>>()
+            arr.into_iter().map(T::from_json).collect::<Option<_>>().ok_or(InvalidTypeError)
         } else {
             Err(InvalidTypeError)
         }
@@ -145,7 +221,7 @@ where
     fn try_from(v: Value) -> Result<Self, Self::Error> {
         if let Value::Object(map) = v {
             map.into_iter()
-                .map(|(k, v)| Ok((k, T::from_json(v)?)))
+                .map(|(k, v)| Ok((k, T::from_json(v).ok_or(InvalidTypeError)?)))
                 .collect::<Result<_, _>>()
         } else {
             Err(InvalidTypeError)
@@ -173,8 +249,9 @@ macro_rules! make_numeric_tryfrom {
             #[allow(clippy::float_cmp)]
             fn try_from(v: Value) -> Result<Self, Self::Error> {
                 let num: f64 = v.try_into()?;
-                if num == (num as $type) as f64 {
-                    Ok(num as $type)
+                let conved = num as $type;
+                if num == conved as f64 {
+                    Ok(conved)
                 } else {
                     Err(InvalidTypeError)
                 }
@@ -194,6 +271,73 @@ make_numeric_tryfrom!(i32);
 make_numeric_tryfrom!(i16);
 make_numeric_tryfrom!(i8);
 make_numeric_tryfrom!(f32);
+
+impl ToJSON for f64 {
+    fn to_json(&self) -> Option<String> {
+        Some(self.to_string())
+    }
+}
+
+impl ToJSON for () {
+    fn to_json(&self) -> Option<String> {
+        Some("null".to_string())
+    }
+}
+
+impl ToJSON for bool {
+    fn to_json(&self) -> Option<String> {
+        Some(if *self {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        })
+    }
+}
+
+impl ToJSON for String {
+    fn to_json(&self) -> Option<String> {
+        Some(format!("{:?}", self))
+    }
+}
+
+impl<T: ToJSON> ToJSON for Vec<T> {
+    fn to_json(&self) -> Option<String> {
+        let mut ret = "[".to_string();
+        let len = self.len();
+        for (i, v) in self.iter().enumerate() {
+            ret.push_str(&v.to_json()?);
+            ret.push(if i < len - 1 {','} else {']'});
+        }
+        Some(ret)
+    }
+}
+
+impl<T: ToJSON> ToJSON for HashMap<String, T> {
+    fn to_json(&self) -> Option<String> {
+        let mut ret = "{".to_string();
+        let len = self.len();
+        for (i, (k, v)) in self.iter().enumerate() {
+            ret.push_str(&k.to_json()?);
+            ret.push(':');
+            ret.push_str(&v.to_json()?);
+            ret.push(if i < len - 1 {','} else {'}'});
+        }
+        Some(ret)
+    }
+}
+
+impl ToJSON for Value {
+    fn to_json(&self) -> Option<String> {
+        match self {
+            Value::Number(x) => x.to_json(),
+            Value::String(x) => x.to_json(),
+            Value::Boolean(x) => x.to_json(),
+            Value::Array(x) => x.to_json(),
+            Value::Object(x) => x.to_json(),
+            Value::Null => ().to_json()
+        }
+    }
+}
 
 pub fn consume_ws(dat: &str) -> &str {
     dat.trim_start()

@@ -44,23 +44,20 @@ fn process_braces(toks: TokenStream, name: String) -> TokenStream {
     let mut vals = String::new();
     for field in fields {
         vals.push_str(&format!(
-            "{0}: octane::json::FromJSON::from_json(match obj.remove({0:?}) {{\
-            Some(v) => v,\
-            None => return Err(octane::json::InvalidTypeError)\
-        }})?,",
+            "{0}: octane::json::FromJSON::from_json(obj.remove({0:?})?)?,",
             field.to_string()
         ));
     }
     format!(
         "\
     impl octane::json::FromJSON for {} {{\
-        fn from_json(val: octane::json::Value) -> Result<Self, octane::json::InvalidTypeError> {{\
+        fn from_json(val: octane::json::Value) -> Option<Self> {{\
             if let octane::json::Value::Object(mut obj) = val {{\
-                Ok(Self {{\
+                Some(Self {{\
                     {}\
                 }})\
             }} else {{\
-                Err(octane::json::InvalidTypeError)\
+                None\
             }}\
         }}\
     }}",

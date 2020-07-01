@@ -1,4 +1,4 @@
-use octane::json;
+use octane::json::{self, FromJSON, Value, ToJSON};
 pub mod common;
 use crate::common::*;
 use std::convert::TryFrom;
@@ -80,6 +80,14 @@ fn success_object() {
 }
 
 #[test]
+fn success_serialize() {
+    // Values should be converted to valid JSON..
+    let s = r#"{"a" : 1.0 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}"#;
+    let parsed = Value::parse(s).unwrap();
+    assert_eq!(parsed, Value::parse(&parsed.to_json().unwrap()).unwrap());
+}
+
+#[test]
 fn failure_object() {
     // Bad cases should be handled.
     assert!(json::parse_object(r#"{"#).is_none());
@@ -88,3 +96,26 @@ fn failure_object() {
     assert!(json::parse_object(r#"{a:1}"#).is_none());
     assert!(json::parse_object(r#"{"a":1,}"#).is_none());
 }
+
+#[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
+struct JSONable {
+    x: i32,
+    y: String,
+    z: Vec<i32>
+}
+
+#[test]
+fn success_derive() {
+    // The derive macro should work.
+    let obj = JSONable::from_json(Value::parse(r#"{"x": 1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap()).unwrap();
+    assert_eq!(obj.x, 1);
+    assert_eq!(obj.y, "asdf".to_string());
+    assert_eq!(obj.z, vec![1, 2, 3]);
+}
+
+#[test]
+fn fail_derive() {
+    // The derive macro should error when converting decimals to integers.
+    assert!(JSONable::from_json(Value::parse(r#"{"x": 1.1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap()).is_none());
+}
+

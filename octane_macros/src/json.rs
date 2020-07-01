@@ -53,6 +53,7 @@ pub fn derive_from_json(toks: TokenStream) -> TokenStream {
         }
         if tok.to_string() == "where" {
             cur = &mut where_between;
+            continue;
         }
         extend(cur, tok);
     }
@@ -116,7 +117,7 @@ fn process_braces(
     }
     format!(
         "\
-    impl{} octane::json::FromJSON for {}{} {} {{\
+    impl{} octane::json::FromJSON for {}{} where {} {{\
         fn from_json(val: octane::json::Value) -> Option<Self> {{\
             if let octane::json::Value::Object(mut obj) = val {{\
                 let ret = Self {{\

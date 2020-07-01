@@ -107,10 +107,25 @@ where
     z: Vec<i32>,
 }
 
+#[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
+struct NoWhere<T: Clone + Copy>
+{
+    x: T,
+    y: String,
+    z: Vec<i32>,
+}
+
 #[test]
 fn success_derive() {
     // The derive macro should work.
     let obj = JSONable::<i32>::from_json(
+        Value::parse(r#"{"x": 1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(obj.x, 1);
+    assert_eq!(obj.y, "asdf".to_string());
+    assert_eq!(obj.z, vec![1, 2, 3]);
+    let obj = NoWhere::<i32>::from_json(
         Value::parse(r#"{"x": 1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap(),
     )
     .unwrap();

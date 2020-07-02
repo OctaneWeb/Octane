@@ -33,14 +33,17 @@ impl PathBuf {
     }
 
     #[cfg(feature = "url_variables")]
-    pub fn check_matches(&self, other: &PathBuf) -> Option<HashMap<String, String>> {
+    pub fn check_matches<'a, 'b>(
+        &'a self,
+        other: &'b PathBuf,
+    ) -> Option<HashMap<&'a str, &'b str>> {
         if self.len() != other.len() {
             return None;
         }
         let mut vars = HashMap::new();
         for (a, b) in self.iter().zip(other.iter()) {
             if a.as_bytes()[0] == b':' {
-                vars.insert(a[1..].to_owned(), b.clone());
+                vars.insert(&a[1..], &b[..]);
             } else if a != b {
                 return None;
             }
@@ -102,14 +105,14 @@ impl Default for PathBuf {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathData<T> {
     #[cfg(feature = "url_variables")]
-    pub vars: Vec<String>,
+    pub orig_path: PathBuf,
     pub data: T,
 }
 
 #[derive(Debug, Clone)]
 pub struct MatchedPath<'a, T> {
     #[cfg(feature = "url_variables")]
-    pub vars: HashMap<&'a String, String>,
+    pub vars: HashMap<&'a str, String>,
     pub data: &'a T,
 }
 
@@ -139,7 +142,7 @@ pub enum PathChunk {
 #[derive(Debug, Clone)]
 pub enum PathNode<T> {
     Node(HashMap<PathChunk, PathNode<T>>),
-    Leaf(PathData<T>),
+    Leaf(Vec<PathData<T>>),
 }
 
 impl<T> PathNode<T> {
@@ -159,7 +162,15 @@ impl<T> PathNode<T> {
         }
     }
 
-    fn unwrap_leaf(&self) -> &PathData<T> {
+    fn unwrap_leaf(&self) -> &Vec<PathData<T>> {
+        if let PathNode::Leaf(x) = self {
+            x
+        } else {
+            panic!("Tried to unwrap a node as a leaf.");
+        }
+    }
+
+    fn unwrap_leaf_mut(&mut self) -> &mut Vec<PathData<T>> {
         if let PathNode::Leaf(x) = self {
             x
         } else {
@@ -171,14 +182,19 @@ impl<T> PathNode<T> {
         PathNode::Node(HashMap::new())
     }
 
-    pub fn insert(&mut self, path: PathBuf, data: T) -> Result<(), &'static str> {
+    pub fn insert(&mut self, path: PathBuf, data: T) {
         let mut cur = self.unwrap_node_mut();
+        let path_chunks;
         #[cfg(feature = "url_variables")]
-        let mut vars = Vec::new();
-        for chunk in path.chunks.into_iter() {
-            #[cfg(feature = "url_variables")]
+        {
+            path_chunks = path.clone().chunks;
+        }
+        #[cfg(not(feature = "url_variables"))]
+        {
+            path_chunks = path.chunks;
+        }
+        for chunk in path_chunks.into_iter() {
             if chunk.as_bytes()[0] == b':' {
-                vars.push(chunk[1..].to_owned());
                 cur = cur
                     .entry(PathChunk::CatchAll)
                     .or_default()
@@ -190,77 +206,57 @@ impl<T> PathNode<T> {
                 .or_default()
                 .unwrap_node_mut();
         }
-        // right now this overwrites the current value
-        // this may be changed later for consistency
-        cur.insert(
-            PathChunk::End,
-            PathNode::Leaf(PathData {
+        cur.entry(PathChunk::End)
+            .or_insert(PathNode::Leaf(vec![]))
+            .unwrap_leaf_mut()
+            .push(PathData {
                 #[cfg(feature = "url_variables")]
-                vars,
+                orig_path: path,
                 data,
-            }),
-        );
-        Ok(())
+            });
     }
 
-    fn dfs<'a, 'b: 'a>(
-        &self,
-        chunks: &'b [String],
-        #[cfg(feature = "url_variables")] var_chunks: &mut Vec<&'a String>,
-    ) -> Option<&PathNode<T>> {
+    fn dfs<'a, 'b: 'a>(&self, chunks: &'b [String]) -> Vec<&PathData<T>> {
         let cur = self.unwrap_node();
         if chunks.is_empty() {
-            return cur.get(&PathChunk::End);
+            return cur
+                .get(&PathChunk::End)
+                .map(|v| v.unwrap_leaf().iter().collect())
+                .unwrap_or(vec![]);
         }
+        let mut ret = vec![];
         if let Some(v) = cur.get(&PathChunk::Chunk(chunks[0].clone())) {
-            let found = v.dfs(
-                &chunks[1..],
-                #[cfg(feature = "url_variables")]
-                var_chunks,
-            );
-            if found.is_some() {
-                return found;
-            }
+            let found = v.dfs(&chunks[1..]);
+            ret = found;
         }
         #[cfg(feature = "url_variables")]
         {
-            var_chunks.push(&chunks[0]);
             if let Some(v) = cur.get(&PathChunk::CatchAll) {
-                let found = v.dfs(&chunks[1..], var_chunks);
-                if found.is_some() {
-                    return found;
-                }
+                let found = v.dfs(&chunks[1..]);
+                ret.extend(found);
             }
-            var_chunks.pop();
         }
-        None
+        ret
     }
 
-    pub fn get(&self, path: &PathBuf) -> Option<MatchedPath<T>> {
-        #[cfg(feature = "url_variables")]
-        let mut var_chunks = Vec::new();
-        let data = self
-            .dfs(
-                path.chunks.as_slice(),
-                #[cfg(feature = "url_variables")]
-                &mut var_chunks,
-            )?
-            .unwrap_leaf();
-        #[cfg(feature = "url_variables")]
-        let mut vars = HashMap::new();
-        #[cfg(feature = "url_variables")]
-        if data.vars.len() != var_chunks.len() {
-            panic!("PathNode structure is corrupted.");
-        }
-        #[cfg(feature = "url_variables")]
-        for (n, v) in data.vars.iter().zip(var_chunks.into_iter()) {
-            vars.insert(n, v.clone());
-        }
-        Some(MatchedPath {
-            #[cfg(feature = "url_variables")]
-            vars,
-            data: &data.data,
-        })
+    pub fn get(&self, path: &PathBuf) -> Vec<MatchedPath<T>> {
+        let matched = self.dfs(path.chunks.as_slice());
+        matched
+            .into_iter()
+            .map(|data| {
+                MatchedPath {
+                    #[cfg(feature = "url_variables")]
+                    vars: data
+                        .orig_path
+                        .check_matches(path)
+                        .unwrap()
+                        .into_iter()
+                        .map(|(k, v)| (k, v.to_owned()))
+                        .collect(),
+                    data: &data.data,
+                }
+            })
+            .collect()
     }
 }
 

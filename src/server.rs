@@ -184,9 +184,9 @@ impl Octane {
             }
             let mut res = Response::new(b"");
             if let Some(functions) = server.router.paths.get(&parsed_request.request_line.method) {
-                if let Some(x) = functions.get(&parsed_request.request_line.path) {
+                functions.get(&parsed_request.request_line.path).into_iter().for_each(|x| {
                     (x.closure)(&parsed_request, &mut res);
-                }
+                });
                 Self::send_data(res.get_data(), stream_async).await?;
             } else {
                 Error::err(StatusCode::NotImplemented)

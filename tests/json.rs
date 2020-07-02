@@ -115,6 +115,9 @@ struct NoWhere<T: Clone + Copy>
     z: Vec<i32>,
 }
 
+#[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
+struct TupleStruct(i32, String, Vec<TupleStruct>);
+
 #[test]
 fn success_derive() {
     // The derive macro should work.
@@ -132,6 +135,16 @@ fn success_derive() {
     assert_eq!(obj.x, 1);
     assert_eq!(obj.y, "asdf".to_string());
     assert_eq!(obj.z, vec![1, 2, 3]);
+    let val = Value::parse(r#"[1, "asdf", [[2, "foo", []], [3, "bar", []]]]"#).unwrap();
+    let arr = TupleStruct::from_json(val).unwrap();
+    assert_eq!(arr.0, 1);
+    assert_eq!(arr.1, "asdf".to_string());
+    assert_eq!(arr.2[0].0, 2);
+    assert_eq!(arr.2[0].1, "foo".to_string());
+    assert_eq!(arr.2[0].2, vec![]);
+    assert_eq!(arr.2[1].0, 3);
+    assert_eq!(arr.2[1].1, "bar".to_string());
+    assert_eq!(arr.2[1].2, vec![]);
 }
 
 #[test]

@@ -2,6 +2,7 @@ pub use octane_macros::FromJSON;
 use std::char;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -297,6 +298,12 @@ make_numeric_tojson!(i16);
 make_numeric_tojson!(i8);
 make_numeric_tojson!(f32);
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_json().unwrap())
+    }
+}
+
 impl ToJSON for f64 {
     fn to_json(&self) -> Option<String> {
         Some(self.to_string())
@@ -473,6 +480,9 @@ pub fn parse_array(dat: &str) -> Option<(Vec<Value>, &str)> {
     // This function assumes that the first character is [.
     let mut cur = consume_ws(&dat[1..]);
     let mut ret = Vec::<Value>::new();
+    if *cur.as_bytes().get(0)? == b']' {
+        return Some((ret, &cur[1..]));
+    }
     while !cur.is_empty() {
         let (val, rest) = parse_element(cur)?;
         ret.push(val);

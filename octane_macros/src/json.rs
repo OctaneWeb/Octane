@@ -1,7 +1,21 @@
 use crate::util::extend;
 use proc_macro::{Delimiter, Ident, TokenStream, TokenTree};
 
-pub fn derive_from_json(toks: TokenStream) -> TokenStream {
+pub struct StructInfo {
+    name: String,
+    gen_between: TokenStream,
+    where_between: TokenStream,
+    generics: Vec<String>,
+}
+
+pub fn handle_derive<
+    F: Fn(TokenStream, StructInfo) -> TokenStream,
+    K: Fn(TokenStream, StructInfo) -> TokenStream,
+>(
+    toks: TokenStream,
+    process_braces: F,
+    process_parens: K,
+) -> TokenStream {
     let mut tok_iter = toks.into_iter();
     if tok_iter
         .by_ref()
@@ -44,9 +58,26 @@ pub fn derive_from_json(toks: TokenStream) -> TokenStream {
         if let TokenTree::Group(grp) = &tok {
             match grp.delimiter() {
                 Delimiter::Brace => {
-                    let proced =
-                        process_braces(grp.stream(), name, gen_between, where_between, generics);
-                    return proced;
+                    return process_braces(
+                        grp.stream(),
+                        StructInfo {
+                            name,
+                            gen_between,
+                            where_between,
+                            generics,
+                        },
+                    )
+                }
+                Delimiter::Parenthesis => {
+                    return process_parens(
+                        grp.stream(),
+                        StructInfo {
+                            name,
+                            gen_between,
+                            where_between,
+                            generics,
+                        },
+                    )
                 }
                 _ => {}
             };
@@ -62,13 +93,11 @@ pub fn derive_from_json(toks: TokenStream) -> TokenStream {
         .unwrap()
 }
 
-fn process_braces(
-    toks: TokenStream,
-    name: String,
-    gen_between: TokenStream,
-    mut where_between: TokenStream,
-    generics: Vec<String>,
-) -> TokenStream {
+pub fn derive_from_json(toks: TokenStream) -> TokenStream {
+    handle_derive(toks, fromjson_braces, fromjson_parens)
+}
+
+fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     let mut fields: Vec<Ident> = Vec::new();
     let mut is_field = true;
     for tok in toks {
@@ -91,24 +120,31 @@ fn process_braces(
         ));
     }
     let mut gen_list: String = String::new();
-    if generics.len() > 0 {
+    if info.generics.len() > 0 {
         gen_list.push('<');
     }
-    for (i, s) in generics.iter().enumerate() {
+    for (i, s) in info.generics.iter().enumerate() {
         gen_list.push_str(s);
-        if i < generics.len() - 1 {
+        if i < info.generics.len() - 1 {
             gen_list.push(',');
         }
     }
-    if generics.len() > 0 {
+    if info.generics.len() > 0 {
         gen_list.push('>');
     }
     let mut comma = ", ";
-    if where_between.clone().into_iter().last().map(|v| v.to_string() == ",").unwrap_or(true) {
+    if info
+        .where_between
+        .clone()
+        .into_iter()
+        .last()
+        .map(|v| v.to_string() == ",")
+        .unwrap_or(true)
+    {
         comma = "";
     }
-    for gen in generics {
-        where_between.extend::<TokenStream>(
+    for gen in info.generics {
+        info.where_between.extend::<TokenStream>(
             format!("{}{}: octane::json::FromJSON", comma, gen)
                 .parse()
                 .unwrap(),
@@ -132,7 +168,82 @@ fn process_braces(
             }}\
         }}\
     }}",
-        gen_between, name, gen_list, where_between, vals
+        info.gen_between, info.name, gen_list, info.where_between, vals
+    )
+    .parse()
+    .unwrap()
+}
+
+fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
+    let mut fields = 0;
+    let mut is_field = true;
+    for tok in toks {
+        match tok {
+            TokenTree::Ident(_) if is_field => {
+                is_field = false;
+                fields += 1;
+            }
+            TokenTree::Punct(p) if p.as_char() == ',' => {
+                is_field = true;
+            }
+            _ => {}
+        };
+    }
+    let mut vals = String::new();
+    for _ in 0..fields {
+        vals.push_str("octane::json::FromJSON::from_json(it.next()?)?,");
+    }
+    let mut gen_list: String = String::new();
+    if info.generics.len() > 0 {
+        gen_list.push('<');
+    }
+    for (i, s) in info.generics.iter().enumerate() {
+        gen_list.push_str(s);
+        if i < info.generics.len() - 1 {
+            gen_list.push(',');
+        }
+    }
+    if info.generics.len() > 0 {
+        gen_list.push('>');
+    }
+    let mut comma = ", ";
+    if info
+        .where_between
+        .clone()
+        .into_iter()
+        .last()
+        .map(|v| v.to_string() == ",")
+        .unwrap_or(true)
+    {
+        comma = "";
+    }
+    for gen in info.generics {
+        info.where_between.extend::<TokenStream>(
+            format!("{}{}: octane::json::FromJSON", comma, gen)
+                .parse()
+                .unwrap(),
+        );
+        comma = ", ";
+    }
+    format!(
+        "\
+    impl{} octane::json::FromJSON for {}{} where {} {{\
+        fn from_json(val: octane::json::Value) -> Option<Self> {{\
+            if let octane::json::Value::Array(arr) = val {{\
+                let mut it = arr.into_iter();
+                let ret = Self (\
+                    {}\
+                );\
+                if it.next().is_some() {{\
+                    return None;\
+                }}\
+                Some(ret)\
+            }} else {{\
+                None\
+            }}\
+        }}\
+    }}",
+        info.gen_between, info.name, gen_list, info.where_between, vals
     )
     .parse()
     .unwrap()

@@ -6,7 +6,7 @@ use crate::request::{
     parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
 };
 use crate::responder::Response;
-use crate::router::{Closure, ClosureFlow, Route, Router, RouterResult};
+use crate::router::{Closure, ClosureCounter, ClosureFlow, Route, Router, RouterResult};
 use crate::util::find_in_slice;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::str;
@@ -25,19 +25,37 @@ pub struct Octane {
 impl Route for Octane {
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
         if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Get) {
-            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+            paths.insert(
+                PathBuf::parse(path)?,
+                ClosureCounter {
+                    closure,
+                    index: self.router.route_counter + 1,
+                },
+            );
         }
         Ok(())
     }
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
         if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Post) {
-            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+            paths.insert(
+                PathBuf::parse(path)?,
+                ClosureCounter {
+                    closure,
+                    index: self.router.route_counter + 1,
+                },
+            );
         }
         Ok(())
     }
     fn all(&mut self, path: &str, closure: Closure) -> RouterResult {
         if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Post) {
-            paths.insert(PathBuf::parse(path)?, Box::new(closure));
+            paths.insert(
+                PathBuf::parse(path)?,
+                ClosureCounter {
+                    closure,
+                    index: self.router.route_counter + 1,
+                },
+            );
         }
         Ok(())
     }
@@ -165,11 +183,10 @@ impl Octane {
                 }
             }
             let mut res = Response::new(b"");
-            if let Some(functions) = (*server.router).get(&parsed_request.request_line.method) {
-                if let Some(closure) = functions.get(&parsed_request.request_line.path) {
-                    closure(&parsed_request, &mut res).await;
-                };
-
+            if let Some(functions) = server.router.paths.get(&parsed_request.request_line.method) {
+                if let Some(x) = functions.get(&parsed_request.request_line.path) {
+                    (x.closure)(&parsed_request, &mut res);
+                }
                 Self::send_data(res.get_data(), stream_async).await?;
             } else {
                 Error::err(StatusCode::NotImplemented)

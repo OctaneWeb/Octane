@@ -1,6 +1,6 @@
-use std::convert::{TryFrom, TryInto};
 use crate::value::Value;
 use std::collections::HashMap;
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,15 +17,21 @@ pub trait ToJSON
 where
     Self: Sized,
 {
-    fn to_json(&self) -> Option<String>;
+    fn to_json(self) -> Option<Value>;
 }
 
 impl<T> FromJSON for T
 where
-    T: TryFrom<Value>,
+    T: TryFrom<Value, Error = InvalidTypeError>,
 {
     fn from_json(val: Value) -> Option<Self> {
         Self::try_from(val).ok()
+    }
+}
+
+impl FromJSON for Value {
+    fn from_json(val: Value) -> Option<Self> {
+        Some(val)
     }
 }
 
@@ -118,8 +124,8 @@ macro_rules! make_numeric_tryfrom {
 macro_rules! make_numeric_tojson {
     ($type: ty) => {
         impl ToJSON for $type {
-            fn to_json(&self) -> Option<String> {
-                Some((*self as f64).to_string())
+            fn to_json(self) -> Option<Value> {
+                (self as f64).to_json()
             }
         }
     };
@@ -151,73 +157,83 @@ make_numeric_tojson!(f32);
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_json().unwrap())
+        write!(f, "{}", stringify(self))
     }
 }
 
 impl ToJSON for f64 {
-    fn to_json(&self) -> Option<String> {
-        Some(self.to_string())
+    fn to_json(self) -> Option<Value> {
+        Some(Value::Number(self))
     }
 }
 
 impl ToJSON for () {
-    fn to_json(&self) -> Option<String> {
-        Some("null".to_string())
+    fn to_json(self) -> Option<Value> {
+        Some(Value::Null)
     }
 }
 
 impl ToJSON for bool {
-    fn to_json(&self) -> Option<String> {
-        Some(if *self {
-            "true".to_string()
-        } else {
-            "false".to_string()
-        })
+    fn to_json(self) -> Option<Value> {
+        Some(Value::Boolean(self))
     }
 }
 
 impl ToJSON for String {
-    fn to_json(&self) -> Option<String> {
-        Some(format!("{:?}", self))
+    fn to_json(self) -> Option<Value> {
+        Some(Value::String(self))
     }
 }
 
 impl<T: ToJSON> ToJSON for Vec<T> {
-    fn to_json(&self) -> Option<String> {
-        let mut ret = "[".to_string();
-        let len = self.len();
-        for (i, v) in self.iter().enumerate() {
-            ret.push_str(&v.to_json()?);
-            ret.push(if i < len - 1 { ',' } else { ']' });
-        }
-        Some(ret)
+    fn to_json(self) -> Option<Value> {
+        Some(Value::Array(
+            self.into_iter().map(T::to_json).collect::<Option<_>>()?,
+        ))
     }
 }
 
 impl<T: ToJSON> ToJSON for HashMap<String, T> {
-    fn to_json(&self) -> Option<String> {
-        let mut ret = "{".to_string();
-        let len = self.len();
-        for (i, (k, v)) in self.iter().enumerate() {
-            ret.push_str(&k.to_json()?);
-            ret.push(':');
-            ret.push_str(&v.to_json()?);
-            ret.push(if i < len - 1 { ',' } else { '}' });
-        }
-        Some(ret)
+    fn to_json(self) -> Option<Value> {
+        Some(Value::Object(
+            self.into_iter()
+                .map(|(k, v)| Some((k, v.to_json()?)))
+                .collect::<Option<_>>()?,
+        ))
     }
 }
 
 impl ToJSON for Value {
-    fn to_json(&self) -> Option<String> {
-        match self {
-            Value::Number(x) => x.to_json(),
-            Value::String(x) => x.to_json(),
-            Value::Boolean(x) => x.to_json(),
-            Value::Array(x) => x.to_json(),
-            Value::Object(x) => x.to_json(),
-            Value::Null => ().to_json(),
+    fn to_json(self) -> Option<Value> {
+        Some(self)
+    }
+}
+
+fn stringify(val: &Value) -> String {
+    match val {
+        Value::Null => "null".to_string(),
+        Value::Number(x) => x.to_string(),
+        Value::String(x) => format!("{:?}", x),
+        Value::Boolean(x) => format!("{}", x),
+        Value::Array(x) => {
+            let mut ret = "[".to_string();
+            let len = x.len();
+            for (i, v) in x.iter().enumerate() {
+                ret.push_str(&stringify(v));
+                ret.push(if i < len - 1 { ',' } else { ']' });
+            }
+            ret
+        }
+        Value::Object(x) => {
+            let mut ret = "{".to_string();
+            let len = x.len();
+            for (i, (k, v)) in x.iter().enumerate() {
+                ret.push_str(&format!("{:?}", k));
+                ret.push(':');
+                ret.push_str(&stringify(v));
+                ret.push(if i < len - 1 { ',' } else { '}' });
+            }
+            ret
         }
     }
 }

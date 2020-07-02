@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::parse::parse_element;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum Value {

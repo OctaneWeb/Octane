@@ -84,7 +84,7 @@ fn success_serialize() {
     // Values should be converted to valid JSON..
     let s = r#"{"a" : 1.0 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}"#;
     let parsed = Value::parse(s).unwrap();
-    assert_eq!(parsed, Value::parse(&parsed.to_json().unwrap()).unwrap());
+    assert_eq!(parsed, Value::parse(&parsed.to_string()).unwrap());
 }
 
 #[test]
@@ -108,8 +108,7 @@ where
 }
 
 #[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
-struct NoWhere<T: Clone + Copy>
-{
+struct NoWhere<T: Clone + Copy> {
     x: T,
     y: String,
     z: Vec<i32>,

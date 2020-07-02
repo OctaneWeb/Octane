@@ -1,5 +1,5 @@
-use std::char;
 use crate::value::Value;
+use std::char;
 use std::collections::HashMap;
 
 pub fn consume_ws(dat: &str) -> &str {

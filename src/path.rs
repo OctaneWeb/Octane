@@ -142,7 +142,7 @@ pub enum PathNode<T> {
     Leaf(PathData<T>),
 }
 
-impl<T: std::fmt::Debug> PathNode<T> {
+impl<T> PathNode<T> {
     fn unwrap_node(&self) -> &HashMap<PathChunk, PathNode<T>> {
         if let PathNode::Node(x) = self {
             x
@@ -264,7 +264,7 @@ impl<T: std::fmt::Debug> PathNode<T> {
     }
 }
 
-impl<T: std::fmt::Debug> Default for PathNode<T> {
+impl<T> Default for PathNode<T> {
     fn default() -> Self {
         Self::new()
     }

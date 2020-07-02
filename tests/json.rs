@@ -1,4 +1,4 @@
-use octane::json::{self, FromJSON, ToJSON, Value};
+use octane::json::{parse, FromJSON, ToJSON, Value};
 pub mod common;
 use crate::common::*;
 use std::convert::TryFrom;
@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 #[test]
 fn success_string() {
     // Parsing should work as expected.
-    let (string, rest) = json::parse_string(r#""as\n\t\u0041d\"f"foo"#).unwrap();
+    let (string, rest) = parse::parse_string(r#""as\n\t\u0041d\"f"foo"#).unwrap();
     assert_eq!(string, "as\n\tAd\"f".to_string());
     assert_eq!(rest, "foo");
 }
@@ -14,27 +14,27 @@ fn success_string() {
 #[test]
 fn failure_string() {
     // No closing quote should result in an error.
-    assert!(json::parse_string(r#""asdffoo"#).is_none());
+    assert!(parse::parse_string(r#""asdffoo"#).is_none());
     // Unicode escapes should handle bad cases.
-    assert!(json::parse_string(r#""abc\u004""#).is_none());
-    assert!(json::parse_string(r#""abc\ux123""#).is_none());
+    assert!(parse::parse_string(r#""abc\u004""#).is_none());
+    assert!(parse::parse_string(r#""abc\ux123""#).is_none());
     // Non-existent escapes should error.
-    assert!(json::parse_string(r#""\c""#).is_none());
+    assert!(parse::parse_string(r#""\c""#).is_none());
 }
 
 #[test]
 fn success_bool() {
     // Parsing should work as expected.
-    assert_eq!((true, " asdf"), json::parse_bool("true asdf").unwrap());
-    assert_eq!((false, " asdf"), json::parse_bool("false asdf").unwrap());
-    assert!(json::parse_bool("asdf").is_none());
+    assert_eq!((true, " asdf"), parse::parse_bool("true asdf").unwrap());
+    assert_eq!((false, " asdf"), parse::parse_bool("false asdf").unwrap());
+    assert!(parse::parse_bool("asdf").is_none());
 }
 
 #[test]
 fn success_null() {
     // Parsing should work as expected.
-    assert_eq!(((), " asdf"), json::parse_null("null asdf").unwrap());
-    assert!(json::parse_null("asdf").is_none());
+    assert_eq!(((), " asdf"), parse::parse_null("null asdf").unwrap());
+    assert!(parse::parse_null("asdf").is_none());
 }
 
 #[test]
@@ -42,15 +42,15 @@ fn success_number() {
     // Parsing should work as expected.
     assert_eq!(
         (-1.23e-2, "asdf"),
-        json::parse_number("-1.23e-2asdf").unwrap()
+        parse::parse_number("-1.23e-2asdf").unwrap()
     );
-    assert!(json::parse_number("1..").is_none());
+    assert!(parse::parse_number("1..").is_none());
 }
 
 #[test]
 fn success_element() {
     // Parsing should work as expected.
-    let (val, rest) = json::parse_element(" 123 asdf").unwrap();
+    let (val, rest) = parse::parse_element(" 123 asdf").unwrap();
     assert_eq!(rest, "asdf");
     assert!(val.is_number());
     assert!(!val.is_string());
@@ -60,7 +60,7 @@ fn success_element() {
 #[test]
 fn success_object() {
     // Parsing should work as expected.
-    let (obj, rest) = json::parse_object(r#"{"a" : 1.0 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}asdf"#).unwrap();
+    let (obj, rest) = parse::parse_object(r#"{"a" : 1.0 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}asdf"#).unwrap();
     assert_eq!(u64::try_from(obj["a"].clone()).unwrap(), 1u64);
     assert_eq!(*obj["b"].as_string().unwrap(), "two".to_string());
     assert!(approx_equal(
@@ -90,11 +90,11 @@ fn success_serialize() {
 #[test]
 fn failure_object() {
     // Bad cases should be handled.
-    assert!(json::parse_object(r#"{"#).is_none());
-    assert!(json::parse_object(r#"{"a":}"#).is_none());
-    assert!(json::parse_object(r#"{"a":,}"#).is_none());
-    assert!(json::parse_object(r#"{a:1}"#).is_none());
-    assert!(json::parse_object(r#"{"a":1,}"#).is_none());
+    assert!(parse::parse_object(r#"{"#).is_none());
+    assert!(parse::parse_object(r#"{"a":}"#).is_none());
+    assert!(parse::parse_object(r#"{"a":,}"#).is_none());
+    assert!(parse::parse_object(r#"{a:1}"#).is_none());
+    assert!(parse::parse_object(r#"{"a":1,}"#).is_none());
 }
 
 #[derive(FromJSON, Debug, Clone, PartialEq, Eq)]

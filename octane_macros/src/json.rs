@@ -115,7 +115,7 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     let mut vals = String::new();
     for field in fields {
         vals.push_str(&format!(
-            "{0}: octane::json::FromJSON::from_json(obj.remove({0:?})?)?,",
+            "{0}: octane_json::FromJSON::from_json(obj.remove({0:?})?)?,",
             field.to_string()
         ));
     }
@@ -145,7 +145,7 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     for gen in info.generics {
         info.where_between.extend::<TokenStream>(
-            format!("{}{}: octane::json::FromJSON", comma, gen)
+            format!("{}{}: octane_json::FromJSON", comma, gen)
                 .parse()
                 .unwrap(),
         );
@@ -153,9 +153,9 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     format!(
         "\
-    impl{} octane::json::FromJSON for {}{} where {} {{\
-        fn from_json(val: octane::json::Value) -> Option<Self> {{\
-            if let octane::json::Value::Object(mut obj) = val {{\
+    impl{} octane_json::FromJSON for {}{} where {} {{\
+        fn from_json(val: octane_json::Value) -> Option<Self> {{\
+            if let octane_json::Value::Object(mut obj) = val {{\
                 let ret = Self {{\
                     {}\
                 }};\
@@ -191,7 +191,7 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     let mut vals = String::new();
     for _ in 0..fields {
-        vals.push_str("octane::json::FromJSON::from_json(it.next()?)?,");
+        vals.push_str("octane_json::FromJSON::from_json(it.next()?)?,");
     }
     let mut gen_list: String = String::new();
     if info.generics.len() > 0 {
@@ -219,7 +219,7 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     for gen in info.generics {
         info.where_between.extend::<TokenStream>(
-            format!("{}{}: octane::json::FromJSON", comma, gen)
+            format!("{}{}: octane_json::FromJSON", comma, gen)
                 .parse()
                 .unwrap(),
         );
@@ -227,9 +227,9 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     format!(
         "\
-    impl{} octane::json::FromJSON for {}{} where {} {{\
-        fn from_json(val: octane::json::Value) -> Option<Self> {{\
-            if let octane::json::Value::Array(arr) = val {{\
+    impl{} octane_json::FromJSON for {}{} where {} {{\
+        fn from_json(val: octane_json::Value) -> Option<Self> {{\
+            if let octane_json::Value::Array(arr) = val {{\
                 let mut it = arr.into_iter();
                 let ret = Self (\
                     {}\

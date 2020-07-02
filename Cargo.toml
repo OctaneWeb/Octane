@@ -16,6 +16,10 @@ futures = { version = "0.3", default-features = false, features = ["std"] }
 
 [dependencies.octane_macros]
 path = "octane_macros"
+version = "0.1.1"
+
+[dependencies.octane_json]
+path = "octane_json"
 version = "0.1.0"
 
 [features]
@@ -30,5 +34,6 @@ https = ["rustls"]
 
 [workspace]
 members = [
-    "octane_macros"
+    "octane_macros",
+    "octane_json"
 ]

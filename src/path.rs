@@ -243,18 +243,16 @@ impl<T> PathNode<T> {
         let matched = self.dfs(path.chunks.as_slice());
         matched
             .into_iter()
-            .map(|data| {
-                MatchedPath {
-                    #[cfg(feature = "url_variables")]
-                    vars: data
-                        .orig_path
-                        .check_matches(path)
-                        .unwrap()
-                        .into_iter()
-                        .map(|(k, v)| (k, v.to_owned()))
-                        .collect(),
-                    data: &data.data,
-                }
+            .map(|data| MatchedPath {
+                #[cfg(feature = "url_variables")]
+                vars: data
+                    .orig_path
+                    .check_matches(path)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(k, v)| (k, v.to_owned()))
+                    .collect(),
+                data: &data.data,
             })
             .collect()
     }

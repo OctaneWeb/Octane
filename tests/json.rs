@@ -1,4 +1,4 @@
-use octane::json::{parse, FromJSON, Value};
+use octane::json::{parse, FromJSON, ToJSON, Value};
 pub mod common;
 use crate::common::*;
 use std::convert::TryFrom;
@@ -97,7 +97,7 @@ fn failure_object() {
     assert!(parse::parse_object(r#"{"a":1,}"#).is_none());
 }
 
-#[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
+#[derive(FromJSON, ToJSON, Debug, Clone, PartialEq, Eq)]
 struct JSONable<T: Clone>
 where
     T: Copy,
@@ -107,14 +107,14 @@ where
     z: Vec<i32>,
 }
 
-#[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
+#[derive(FromJSON, ToJSON, Debug, Clone, PartialEq, Eq)]
 struct NoWhere<T: Clone + Copy> {
     x: T,
     y: String,
     z: Vec<i32>,
 }
 
-#[derive(FromJSON, Debug, Clone, PartialEq, Eq)]
+#[derive(FromJSON, ToJSON, Debug, Clone, PartialEq, Eq)]
 struct TupleStruct(i32, String, Vec<TupleStruct>);
 
 #[test]
@@ -127,6 +127,10 @@ fn success_derive() {
     assert_eq!(obj.x, 1);
     assert_eq!(obj.y, "asdf".to_string());
     assert_eq!(obj.z, vec![1, 2, 3]);
+    assert_eq!(
+        obj,
+        JSONable::from_json(obj.clone().to_json().unwrap()).unwrap()
+    );
     let obj = NoWhere::<i32>::from_json(
         Value::parse(r#"{"x": 1, "y": "asdf", "z": [1, 2, 3]}"#).unwrap(),
     )
@@ -134,6 +138,10 @@ fn success_derive() {
     assert_eq!(obj.x, 1);
     assert_eq!(obj.y, "asdf".to_string());
     assert_eq!(obj.z, vec![1, 2, 3]);
+    assert_eq!(
+        obj,
+        NoWhere::from_json(obj.clone().to_json().unwrap()).unwrap()
+    );
     let val = Value::parse(r#"[1, "asdf", [[2, "foo", []], [3, "bar", []]]]"#).unwrap();
     let arr = TupleStruct::from_json(val).unwrap();
     assert_eq!(arr.0, 1);
@@ -144,6 +152,10 @@ fn success_derive() {
     assert_eq!(arr.2[1].0, 3);
     assert_eq!(arr.2[1].1, "bar".to_string());
     assert_eq!(arr.2[1].2, vec![]);
+    assert_eq!(
+        arr,
+        TupleStruct::from_json(arr.clone().to_json().unwrap()).unwrap()
+    );
 }
 
 #[test]

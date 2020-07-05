@@ -248,3 +248,145 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     .parse()
     .unwrap()
 }
+
+pub fn derive_to_json(toks: TokenStream) -> TokenStream {
+    handle_derive(toks, tojson_braces, tojson_parens)
+}
+
+fn tojson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
+    let mut fields: Vec<Ident> = Vec::new();
+    let mut is_field = true;
+    for tok in toks {
+        match tok {
+            TokenTree::Ident(ident) if is_field => {
+                is_field = false;
+                fields.push(ident);
+            }
+            TokenTree::Punct(p) if p.as_char() == ',' => {
+                is_field = true;
+            }
+            _ => {}
+        };
+    }
+    let mut vals = String::new();
+    for field in fields {
+        vals.push_str(&format!(
+            "obj.insert({0:?}.to_owned(), octane_json::ToJSON::to_json(self.{0})?);",
+            field.to_string()
+        ));
+    }
+    let mut gen_list: String = String::new();
+    if info.generics.len() > 0 {
+        gen_list.push('<');
+    }
+    for (i, s) in info.generics.iter().enumerate() {
+        gen_list.push_str(s);
+        if i < info.generics.len() - 1 {
+            gen_list.push(',');
+        }
+    }
+    if info.generics.len() > 0 {
+        gen_list.push('>');
+    }
+    let mut comma = ", ";
+    if info
+        .where_between
+        .clone()
+        .into_iter()
+        .last()
+        .map(|v| v.to_string() == ",")
+        .unwrap_or(true)
+    {
+        comma = "";
+    }
+    for gen in info.generics {
+        info.where_between.extend::<TokenStream>(
+            format!("{}{}: octane_json::ToJSON", comma, gen)
+                .parse()
+                .unwrap(),
+        );
+        comma = ", ";
+    }
+    format!(
+        "\
+    impl{} octane_json::ToJSON for {}{} where {} {{\
+        fn to_json(self) -> Option<octane_json::Value> {{\
+            let mut obj = std::collections::HashMap::new();\
+            {}\
+            Some(octane_json::Value::Object(obj))\
+        }}\
+    }}",
+        info.gen_between, info.name, gen_list, info.where_between, vals
+    )
+    .parse()
+    .unwrap()
+}
+
+fn tojson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
+    let mut fields = 0;
+    let mut is_field = true;
+    for tok in toks {
+        match tok {
+            TokenTree::Ident(_) if is_field => {
+                is_field = false;
+                fields += 1;
+            }
+            TokenTree::Punct(p) if p.as_char() == ',' => {
+                is_field = true;
+            }
+            _ => {}
+        };
+    }
+    let mut vals = String::new();
+    for i in 0..fields {
+        vals.push_str(&format!(
+            "arr.push(octane_json::ToJSON::to_json(self.{})?);",
+            i
+        ));
+    }
+    let mut gen_list: String = String::new();
+    if info.generics.len() > 0 {
+        gen_list.push('<');
+    }
+    for (i, s) in info.generics.iter().enumerate() {
+        gen_list.push_str(s);
+        if i < info.generics.len() - 1 {
+            gen_list.push(',');
+        }
+    }
+    if info.generics.len() > 0 {
+        gen_list.push('>');
+    }
+    let mut comma = ", ";
+    if info
+        .where_between
+        .clone()
+        .into_iter()
+        .last()
+        .map(|v| v.to_string() == ",")
+        .unwrap_or(true)
+    {
+        comma = "";
+    }
+    for gen in info.generics {
+        info.where_between.extend::<TokenStream>(
+            format!("{}{}: octane_json::ToJSON", comma, gen)
+                .parse()
+                .unwrap(),
+        );
+        comma = ", ";
+    }
+    format!(
+        "\
+    impl{} octane_json::ToJSON for {}{} where {} {{\
+        fn to_json(self) -> Option<octane_json::Value> {{\
+            let mut arr = Vec::new();\
+            {}\
+            Some(octane_json::Value::Array(arr))\
+        }}\
+    }}",
+        info.gen_between, info.name, gen_list, info.where_between, vals
+    )
+    .parse()
+    .unwrap()
+}

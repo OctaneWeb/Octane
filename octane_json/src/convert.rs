@@ -11,6 +11,10 @@ where
     Self: Sized,
 {
     fn from_json(val: Value) -> Option<Self>;
+
+    fn from_json_string(s: &str) -> Option<Self> {
+        Value::parse(s).and_then(Self::from_json)
+    }
 }
 
 pub trait ToJSON
@@ -18,6 +22,10 @@ where
     Self: Sized,
 {
     fn to_json(self) -> Option<Value>;
+
+    fn to_json_string(self) -> Option<String> {
+        self.to_json().map(|v| v.to_string())
+    }
 }
 
 impl<T> FromJSON for T

@@ -1,6 +1,6 @@
 [package]
 name = "octane_json"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
 description = "JSON manipulation for Octane."
 license-file = "LICENSE"
@@ -11,4 +11,4 @@ edition = "2018"
 [dependencies]
 [dependencies.octane_macros]
 path = "../octane_macros"
-version = "0.1.1"
+version = "0.1.2"

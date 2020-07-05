@@ -16,11 +16,11 @@ futures = { version = "0.3", default-features = false, features = ["std"] }
 
 [dependencies.octane_macros]
 path = "octane_macros"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies.octane_json]
 path = "octane_json"
-version = "0.1.0"
+version = "0.1.2"
 
 [features]
 default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers"]

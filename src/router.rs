@@ -18,14 +18,33 @@ pub enum Flow {
     Continue,
 }
 
+#[macro_export]
+macro_rules! inject_path {
+    ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
+        if let Some(paths) = $instance.paths.get_mut($method) {
+            paths.insert(
+                PathBuf::parse($path)?,
+                ClosureCounter {
+                    closure: $closure,
+                    index: $instance.route_counter + 1,
+                },
+            );
+        }
+    };
+}
+
 pub struct ClosureCounter {
     pub closure: Closure,
     pub index: usize,
 }
 
 pub trait Route {
+    fn options(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult;
+    fn head(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult;
+    fn put(&mut self, path: &str, closure: Closure) -> RouterResult;
+    fn connect(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn all(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn add(&mut self, entity: ClosureFlow) -> RouterResult;
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
@@ -34,6 +53,7 @@ pub trait Route {
 pub struct Router {
     pub paths: Paths,
     pub route_counter: usize,
+    pub static_dir_loc: Option<&'static str>,
 }
 
 impl Deref for Router {
@@ -53,6 +73,7 @@ impl Router {
         Router {
             paths,
             route_counter: 0,
+            static_dir_loc: None,
         }
     }
     pub fn append(&mut self, _router: Self) -> &mut Self {
@@ -62,40 +83,33 @@ impl Router {
 }
 
 impl Route for Router {
+    fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self, path, closure, &RequestMethod::Options);
+        Ok(())
+    }
+    fn connect(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self, path, closure, &RequestMethod::Connect);
+        Ok(())
+    }
+    fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self, path, closure, &RequestMethod::Head);
+        Ok(())
+    }
+    fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self, path, closure, &RequestMethod::Put);
+        Ok(())
+    }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        if let Some(paths) = self.paths.get_mut(&RequestMethod::Get) {
-            paths.insert(
-                PathBuf::parse(path)?,
-                ClosureCounter {
-                    closure,
-                    index: self.route_counter + 1,
-                },
-            );
-        }
+        inject_path!(self, path, closure, &RequestMethod::Get);
         Ok(())
     }
+
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        if let Some(paths) = self.paths.get_mut(&RequestMethod::Post) {
-            paths.insert(
-                PathBuf::parse(path)?,
-                ClosureCounter {
-                    closure,
-                    index: self.route_counter + 1,
-                },
-            );
-        }
+        inject_path!(self, path, closure, &RequestMethod::Post);
         Ok(())
     }
-    fn all(&mut self, path: &str, closure: Closure) -> RouterResult {
-        if let Some(paths) = self.paths.get_mut(&RequestMethod::Post) {
-            paths.insert(
-                PathBuf::parse(path)?,
-                ClosureCounter {
-                    closure,
-                    index: self.route_counter + 1,
-                },
-            );
-        }
+    fn all(&mut self, _path: &str, _closure: Closure) -> RouterResult {
+        // TODO: Multiple putpath! declarations here
         Ok(())
     }
     fn add(&mut self, _entity: ClosureFlow) -> RouterResult {

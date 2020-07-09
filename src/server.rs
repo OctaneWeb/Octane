@@ -1,13 +1,16 @@
 use crate::config::OctaneConfig;
 use crate::constants::*;
 use crate::error::Error;
-use crate::path::PathBuf;
+use crate::path::{InvalidPathError, PathBuf};
 use crate::request::{
     parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
 };
 use crate::responder::Response;
-use crate::router::{Closure, ClosureCounter, ClosureFlow, Route, Router, RouterResult};
 use crate::util::find_in_slice;
+use crate::{
+    inject_path, route,
+    router::{Closure, ClosureCounter, ClosureFlow, Flow, Route, Router, RouterResult},
+};
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::str;
 use std::sync::Arc;
@@ -17,46 +20,45 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
 
+#[macro_use]
+macro_rules! declare_error {
+    ($stream: expr, $error_type: expr) => {
+        Error::err($error_type).send($stream).await?;
+    };
+}
+
 pub struct Octane {
     pub settings: OctaneConfig,
     router: Router,
 }
 
 impl Route for Octane {
+    fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self.router, path, closure, &RequestMethod::Options);
+        Ok(())
+    }
+    fn connect(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self.router, path, closure, &RequestMethod::Connect);
+        Ok(())
+    }
+    fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self.router, path, closure, &RequestMethod::Head);
+        Ok(())
+    }
+    fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_path!(self.router, path, closure, &RequestMethod::Put);
+        Ok(())
+    }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Get) {
-            paths.insert(
-                PathBuf::parse(path)?,
-                ClosureCounter {
-                    closure,
-                    index: self.router.route_counter + 1,
-                },
-            );
-        }
+        inject_path!(self.router, path, closure, &RequestMethod::Get);
         Ok(())
     }
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Post) {
-            paths.insert(
-                PathBuf::parse(path)?,
-                ClosureCounter {
-                    closure,
-                    index: self.router.route_counter + 1,
-                },
-            );
-        }
+        inject_path!(self.router, path, closure, &RequestMethod::Post);
         Ok(())
     }
-    fn all(&mut self, path: &str, closure: Closure) -> RouterResult {
-        if let Some(paths) = self.router.paths.get_mut(&RequestMethod::Post) {
-            paths.insert(
-                PathBuf::parse(path)?,
-                ClosureCounter {
-                    closure,
-                    index: self.router.route_counter + 1,
-                },
-            );
-        }
+    fn all(&mut self, _path: &str, _closure: Closure) -> RouterResult {
+        // TODO: Multiple putpath! declarations here
         Ok(())
     }
 
@@ -102,8 +104,9 @@ impl Octane {
         }
         Ok(())
     }
-    pub fn static_dir(&mut self, _location: &'static str) -> () {
-        // TODO: Implement static dir middleware
+    pub fn static_dir(&mut self, location: &'static str) -> Result<ClosureFlow, InvalidPathError> {
+        self.router.static_dir_loc = Some(location);
+        Ok(route!(|req, res| Flow::Continue))
     }
 
     async fn catch_request(
@@ -119,9 +122,7 @@ impl Octane {
         loop {
             let read = stream_async.read(&mut buf).await?;
             if read == 0 {
-                Error::err(StatusCode::BadRequest)
-                    .send(stream_async)
-                    .await?;
+                declare_error!(stream_async, StatusCode::BadRequest);
                 return Ok(());
             }
             let cur = &buf[..read];
@@ -135,15 +136,11 @@ impl Octane {
                         headers = heads;
                         break;
                     } else {
-                        Error::err(StatusCode::BadRequest)
-                            .send(stream_async)
-                            .await?;
+                        declare_error!(stream_async, StatusCode::BadRequest);
                         return Ok(());
                     }
                 } else {
-                    Error::err(StatusCode::BadRequest)
-                        .send(stream_async)
-                        .await?;
+                    declare_error!(stream_async, StatusCode::BadRequest);
                     return Ok(());
                 }
             }
@@ -184,22 +181,31 @@ impl Octane {
             }
             let mut res = Response::new(b"");
             if let Some(functions) = server.router.paths.get(&parsed_request.request_line.method) {
-                functions
-                    .get(&parsed_request.request_line.path)
-                    .into_iter()
-                    .for_each(|x| {
+                let methods_for_url = functions.get(&parsed_request.request_line.path);
+                // check if methods exist for this url
+                if methods_for_url.len() > 0 {
+                    methods_for_url.into_iter().for_each(|x| {
                         (x.closure)(&parsed_request, &mut res);
                     });
-                Self::send_data(res.get_data(), stream_async).await?;
+                } else {
+                    // Check for static dir middleware
+                    if let Some(static_loc) = server.router.static_dir_loc {
+                        let mut path_final = String::from(static_loc);
+                        path_final.push_str("/");
+                        path_final.push_str(&parsed_request.request_line.path.chunks[0]);
+                        println!("{:?}", path_final);
+                        res.send_file(&path_final).await?;
+                        Self::send_data(res.get_data(), stream_async).await?;
+                    } else {
+                        // No static dir set and no methods match
+                        declare_error!(stream_async, StatusCode::NotFound);
+                    }
+                }
             } else {
-                Error::err(StatusCode::NotImplemented)
-                    .send(stream_async)
-                    .await?;
+                declare_error!(stream_async, StatusCode::NotImplemented);
             }
         } else {
-            Error::err(StatusCode::BadRequest)
-                .send(stream_async)
-                .await?;
+            declare_error!(stream_async, StatusCode::BadRequest);
         }
         Ok(())
     }

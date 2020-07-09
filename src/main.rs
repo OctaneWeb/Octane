@@ -19,32 +19,7 @@ use crate::server::Octane;
 #[tokio::main]
 async fn main() {
     let mut app = Octane::new();
-    app.get(
-        "/",
-        route!(|_req, res| {
-            res.send_file("templates/test.html")
-                .await
-                .expect("cannot find file");
-        }),
-    )
-    .unwrap();
-    app.get(
-        "test.js",
-        route!(|_req, res| {
-            res.send_file("templates/test.js")
-                .await
-                .expect("cannot find file");
-        }),
-    )
-    .unwrap();
-    app.get(
-        "test.css",
-        route!(|_req, res| {
-            res.send_file("templates/test.css")
-                .await
-                .expect("cannot find file");
-        }),
-    )
-    .unwrap();
+    let static_dir = app.static_dir("templates").ok().unwrap();
+    app.add(static_dir);
     app.listen(8080).await.expect("Cannot establish connection");
 }

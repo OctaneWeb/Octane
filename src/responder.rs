@@ -97,7 +97,9 @@ impl<'a> Response<'a> {
     }
     pub fn declare_error(&mut self, error_kind: StatusCode) -> std::io::Result<&mut Self> {
         self.status_code = error_kind;
-        self.body = FileHandler::get_404_file()?;
+        if error_kind == StatusCode::NotFound {
+            self.body = FileHandler::get_404_file()?;
+        }
         Ok(self)
     }
     fn reason_phrase(&self) -> String {

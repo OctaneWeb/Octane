@@ -209,7 +209,6 @@ impl Octane {
             let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
             acceptor.set_private_key_file(&server.settings.ssl.key, SslFiletype::PEM)?;
             acceptor.set_certificate_chain_file(&server.settings.ssl.cert)?;
-            acceptor.set_passphrase()
             let acceptor = acceptor.build();
             while let Some(stream) = StreamExt::next(&mut listener).await {
                 let server_clone = Arc::clone(&server);

@@ -29,7 +29,10 @@ macro_rules! declare_error {
 /// The octane server
 ///
 /// # Example
-/// ```rust,no_run
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+///
 /// #[tokio::main]
 /// async fn main() {
 ///     let mut app = Octane::new();
@@ -119,7 +122,10 @@ impl Octane {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::{route, router::{Flow, Route, Router}};
+    ///
     /// let mut app = Octane::new();
     /// let mut router = Router::new();
     /// router.get("/", route!(|req, res| { res.send("It's a get request!!") }));
@@ -140,7 +146,11 @@ impl Octane {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::config::{OctaneConfig, Config};
+    /// use octane::{route, router::{Flow, Route}};
+    ///
     /// let mut app = Octane::new();
     /// let mut config = OctaneConfig::new();
     /// config.ssl.key("key.pem").cert("cert.pem"); // we supply some ssl certs and key in the config
@@ -159,9 +169,14 @@ impl Octane {
     /// Start listening on the port specified
     ///
     /// # Example
-    /// ```rust,no_run
-    /// let mut app = Octane::new();
-    /// app.listen(8080).await.expect("Cannot establish connection");
+    /// ```no_run
+    /// use octane::server::Octane;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut app = Octane::new();
+    ///     app.listen(8080).await.expect("Cannot establish connection");
+    /// }
     /// ```
     pub async fn listen(self, port: u16) -> std::io::Result<()> {
         let mut listener =
@@ -175,7 +190,7 @@ impl Octane {
             };
             println!("{:?}", server.settings.get_key());
             let mut config = ServerConfig::new(NoClientAuth::new());
-            // PANIC: Here
+            // FIXME: Here
             config
                 .set_single_cert(
                     server.settings.get_cert()?,

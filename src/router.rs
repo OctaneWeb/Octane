@@ -19,7 +19,10 @@ pub type RouterResult = Result<(), InvalidPathError>;
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+///
 /// let mut app = Octane::new();
 /// app.get(
 ///     "/",
@@ -140,7 +143,10 @@ impl Default for Router {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```no_run
+/// use octane::{route, router::{Flow, Route}};
+/// use octane::server::Octane;
+///
 /// let mut app = Octane::new();
 /// app.get(
 ///     "/",

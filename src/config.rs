@@ -56,7 +56,10 @@ impl Ssl {
 /// **Note**: If you won't push the independently made config
 /// then they won't take place, make sure to push them
 /// to the main server struct
-/// ```rust,no_run
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::config::OctaneConfig;
+///
 /// let mut app = Octane::new();
 /// let mut config = OctaneConfig::new();
 /// app.with_config(config);
@@ -75,14 +78,19 @@ pub trait Config {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```no_run
+    /// use octane::config::{Config, OctaneConfig};
+    ///
     /// let mut config = OctaneConfig::new();
     /// config.add_static_dir("/", "templates");
     /// ```
     ///
     /// Or with Octane struct
     ///
-    /// ```rust,no_run
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::config::Config;
+    ///
     /// let mut app = Octane::new();
     /// app.add_static_dir("/", "templates");
     /// ```
@@ -91,14 +99,21 @@ pub trait Config {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```no_run
+    /// use octane::config::{OctaneConfig, Config};
+    /// use std::time::Duration;
+    ///
     /// let mut config = OctaneConfig::new();
     /// config.set_keepalive(Duration::new(5, 0));
     /// ```
     ///
     /// Or with Octane struct
     ///
-    /// ```rust,no_run
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use std::time::Duration;
+    /// use octane::config::Config;
+    ///
     /// let mut app = Octane::new();
     /// app.set_keepalive(Duration::new(5, 0));
     /// ```

@@ -14,11 +14,15 @@
 //! octane = "0.2"
 //! ```
 //! and then in your main file,
-//! ```
+//! ```no_run
+//! use octane::server::Octane;
+//! use octane::config::Config;
+//! use octane::{route, router::{Flow, Route}};
+//!
 //! #[tokio::main]
 //! async fn main() {
 //! 	let mut app = Octane::new();
-//! 	app.add_static_dir("/", "dir_name") // server a static directory
+//! 	app.add_static_dir("/", "dir_name"); // server a static directory
 //! 	app.get(
 //! 	    "/",
 //! 	    route!(

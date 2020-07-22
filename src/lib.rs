@@ -1,9 +1,58 @@
+//! Octane is a web server that's modelled after express (a very
+//! popular and easy to use web framework) in rust.
+//!
+//! While minimising dependencies, Octane thrives to be a high performance
+//! web server while being easy to use at the same time.
+//!
+//! You can find other docs at the [OctaneSite]().
+//!
+//! # Example
+//!
+//! Get started by adding the lib entry in your cargo.toml file
+//!
+//! ```toml
+//! octane = "0.2"
+//! ```
+//! and then in your main file,
+//! ```
+//! #[tokio::main]
+//! async fn main() {
+//! 	let mut app = Octane::new();
+//! 	app.add_static_dir("/", "dir_name") // server a static directory
+//! 	app.get(
+//! 	    "/",
+//! 	    route!(
+//! 	        |req, res| {
+//! 	            res.send("Hello, World");
+//! 	        }
+//! 	    ),
+//! 	);
+//!
+//! 	app.listen(8080).await.expect("Cannot establish connection");
+//! }
+//! ```
+//! and now you can see the page at http://0.0.0.0:8080.
+//!
+//! ## Features
+//! Octane divides most of the things that one might _leave_ out for
+//! any reason into features. These include
+//! - `faithful`
+//! - `query_strings`
+//! - `cookies`
+//! - `url_variables`
+//! - `raw_headers`
+//! - `rustls`
+//! - `openssl`
+//! - 'default`
+//!
+
 #[macro_use]
 extern crate lazy_static;
 pub mod config;
 pub mod constants;
 pub mod error;
 pub mod file_handler;
+pub mod middlewares;
 pub mod path;
 pub mod query;
 pub mod request;

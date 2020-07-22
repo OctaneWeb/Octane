@@ -3,6 +3,7 @@ use crate::file_handler::FileHandler;
 use crate::time::Time;
 use std::collections::HashMap;
 use std::fmt;
+use std::path::PathBuf;
 
 pub struct Response<'a> {
     pub status_code: StatusCode,
@@ -22,12 +23,12 @@ impl<'a> fmt::Debug for Response<'a> {
 }
 
 impl<'a> Response<'a> {
-    pub fn with_header(&mut self, key: &'a str, value: String) -> &mut Self {
+    pub fn with_header(&mut self, key: &str, value: String) -> &mut Self {
         self.headers.insert(key.to_owned(), value);
 
         self
     }
-    pub fn new(body: &'a [u8]) -> Self {
+    pub fn new(body: &[u8]) -> Self {
         Response {
             status_code: StatusCode::Ok,
             body: body.to_vec(),
@@ -35,10 +36,10 @@ impl<'a> Response<'a> {
             headers: HashMap::new(),
         }
     }
-    pub fn send(&mut self, body: &'a [u8]) {
+    pub fn send(&mut self, body: &'static str) {
         let heading_one = b"<!DOCTYPE html><html><head></head><body>";
         let heading_two = b"</body></html>";
-        let data = &[heading_one, body, heading_two].concat();
+        let data = &[heading_one, body.as_bytes(), heading_two].concat();
         self.body = data.to_vec();
     }
 
@@ -62,7 +63,7 @@ impl<'a> Response<'a> {
         }
         self
     }
-    pub fn get_data(&mut self) -> Vec<u8> {
+    pub fn get_data(self) -> Vec<u8> {
         let mut headers_str = String::from("");
         self.headers
             .iter()
@@ -73,8 +74,8 @@ impl<'a> Response<'a> {
         ]
         .concat()
     }
-    pub async fn send_file(&mut self, file_name: &'a str) -> std::io::Result<()> {
-        if let Some(file) = FileHandler::handle_file(file_name)? {
+    pub async fn send_file(&mut self, file: PathBuf) -> std::io::Result<()> {
+        if let Some(file) = FileHandler::handle_file(&file)? {
             let mime_type = file.get_mime_type();
             self.with_header("Content-Type", mime_type);
             self.body = file.contents;

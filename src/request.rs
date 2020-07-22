@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::str;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
 pub enum RequestMethod {
     Options,
     Get,
@@ -18,11 +18,12 @@ pub enum RequestMethod {
     Delete,
     Trace,
     Connect,
+    All,
     None,
 }
 
 impl RequestMethod {
-    pub fn values() -> [Self; 9] {
+    pub fn values() -> [Self; 10] {
         use RequestMethod::*;
         [
             Options,
@@ -33,8 +34,16 @@ impl RequestMethod {
             Delete,
             Trace,
             Connect,
+            All,
             RequestMethod::None,
         ]
+    }
+    pub fn is_some(&self) -> bool {
+        if let Self::None = self {
+            false
+        } else {
+            true
+        }
     }
 }
 

@@ -4,6 +4,7 @@ pub mod config;
 pub mod constants;
 pub mod error;
 pub mod file_handler;
+pub mod middlewares;
 pub mod path;
 pub mod query;
 pub mod request;
@@ -13,13 +14,31 @@ pub mod server;
 pub mod time;
 pub mod util;
 
-use crate::router::Route;
+use crate::config::{Config, OctaneConfig};
+use crate::router::{Flow, Route};
 use crate::server::Octane;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
     let mut app = Octane::new();
-    let static_dir = app.static_dir("templates").ok().unwrap();
-    app.add(static_dir);
+    let mut config = OctaneConfig::new();
+    config
+        .ssl
+        .key("templates/key.pem")
+        .cert("templates/cert.pem");
+    config.add_static_dir("/", "templates");
+    app.with_config(config);
+
+    app.get(
+        "/",
+        route!(
+            |req, res| {
+                res.send("HELLO");
+            },
+            Flow::Next
+        ),
+    )
+    .unwrap();
     app.listen(8080).await.expect("Cannot establish connection");
 }

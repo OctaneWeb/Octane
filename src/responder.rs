@@ -5,14 +5,14 @@ use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
 
-pub struct Response<'a> {
+pub struct Response {
     pub status_code: StatusCode,
     pub body: Vec<u8>,
-    pub http_version: &'a str,
+    pub http_version: String,
     pub headers: HashMap<String, String>,
 }
 
-impl<'a> fmt::Debug for Response<'a> {
+impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Response")
             .field("status_code", &self.status_code)
@@ -22,7 +22,7 @@ impl<'a> fmt::Debug for Response<'a> {
     }
 }
 
-impl<'a> Response<'a> {
+impl Response {
     pub fn with_header(&mut self, key: &str, value: String) -> &mut Self {
         self.headers.insert(key.to_owned(), value);
 
@@ -32,7 +32,7 @@ impl<'a> Response<'a> {
         Response {
             status_code: StatusCode::Ok,
             body: body.to_vec(),
-            http_version: "1.1",
+            http_version: "1.1".to_owned(),
             headers: HashMap::new(),
         }
     }
@@ -54,7 +54,7 @@ impl<'a> Response<'a> {
         // TODO: Add more default headers
         self
     }
-    pub fn with_time(&'a mut self, stamp: i64) -> &mut Self {
+    pub fn with_time(&mut self, stamp: i64) -> &mut Self {
         if let Some(time) = Time::now() {
             if let Some(with_stamp) = time.with_stamp(stamp) {
                 self.headers
@@ -63,7 +63,7 @@ impl<'a> Response<'a> {
         }
         self
     }
-    pub fn get_data(self) -> Vec<u8> {
+    pub fn get_data(&self) -> Vec<u8> {
         let mut headers_str = String::from("");
         self.headers
             .iter()
@@ -110,8 +110,8 @@ impl<'a> Response<'a> {
         self.status_code = code;
         self
     }
-    pub fn with_http_version(&mut self, version: &'a str) -> &mut Self {
-        self.http_version = version;
+    pub fn with_http_version(&mut self, version: &'static str) -> &mut Self {
+        self.http_version = version.to_owned();
         self
     }
     fn status_code(&self) -> i32 {

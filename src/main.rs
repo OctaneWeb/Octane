@@ -17,7 +17,6 @@ pub mod util;
 use crate::config::{Config, OctaneConfig};
 use crate::router::{Flow, Route};
 use crate::server::Octane;
-use std::time::Duration;
 
 #[tokio::main]
 async fn main() {

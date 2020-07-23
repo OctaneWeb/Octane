@@ -20,7 +20,8 @@ async fn main() {
         "/",
         route!(
             |req, res| {
-                res.send("HELLO");
+                res.with_type("application/json")
+                    .send(r#"{"server": "Octane"}"#);
             },
             Flow::Next
         ),

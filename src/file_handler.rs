@@ -41,6 +41,7 @@ impl FileHandler {
             "css" => "text/css",
             "js" => "text/javascript",
             "txt" => "text/plain",
+            "json" => "application/json",
             _ => "text/plain",
         }
         .to_owned()

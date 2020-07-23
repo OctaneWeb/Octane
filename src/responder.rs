@@ -6,6 +6,31 @@ use std::fmt;
 use std::io::Result;
 use std::path::PathBuf;
 
+/// The response struct contains the data which is
+/// to be send on a request. The struct has several
+/// methods to modify the contents.
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let mut app = Octane::new();
+///     app.get(
+///         "/",
+///         route!(
+///             |req, res| {
+///                 // access res (response) here
+///             }
+///         ),
+///     );
+///
+///     app.listen(8080).await.expect("Cannot establish connection");
+/// }
+/// ```
 pub struct Response {
     pub status_code: StatusCode,
     pub body: Vec<u8>,
@@ -24,11 +49,42 @@ impl fmt::Debug for Response {
 }
 
 impl Response {
-    pub fn with_header(&mut self, key: &str, value: String) -> &mut Self {
-        self.headers.insert(key.to_owned(), value);
+    /// Adds appends a custom header with the headers
+    /// that will be sent.
+    ///
+    /// **Note**: Will overwrite the header with the
+    /// same name
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::{route, router::{Flow, Route}};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut app = Octane::new();
+    ///     app.get(
+    ///         "/",
+    ///         route!(
+    ///             |req, res| {
+    ///                res
+    ///                .with_header("header-name", "header-value")
+    ///                .send("HELLO");
+    ///             }
+    ///         ),
+    ///     );
+    ///
+    ///     app.listen(8080).await.expect("Cannot establish connection");
+    /// }
+    /// ```
+    pub fn with_header(&mut self, key: &'static str, value: &'static str) -> &mut Self {
+        self.headers.insert(key.to_owned(), value.to_owned());
 
         self
     }
+    /// Generates a new response empty response, usually
+    /// you should not be using this method.
     pub fn new(body: &[u8]) -> Self {
         Response {
             status_code: StatusCode::Ok,
@@ -37,34 +93,81 @@ impl Response {
             headers: HashMap::new(),
         }
     }
+    /// Puts the given text to the body and send it
+    /// as html by default
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::{route, router::{Flow, Route}};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut app = Octane::new();
+    ///     app.get(
+    ///         "/",
+    ///         route!(
+    ///             |req, res| {
+    ///                res.send("HELLO");
+    ///             }
+    ///         ),
+    ///     );
+    ///
+    ///     app.listen(8080).await.expect("Cannot establish connection");
+    /// }
+    /// ```
     pub fn send(&mut self, body: &'static str) {
-        let heading_one = b"<!DOCTYPE html><html><head></head><body>";
-        let heading_two = b"</body></html>";
-        let data = &[heading_one, body.as_bytes(), heading_two].concat();
-        self.body = data.to_vec();
+        self.body = body.as_bytes().to_vec();
+        self.default_headers();
     }
-
+    /// Add some default headers like time, content-type
     pub fn default_headers(&mut self) -> &mut Self {
         self.headers
-            .insert(String::from("Content-Length"), self.body.len().to_string());
+            .insert("Content-Length".to_string(), self.body.len().to_string());
         if let Some(date) = Time::now() {
-            self.headers.insert(String::from("Date"), date.format());
+            self.headers.insert("Date".to_string(), date.format());
         }
-        self.headers
-            .insert(String::from("Content-Type"), String::from("text/html"));
+        if let None = self.headers.get("Content-Type") {
+            self.with_header("Content-Type", "text/html");
+        }
+
         // TODO: Add more default headers
         self
     }
-    pub fn with_time(&mut self, stamp: i64) -> &mut Self {
-        if let Some(time) = Time::now() {
-            if let Some(with_stamp) = time.with_stamp(stamp) {
-                self.headers
-                    .insert(String::from("Date"), with_stamp.format());
-            }
-        }
+    /// Modify the Content-Type header to fit the data
+    /// which is being send
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::{route, router::{Flow, Route}};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut app = Octane::new();
+    ///     app.get(
+    ///         "/",
+    ///         route!(
+    ///             |req, res| {
+    ///                res.with_type("json").send(r#"{"server": "Octane"}"#);
+    ///             }
+    ///         ),
+    ///     );
+    ///
+    ///     app.listen(8080).await.expect("Cannot establish connection");
+    /// }
+    /// ```
+    pub fn with_type(&mut self, _type: &'static str) -> &mut Self {
+        // TODO:
+        // res.with_type("json") => application/json
+        // res.with_type("application/json") => application/json
+        self.with_header("Content-Type", _type);
         self
     }
-    pub fn get_data(&self) -> Vec<u8> {
+    /// Consume the response and get the final formed http
+    /// response that the server will send
+    pub fn get_data(self) -> Vec<u8> {
         let mut headers_str = String::from("");
         self.headers
             .iter()
@@ -75,10 +178,34 @@ impl Response {
         ]
         .concat()
     }
+    /// Determine the content type and server the file
+    /// contents as the response
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::{route, router::{Flow, Route}};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut app = Octane::new();
+    ///     app.get(
+    ///         "/",
+    ///         route!(
+    ///             |req, res| {
+    ///                res.with_type("json").send(r#"{"server": "Octane"}"#);
+    ///             }
+    ///         ),
+    ///     );
+    ///
+    ///     app.listen(8080).await.expect("Cannot establish connection");
+    /// }
+    /// ```
     pub async fn send_file(&mut self, file: PathBuf) -> Result<Option<()>> {
         if let Some(file) = FileHandler::handle_file(&file)? {
-            let mime_type = file.get_mime_type();
-            self.with_header("Content-Type", mime_type);
+            self.headers
+                .insert("Content-Type".to_string(), file.get_mime_type());
             self.body = file.contents;
             Ok(Some(()))
         } else {
@@ -97,16 +224,35 @@ impl Response {
             CRLF
         )
     }
-    fn reason_phrase(&self) -> String {
-        self.status_code.to_string().to_uppercase()
-    }
+    /// Set the status code from the status code enum
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::{route, router::{Flow, Route}};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut app = Octane::new();
+    ///     app.get(
+    ///         "/",
+    ///         route!(
+    ///             |req, res| {
+    ///                res.status(StatusCode::NotFound).send("Page not found");
+    ///             }
+    ///         ),
+    ///     );
+    ///
+    ///     app.listen(8080).await.expect("Cannot establish connection");
+    /// }
+    /// ```
     pub fn status(&mut self, code: StatusCode) -> &mut Self {
         self.status_code = code;
         self
     }
-    pub fn with_http_version(&mut self, version: &'static str) -> &mut Self {
-        self.http_version = version.to_owned();
-        self
+    fn reason_phrase(&self) -> String {
+        self.status_code.to_string().to_uppercase()
     }
     fn status_code(&self) -> i32 {
         self.status_code.into()

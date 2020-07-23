@@ -33,6 +33,7 @@ macro_rules! declare_error {
 /// The octane server
 ///
 /// # Example
+///
 /// ```no_run
 /// use octane::server::Octane;
 /// use octane::{route, router::{Flow, Route}};

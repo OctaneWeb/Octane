@@ -31,7 +31,7 @@ impl Error {
                 res = Response::new(&file_404.contents[..]);
                 res.status(self.kind)
                     .default_headers()
-                    .with_header("Content-Type", "text/html".to_string());
+                    .with_header("Content-Type", "text/html");
             }
         } else {
             res = Response::new(b"");

@@ -1,5 +1,6 @@
 use crate::constants::*;
 use crate::file_handler::FileHandler;
+use crate::request::HttpVersion;
 use crate::time::Time;
 use std::collections::HashMap;
 use std::fmt;
@@ -224,6 +225,7 @@ impl Response {
             CRLF
         )
     }
+
     /// Set the status code from the status code enum
     ///
     /// # Example
@@ -231,6 +233,7 @@ impl Response {
     /// ```no_run
     /// use octane::server::Octane;
     /// use octane::{route, router::{Flow, Route}};
+    /// use octane::constants::StatusCode;
     ///
     /// #[tokio::main]
     /// async fn main() {
@@ -256,5 +259,9 @@ impl Response {
     }
     fn status_code(&self) -> i32 {
         self.status_code.into()
+    }
+    pub fn http_version(&mut self, version: HttpVersion) -> &mut Self {
+        self.http_version = version.get_version_string();
+        self
     }
 }

@@ -56,6 +56,19 @@ pub enum HttpVersion {
     HttpInvalid,
 }
 
+impl HttpVersion {
+    pub fn get_version_string(self) -> String {
+        match self {
+            Self::Http11 => "1.1",
+            Self::Http10 => "1.0",
+            Self::Http09 => "0.9",
+            Self::Http02 => "0.2",
+            _ => "",
+        }
+        .to_owned()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestLine {
     pub method: RequestMethod,

@@ -1,5 +1,5 @@
 //! Octane is a web server that's modelled after express (a very
-//! popular and easy to use web framework) in rust.
+//! popular and easy to use web framework) for rust.
 //!
 //! While minimising dependencies, Octane thrives to be a high performance
 //! web server while being easy to use at the same time.
@@ -46,7 +46,7 @@
 //! - `url_variables`
 //! - `raw_headers`
 //! - `rustls`
-//! - `openssl`
+//! - `openSSL`
 //! - 'default`
 //!
 
@@ -64,6 +64,7 @@ pub mod responder;
 pub mod router;
 pub mod server;
 pub mod time;
+pub mod tls;
 pub mod util;
 
 // convenient aliasing for octane_json

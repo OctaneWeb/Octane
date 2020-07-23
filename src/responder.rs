@@ -3,6 +3,7 @@ use crate::file_handler::FileHandler;
 use crate::time::Time;
 use std::collections::HashMap;
 use std::fmt;
+use std::io::Result;
 use std::path::PathBuf;
 
 pub struct Response {
@@ -74,15 +75,15 @@ impl Response {
         ]
         .concat()
     }
-    pub async fn send_file(&mut self, file: PathBuf) -> std::io::Result<()> {
+    pub async fn send_file(&mut self, file: PathBuf) -> Result<Option<()>> {
         if let Some(file) = FileHandler::handle_file(&file)? {
             let mime_type = file.get_mime_type();
             self.with_header("Content-Type", mime_type);
             self.body = file.contents;
+            Ok(Some(()))
         } else {
-            self.declare_error(StatusCode::NotFound)?.default_headers();
+            Ok(None)
         }
-        Ok(())
     }
     fn status_line(&self) -> String {
         format!(
@@ -95,13 +96,6 @@ impl Response {
             self.reason_phrase(),
             CRLF
         )
-    }
-    pub fn declare_error(&mut self, error_kind: StatusCode) -> std::io::Result<&mut Self> {
-        self.status_code = error_kind;
-        if error_kind == StatusCode::NotFound {
-            self.body = FileHandler::get_404_file()?;
-        }
-        Ok(self)
     }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()

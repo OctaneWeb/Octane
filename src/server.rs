@@ -1,11 +1,14 @@
-use crate::config::{Config, OctaneConfig};
+use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::error::Error;
 use crate::inject_method;
 use crate::path::PathBuf;
-use crate::request::{parse_without_body, Headers, Request, RequestLine, RequestMethod};
+use crate::request::{
+    parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
+};
 use crate::responder::Response;
 use crate::router::{Closure, Flow, Route, Router, RouterResult};
+use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
 use std::io::Result;
 use std::marker::Unpin;
@@ -21,8 +24,9 @@ use tokio::stream::StreamExt;
 
 #[macro_use]
 macro_rules! declare_error {
-    ($stream: expr, $error_type: expr) => {
-        Error::err($error_type).send($stream).await?;
+    ($stream : expr, $error_type : expr, $settings : expr) => {
+        Error::err($error_type, $settings).send($stream).await?;
+        return Ok(());
     };
 }
 
@@ -56,10 +60,6 @@ pub struct Octane {
 impl Route for Octane {
     fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
         inject_method!(self.router, path, closure, &RequestMethod::Options);
-        Ok(())
-    }
-    fn connect(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, &RequestMethod::Connect);
         Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
@@ -105,6 +105,13 @@ impl Config for Octane {
         } else {
             self.settings.static_dir.insert(loc_buf, vec![dir_buf]);
         }
+    }
+    fn set_404_file(&mut self, dir_name: &'static str) {
+        self.settings.file_404 = StdPathBuf::from(dir_name);
+    }
+    fn with_ssl_config(&mut self, ssl_conf: Ssl) {
+        self.settings.ssl.key = ssl_conf.key;
+        self.settings.ssl.cert = ssl_conf.cert;
     }
 }
 impl Octane {
@@ -178,27 +185,14 @@ impl Octane {
     ///     app.listen(8080).await.expect("Cannot establish connection");
     /// }
     /// ```
-    pub async fn listen(self, port: u16) -> std::io::Result<()> {
+    pub async fn listen(self, port: u16) -> Result<()> {
         let mut listener =
             TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
         let server = Arc::new(self);
         #[cfg(feature = "rustls")]
         {
-            use tokio_rustls::{
-                rustls::{NoClientAuth, ServerConfig},
-                TlsAcceptor,
-            };
-            println!("{:?}", server.settings.get_key());
-            let mut config = ServerConfig::new(NoClientAuth::new());
-            // FIXME: Here
-            config
-                .set_single_cert(
-                    server.settings.get_cert()?,
-                    server.settings.get_key()?.remove(0),
-                )
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-            let acceptor = TlsAcceptor::from(Arc::new(config));
-
+            use crate::tls::rustls::acceptor;
+            let acceptor = acceptor(&server.settings)?;
             while let Some(stream) = StreamExt::next(&mut listener).await {
                 let server_clone = Arc::clone(&server);
                 let acceptor = acceptor.clone();
@@ -210,21 +204,18 @@ impl Octane {
                                 Ok(stream_ssl) => {
                                     Self::catch_request(stream_ssl, server_clone).await;
                                 }
-                                Err(e) => panic!("{:?}", e),
+                                Err(e) => println!("{:#?}", e),
                             }
                         }
-                        Err(_e) => (),
+                        Err(e) => println!("{:#?}", e),
                     };
                 });
             }
         }
         #[cfg(feature = "openSSL")]
         {
-            use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-            let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-            acceptor.set_private_key_file(&server.settings.ssl.key, SslFiletype::PEM)?;
-            acceptor.set_certificate_chain_file(&server.settings.ssl.cert)?;
-            let acceptor = acceptor.build();
+            use crate::tls::openssl::acceptor;
+            let acceptor = acceptor(&server.settings)?;
             while let Some(stream) = StreamExt::next(&mut listener).await {
                 let server_clone = Arc::clone(&server);
                 let acceptor = acceptor.clone();
@@ -236,7 +227,7 @@ impl Octane {
                                 Ok(stream_ssl) => {
                                     Self::catch_request(stream_ssl, server_clone).await;
                                 }
-                                Err(e) => panic!("{:?}", e),
+                                Err(e) => println!("{:#?}", e),
                             }
                         }
                         Err(_e) => (),
@@ -263,8 +254,9 @@ impl Octane {
 
     async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>) -> Result<()>
     where
-        S: AsyncRead + AsyncWrite + Unpin,
+        S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
+        let settings = &server.settings;
         let mut data = Vec::<u8>::new();
         let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
         let body: &[u8];
@@ -274,8 +266,7 @@ impl Octane {
         loop {
             let read = stream_async.read(&mut buf).await?;
             if read == 0 {
-                declare_error!(stream_async, StatusCode::BadRequest);
-                return Ok(());
+                declare_error!(stream_async, StatusCode::BadRequest, settings);
             }
             let cur = &buf[..read];
             data.extend_from_slice(cur);
@@ -288,12 +279,10 @@ impl Octane {
                         headers = heads;
                         break;
                     } else {
-                        declare_error!(stream_async, StatusCode::BadRequest);
-                        return Ok(());
+                        declare_error!(stream_async, StatusCode::BadRequest, settings);
                     }
                 } else {
-                    declare_error!(stream_async, StatusCode::BadRequest);
-                    return Ok(());
+                    declare_error!(stream_async, StatusCode::BadRequest, settings);
                 }
             }
         }
@@ -317,27 +306,26 @@ impl Octane {
             body = &[];
         }
         if let Some(parsed_request) = Request::parse(request_line, headers, body) {
-            // TODO: Apply keepalive when you don't have TLS support
-            // #[cfg(not(any(feature = "rustls", feature = "openSSL")))]
-            // {
-            //     if let Some(connection_type) = parsed_request.headers.get("connection") {
-            //         if connection_type.to_lowercase() == "keep-alive" {
-            //             if parsed_request.request_line.version == HttpVersion::Http10 {
-            //                 if let Some(keep_alive_header) =
-            //                     parsed_request.headers.get("keep-alive")
-            //                 {
-            //                     let header_details = KeepAlive::parse(keep_alive_header);
+            if let Some(connection_type) = parsed_request.headers.get("connection") {
+                if connection_type.to_lowercase() == "keep-alive" {
+                    if parsed_request.request_line.version == HttpVersion::Http10 {
+                        if let Some(keep_alive_header) = parsed_request.headers.get("keep-alive") {
+                            let header_details = KeepAlive::parse(keep_alive_header);
 
-            //                     stream_async.set_keepalive(Some(Duration::from_secs(
-            //                         header_details.timeout.unwrap_or(0),
-            //                     )))?;
-            //                 }
-            //             } else if parsed_request.request_line.version == HttpVersion::Http11 {
-            //                 stream_async.set_keepalive(server.settings.keep_alive)?;
-            //             }
-            //         }
-            //     }
-            // }
+                            stream_async
+                                .stream_mut()
+                                .set_keepalive(Some(Duration::from_secs(
+                                    header_details.timeout.unwrap_or(0),
+                                )))?;
+                        }
+                    } else if parsed_request.request_line.version == HttpVersion::Http11 {
+                        stream_async
+                            .stream_mut()
+                            .set_keepalive(server.settings.keep_alive)?;
+                    }
+                }
+            }
+
             let mut res = Response::new(b"");
             let req = &parsed_request.request_line;
             if req.method.is_some() {
@@ -353,7 +341,7 @@ impl Octane {
                 if counter.should_continue() {
                     if let Some(functions) = server.router.paths.get(&RequestMethod::All) {
                         for matched in functions.get(&req.path).into_iter() {
-                            counter = (matched.data.closure)(&parsed_request, &mut res).await;
+                            (matched.data.closure)(&parsed_request, &mut res).await;
                         }
                     }
                     let mut parent_path = req.path.clone();
@@ -372,7 +360,13 @@ impl Octane {
                                 if req.method == RequestMethod::Get {
                                     let mut dir_final = dirs.clone();
                                     dir_final.push(poped.clone().unwrap_or(String::new()));
-                                    res.send_file(dir_final).await?;
+                                    if !res.send_file(dir_final).await?.is_some() {
+                                        declare_error!(
+                                            stream_async,
+                                            StatusCode::NotFound,
+                                            settings
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -381,16 +375,16 @@ impl Octane {
 
                 Self::send_data(res.get_data(), stream_async).await?;
             } else {
-                declare_error!(stream_async, StatusCode::NotImplemented);
+                declare_error!(stream_async, StatusCode::NotImplemented, settings);
             }
         } else {
-            declare_error!(stream_async, StatusCode::BadRequest);
+            declare_error!(stream_async, StatusCode::BadRequest, settings);
         }
         Ok(())
     }
-    pub async fn send_data<S>(response: Vec<u8>, mut stream_async: S) -> std::io::Result<()>
+    pub async fn send_data<S>(response: Vec<u8>, mut stream_async: S) -> Result<()>
     where
-        S: AsyncRead + AsyncWrite + std::marker::Unpin,
+        S: AsyncRead + AsyncWrite + Unpin,
     {
         copy(&mut &response[..], &mut stream_async).await?;
         Ok(())

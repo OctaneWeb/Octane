@@ -52,7 +52,6 @@ impl Flow {
 
 pub trait Route {
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
-    fn connect(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn options(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult;
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult;
@@ -95,10 +94,6 @@ impl Router {
 impl Route for Router {
     fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
         inject_method!(self, path, closure, &RequestMethod::Options);
-        Ok(())
-    }
-    fn connect(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, &RequestMethod::Connect);
         Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {

@@ -12,6 +12,7 @@ pub mod responder;
 pub mod router;
 pub mod server;
 pub mod time;
+pub mod tls;
 pub mod util;
 
 use crate::config::{Config, OctaneConfig};

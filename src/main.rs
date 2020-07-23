@@ -1,23 +1,9 @@
-#[macro_use]
-extern crate lazy_static;
-pub mod config;
-pub mod constants;
-pub mod error;
-pub mod file_handler;
-pub mod middlewares;
-pub mod path;
-pub mod query;
-pub mod request;
-pub mod responder;
-pub mod router;
-pub mod server;
-pub mod time;
-pub mod tls;
-pub mod util;
-
-use crate::config::{Config, OctaneConfig};
-use crate::router::{Flow, Route};
-use crate::server::Octane;
+use octane::config::{Config, OctaneConfig};
+use octane::server::Octane;
+use octane::{
+    route,
+    router::{Flow, Route},
+};
 
 #[tokio::main]
 async fn main() {

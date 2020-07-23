@@ -61,7 +61,7 @@ impl Ssl {
         self.cert = PathBuf::from(path);
         self
     }
-    fn is_good(&self) -> bool {
+    pub fn is_good(&self) -> bool {
         let key_ext = self
             .key
             .as_path()

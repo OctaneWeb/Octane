@@ -37,6 +37,7 @@ pub struct Response {
     pub body: Vec<u8>,
     pub http_version: String,
     pub headers: HashMap<String, String>,
+    pub has_body: bool,
 }
 
 impl fmt::Debug for Response {
@@ -88,6 +89,7 @@ impl Response {
     /// you should not be using this method.
     pub fn new(body: &[u8]) -> Self {
         Response {
+            has_body: false,
             status_code: StatusCode::Ok,
             body: body.to_vec(),
             http_version: "1.1".to_owned(),
@@ -120,6 +122,7 @@ impl Response {
     /// ```
     pub fn send(&mut self, body: &'static str) {
         self.body = body.as_bytes().to_vec();
+        self.has_body = true;
         self.default_headers();
     }
     /// Add some default headers like time, content-type
@@ -132,8 +135,6 @@ impl Response {
         if let None = self.headers.get("Content-Type") {
             self.with_header("Content-Type", "text/html");
         }
-
-        // TODO: Add more default headers
         self
     }
     /// Modify the Content-Type header to fit the data
@@ -167,7 +168,7 @@ impl Response {
         self
     }
     /// Consume the response and get the final formed http
-    /// response that the server will send
+    /// response that the server will send in bytes
     pub fn get_data(self) -> Vec<u8> {
         let mut headers_str = String::from("");
         self.headers
@@ -205,6 +206,7 @@ impl Response {
     /// ```
     pub async fn send_file(&mut self, file: PathBuf) -> Result<Option<()>> {
         if let Some(file) = FileHandler::handle_file(&file)? {
+            self.has_body = true;
             self.headers
                 .insert("Content-Type".to_string(), file.get_mime_type());
             self.body = file.contents;
@@ -254,14 +256,14 @@ impl Response {
         self.status_code = code;
         self
     }
+    pub fn http_version(&mut self, version: HttpVersion) -> &mut Self {
+        self.http_version = version.get_version_string();
+        self
+    }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()
     }
     fn status_code(&self) -> i32 {
         self.status_code.into()
-    }
-    pub fn http_version(&mut self, version: HttpVersion) -> &mut Self {
-        self.http_version = version.get_version_string();
-        self
     }
 }

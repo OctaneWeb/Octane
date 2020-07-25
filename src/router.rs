@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::result::Result;
 
+/// The Closure type is a type alias for the type
+/// that the routes should return
 pub type Closure =
     Box<dyn for<'a> Fn(&'a Request, &'a mut Response) -> BoxFuture<'a, Flow> + Send + Sync>;
 

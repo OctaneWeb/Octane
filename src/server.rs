@@ -332,19 +332,30 @@ impl Octane {
             if req.method.is_some() {
                 let mut counter = Flow::Next;
                 if let Some(functions) = server.router.paths.get(&req.method) {
-                    if counter.should_continue() {
-                        for matched in functions.get(&req.path).into_iter() {
-                            counter = (matched.data.closure)(&parsed_request, &mut res).await;
+                    for matched in functions.get(&req.path).into_iter() {
+                        if !res.has_body {
+                            if counter.should_continue() {
+                                counter = (matched.data.closure)(&parsed_request, &mut res).await;
+                            }
+                        } else {
+                            break;
                         }
                     }
                 }
                 // run RequestMethod::All regardless of the request method
-                if counter.should_continue() {
-                    if let Some(functions) = server.router.paths.get(&RequestMethod::All) {
-                        for matched in functions.get(&req.path).into_iter() {
-                            (matched.data.closure)(&parsed_request, &mut res).await;
+                if let Some(functions) = server.router.paths.get(&RequestMethod::All) {
+                    for matched in functions.get(&req.path).into_iter() {
+                        if !res.has_body {
+                            if counter.should_continue() {
+                                counter = (matched.data.closure)(&parsed_request, &mut res).await;
+                            }
+                        } else {
+                            break;
                         }
                     }
+                }
+                // Run static file middleware
+                if !res.has_body {
                     let mut parent_path = req.path.clone();
                     let poped = parent_path.chunks.pop();
                     for loc in server.settings.static_dir.iter() {

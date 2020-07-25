@@ -82,6 +82,7 @@ where
 }
 
 pub fn find_in_slice<T: Eq>(haystack: &[T], needle: &[T]) -> Option<usize> {
+    // naive algorithm only meant for small needles
     if needle.len() > haystack.len() {
         return None;
     }

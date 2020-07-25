@@ -14,14 +14,16 @@ pub struct Closures {
 macro_rules! inject_method {
     ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
         use crate::middlewares::Closures;
-        if let Some(paths) = $instance.paths.get_mut($method) {
-            paths.insert(
+        $instance
+            .paths
+            .entry($method)
+            .or_insert(PathNode::new())
+            .insert(
                 PathBuf::parse($path)?,
                 Closures {
                     closure: $closure,
                     index: $instance.route_counter + 1,
                 },
-            );
-        }
+            )
     };
 }

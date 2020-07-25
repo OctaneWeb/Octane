@@ -1,7 +1,8 @@
+use crate::inject_method;
+use crate::middlewares::{Closures, Paths};
 use crate::path::{InvalidPathError, PathBuf, PathNode};
 use crate::request::{Request, RequestMethod};
 use crate::responder::Response;
-use crate::{inject_method, middlewares::Paths};
 use futures::future::BoxFuture;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -66,6 +67,7 @@ pub trait Route {
 pub struct Router {
     pub paths: Paths,
     pub route_counter: usize,
+    pub middlewares: Vec<Closures>,
 }
 
 impl Deref for Router {
@@ -78,13 +80,10 @@ impl Deref for Router {
 
 impl Router {
     pub fn new() -> Self {
-        let mut paths: Paths = HashMap::new();
-        for variants in RequestMethod::values().iter().cloned() {
-            paths.insert(variants, PathNode::new());
-        }
         Router {
-            paths,
+            paths: HashMap::new(),
             route_counter: 0,
+            middlewares: Vec::new(),
         }
     }
     pub fn append(&mut self, _router: Self) -> &mut Self {
@@ -95,24 +94,24 @@ impl Router {
 
 impl Route for Router {
     fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, &RequestMethod::Options);
+        inject_method!(self, path, closure, RequestMethod::Options);
         Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, &RequestMethod::Head);
+        inject_method!(self, path, closure, RequestMethod::Head);
         Ok(())
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, &RequestMethod::Put);
+        inject_method!(self, path, closure, RequestMethod::Put);
         Ok(())
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, &RequestMethod::Get);
+        inject_method!(self, path, closure, RequestMethod::Get);
         Ok(())
     }
 
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, &RequestMethod::Post);
+        inject_method!(self, path, closure, RequestMethod::Post);
         Ok(())
     }
     fn all(&mut self, _path: &str, _closure: Closure) -> RouterResult {
@@ -120,11 +119,11 @@ impl Route for Router {
         Ok(())
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
-        inject_method!(self, "/*", closure, &RequestMethod::All);
+        inject_method!(self, "/*", closure, RequestMethod::All);
         Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, &RequestMethod::All);
+        inject_method!(self, path, closure, RequestMethod::All);
         Ok(())
     }
 }

@@ -216,7 +216,7 @@ impl<T> PathNode<T> {
             });
     }
 
-    fn dfs<'a, 'b: 'a>(&self, chunks: &'b [String]) -> Vec<&PathData<T>> {
+    fn dfs(&self, chunks: &[String]) -> Vec<&PathData<T>> {
         let cur = self.unwrap_node();
         if chunks.is_empty() {
             return cur

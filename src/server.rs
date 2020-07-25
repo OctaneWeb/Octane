@@ -2,7 +2,7 @@ use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::error::Error;
 use crate::inject_method;
-use crate::path::PathBuf;
+use crate::path::{PathBuf, PathNode};
 use crate::request::{
     parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
 };
@@ -60,23 +60,23 @@ pub struct Octane {
 
 impl Route for Octane {
     fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, &RequestMethod::Options);
+        inject_method!(self.router, path, closure, RequestMethod::Options);
         Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, &RequestMethod::Head);
+        inject_method!(self.router, path, closure, RequestMethod::Head);
         Ok(())
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, &RequestMethod::Put);
+        inject_method!(self.router, path, closure, RequestMethod::Put);
         Ok(())
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, &RequestMethod::Get);
+        inject_method!(self.router, path, closure, RequestMethod::Get);
         Ok(())
     }
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, &RequestMethod::Post);
+        inject_method!(self.router, path, closure, RequestMethod::Post);
         Ok(())
     }
     fn all(&mut self, _path: &str, _closure: Closure) -> RouterResult {
@@ -85,11 +85,11 @@ impl Route for Octane {
     }
 
     fn add(&mut self, closure: Closure) -> RouterResult {
-        inject_method!(self.router, "/*", closure, &RequestMethod::All);
+        inject_method!(self.router, "/*", closure, RequestMethod::All);
         Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, &RequestMethod::All);
+        inject_method!(self.router, path, closure, RequestMethod::All);
         Ok(())
     }
 }

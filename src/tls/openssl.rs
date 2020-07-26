@@ -1,9 +1,8 @@
+#![cfg(feature = "openSSL")]
 use crate::config::OctaneConfig;
-#[cfg(feature = "openSSL")]
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::io::Result;
 
-#[cfg(feature = "openSSL")]
 pub fn acceptor(settings: &OctaneConfig) -> Result<SslAcceptor> {
     if settings.ssl.is_good() {
         let mut acceptor = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;

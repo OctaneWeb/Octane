@@ -120,7 +120,7 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
         ));
     }
     let mut gen_list: String = String::new();
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('<');
     }
     for (i, s) in info.generics.iter().enumerate() {
@@ -129,7 +129,7 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
             gen_list.push(',');
         }
     }
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('>');
     }
     let mut comma = ", ";
@@ -194,7 +194,7 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
         vals.push_str("octane_json::FromJSON::from_json(it.next()?)?,");
     }
     let mut gen_list: String = String::new();
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('<');
     }
     for (i, s) in info.generics.iter().enumerate() {
@@ -203,7 +203,7 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
             gen_list.push(',');
         }
     }
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('>');
     }
     let mut comma = ", ";
@@ -276,7 +276,7 @@ fn tojson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
         ));
     }
     let mut gen_list: String = String::new();
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('<');
     }
     for (i, s) in info.generics.iter().enumerate() {
@@ -285,7 +285,7 @@ fn tojson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
             gen_list.push(',');
         }
     }
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('>');
     }
     let mut comma = ", ";
@@ -345,7 +345,7 @@ fn tojson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
         ));
     }
     let mut gen_list: String = String::new();
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('<');
     }
     for (i, s) in info.generics.iter().enumerate() {
@@ -354,7 +354,7 @@ fn tojson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
             gen_list.push(',');
         }
     }
-    if info.generics.len() > 0 {
+    if !info.generics.is_empty() {
         gen_list.push('>');
     }
     let mut comma = ", ";

@@ -70,10 +70,10 @@ fn success_tree() {
     assert!(node.get(&path5).is_empty());
     let matched = node.get(&path2).remove(0);
     assert_eq!(*matched.data, 1);
-    assert_eq!(matched.vars.get("var").unwrap(), "test");
+    assert_eq!(matched.vars.get("var").unwrap(), &"test");
     let matched = node.get(&path3).remove(0);
     assert_eq!(*matched.data, 1);
-    assert_eq!(matched.vars.get("var").unwrap(), "test");
+    assert_eq!(matched.vars.get("var").unwrap(), &"test");
     let matched = node.get(&path4).remove(0);
     assert_eq!(*matched.data, 4);
     assert!(matched.vars.is_empty());

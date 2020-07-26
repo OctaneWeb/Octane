@@ -25,6 +25,7 @@ use std::path::PathBuf;
 ///         route!(
 ///             |req, res| {
 ///                 // access res (response) here
+///                 Flow::Next
 ///             }
 ///         ),
 ///     );
@@ -70,9 +71,10 @@ impl Response {
     ///         "/",
     ///         route!(
     ///             |req, res| {
-    ///                res
-    ///                .with_header("header-name", "header-value")
-    ///                .send("HELLO");
+    ///                 res
+    ///                     .with_header("header-name", "header-value")
+    ///                     .send("HELLO");
+    ///                 Flow::Stop
     ///             }
     ///         ),
     ///     );
@@ -112,7 +114,8 @@ impl Response {
     ///         "/",
     ///         route!(
     ///             |req, res| {
-    ///                res.send("HELLO");
+    ///                 res.send("HELLO");
+    ///                 Flow::Stop
     ///             }
     ///         ),
     ///     );
@@ -132,7 +135,7 @@ impl Response {
         if let Some(date) = Time::now() {
             self.headers.insert("Date".to_string(), date.format());
         }
-        if let None = self.headers.get("Content-Type") {
+        if self.headers.get("Content-Type").is_none() {
             self.with_header("Content-Type", "text/html");
         }
         self
@@ -152,7 +155,8 @@ impl Response {
     ///         "/",
     ///         route!(
     ///             |req, res| {
-    ///                res.with_type("json").send(r#"{"server": "Octane"}"#);
+    ///                 res.with_type("json").send(r#"{"server": "Octane"}"#);
+    ///                 Flow::Stop
     ///             }
     ///         ),
     ///     );
@@ -196,7 +200,8 @@ impl Response {
     ///         "/",
     ///         route!(
     ///             |req, res| {
-    ///                res.with_type("json").send(r#"{"server": "Octane"}"#);
+    ///                 res.with_type("json").send(r#"{"server": "Octane"}"#);
+    ///                 Flow::Stop
     ///             }
     ///         ),
     ///     );
@@ -244,7 +249,8 @@ impl Response {
     ///         "/",
     ///         route!(
     ///             |req, res| {
-    ///                res.status(StatusCode::NotFound).send("Page not found");
+    ///                 res.status(StatusCode::NotFound).send("Page not found");
+    ///                 Flow::Stop
     ///             }
     ///         ),
     ///     );

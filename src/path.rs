@@ -112,7 +112,7 @@ pub struct PathData<T> {
 #[derive(Debug, Clone)]
 pub struct MatchedPath<'a, T> {
     #[cfg(feature = "url_variables")]
-    pub vars: HashMap<&'a str, String>,
+    pub vars: HashMap<&'a str, &'a str>,
     pub data: &'a T,
 }
 
@@ -207,7 +207,7 @@ impl<T> PathNode<T> {
                 .unwrap_node_mut();
         }
         cur.entry(PathChunk::End)
-            .or_insert(PathNode::Leaf(vec![]))
+            .or_insert_with(|| PathNode::Leaf(vec![]))
             .unwrap_leaf_mut()
             .push(PathData {
                 #[cfg(feature = "url_variables")]
@@ -222,7 +222,7 @@ impl<T> PathNode<T> {
             return cur
                 .get(&PathChunk::End)
                 .map(|v| v.unwrap_leaf().iter().collect())
-                .unwrap_or(vec![]);
+                .unwrap_or_default();
         }
         let mut ret = vec![];
         if let Some(v) = cur.get(&PathChunk::Chunk(chunks[0].clone())) {
@@ -239,7 +239,7 @@ impl<T> PathNode<T> {
         ret
     }
 
-    pub fn get(&self, path: &PathBuf) -> Vec<MatchedPath<T>> {
+    pub fn get<'a>(&'a self, path: &'a PathBuf) -> Vec<MatchedPath<'a, T>> {
         let matched = self.dfs(path.chunks.as_slice());
         matched
             .into_iter()
@@ -250,7 +250,7 @@ impl<T> PathNode<T> {
                     .check_matches(path)
                     .unwrap()
                     .into_iter()
-                    .map(|(k, v)| (k, v.to_owned()))
+                    .map(|(k, v)| (k, v))
                     .collect(),
                 data: &data.data,
             })

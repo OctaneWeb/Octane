@@ -18,10 +18,8 @@ impl<T: ToJSON> ToJSON for Option<T> {
     fn to_json(self) -> Option<Value> {
         if let Some(x) = self {
             x.to_json()
-        } else if let None = self {
-            Some(Value::Null)
         } else {
-            None
+            Some(Value::Null)
         }
     }
 }

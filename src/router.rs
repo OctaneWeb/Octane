@@ -1,7 +1,7 @@
 use crate::inject_method;
 use crate::middlewares::{Closures, Paths};
-use crate::path::{InvalidPathError, PathBuf, PathNode};
-use crate::request::{Request, RequestMethod};
+use crate::path::{InvalidPathError, PathBuf};
+use crate::request::{RequestMethod, MatchedRequest};
 use crate::responder::Response;
 use futures::future::BoxFuture;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ use std::result::Result;
 /// The Closure type is a type alias for the type
 /// that the routes should return
 pub type Closure =
-    Box<dyn for<'a> Fn(&'a Request, &'a mut Response) -> BoxFuture<'a, Flow> + Send + Sync>;
+    Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> BoxFuture<'a, Flow> + Send + Sync>;
 
 pub type RouterResult = Result<(), InvalidPathError>;
 
@@ -119,7 +119,11 @@ impl Route for Router {
         Ok(())
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
-        inject_method!(self, "/*", closure, RequestMethod::All);
+        self.middlewares.push(Closures {
+            closure,
+            index: self.route_counter
+        });
+        self.route_counter += 1;
         Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
@@ -161,8 +165,7 @@ macro_rules! route {
         #[allow(unused_variables)]
         Box::new(move |$req, $res| {
             Box::pin(async move {
-                $body;
-                Flow::Next
+                $body
             })
         })
     };

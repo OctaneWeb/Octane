@@ -21,18 +21,19 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//! 	let mut app = Octane::new();
-//! 	app.add_static_dir("/", "dir_name"); // server a static directory
-//! 	app.get(
-//! 	    "/",
-//! 	    route!(
-//! 	        |req, res| {
-//! 	            res.send("Hello, World");
-//! 	        }
-//! 	    ),
-//! 	);
+//!     let mut app = Octane::new();
+//!     app.add_static_dir("/", "dir_name"); // server a static directory
+//!     app.get(
+//!         "/",
+//!         route!(
+//!             |req, res| {
+//!                 res.send("Hello, World");
+//!                 Flow::Stop
+//!             }
+//!         ),
+//!     );
 //!
-//! 	app.listen(8080).await.expect("Cannot establish connection");
+//!     app.listen(8080).await.expect("Cannot establish connection");
 //! }
 //! ```
 //! and now you can see the page at http://0.0.0.0:8080.

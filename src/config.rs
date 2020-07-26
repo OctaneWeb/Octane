@@ -75,9 +75,9 @@ impl Ssl {
             .and_then(OsStr::to_str)
             .unwrap_or("");
         if key_ext != "pem" && cert_ext != "pem" {
-            panic!("Invalid key/cert file, {:?}", "bad extension");
+            panic!("Invalid key/cert file, {:?}", "bad extension")
         } else {
-            return true;
+            true
         }
     }
 }

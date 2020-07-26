@@ -35,7 +35,7 @@ impl RequestMethod {
             Trace,
             Connect,
             All,
-            RequestMethod::None,
+            None,
         ]
     }
     pub fn is_some(&self) -> bool {
@@ -290,5 +290,20 @@ impl Cookies {
             hashmap.insert(first.to_owned(), second[1..].to_owned());
         }
         Self { cookies: hashmap }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct MatchedRequest<'a> {
+    pub request: &'a Request<'a>,
+    #[cfg(feature = "url_variables")]
+    pub vars: &'a HashMap<&'a str, &'a str>
+}
+
+impl<'a> Deref for MatchedRequest<'a> {
+    type Target = Request<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.request
     }
 }

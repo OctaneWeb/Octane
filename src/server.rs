@@ -2,12 +2,12 @@ use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::error::Error;
 use crate::inject_method;
-use crate::path::{PathBuf, PathNode};
+use crate::path::{PathBuf, MatchedPath};
 use crate::request::{
-    parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
+    parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod, MatchedRequest
 };
 use crate::responder::Response;
-use crate::router::{Closure, Flow, Route, Router, RouterResult};
+use crate::router::{Closure, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
 use std::io::Result;
@@ -21,6 +21,8 @@ use tokio::io::{copy, AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
+#[cfg(feature = "url_variables")]
+use std::collections::HashMap;
 
 #[macro_use]
 macro_rules! declare_error {
@@ -46,6 +48,7 @@ macro_rules! declare_error {
 ///         route!(
 ///             |req, res| {
 ///                 res.send("Hello, World");
+///                 Flow::Stop
 ///             }
 ///         ),
 ///     );
@@ -54,30 +57,25 @@ macro_rules! declare_error {
 /// }
 /// ```
 pub struct Octane {
-    settings: OctaneConfig,
-    router: Router,
+    pub settings: OctaneConfig,
+    pub router: Router,
 }
 
 impl Route for Octane {
     fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Options);
-        Ok(())
+        self.router.options(path, closure)
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Head);
-        Ok(())
+        self.router.head(path, closure)
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Put);
-        Ok(())
+        self.router.put(path, closure)
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Get);
-        Ok(())
+        self.router.get(path, closure)
     }
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Post);
-        Ok(())
+        self.router.post(path, closure)
     }
     fn all(&mut self, _path: &str, _closure: Closure) -> RouterResult {
         // TODO: Multiple inject_method! declarations here
@@ -85,8 +83,7 @@ impl Route for Octane {
     }
 
     fn add(&mut self, closure: Closure) -> RouterResult {
-        inject_method!(self.router, "/*", closure, RequestMethod::All);
-        Ok(())
+        self.router.add(closure)
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
         inject_method!(self.router, path, closure, RequestMethod::All);
@@ -115,6 +112,7 @@ impl Config for Octane {
         self.settings.ssl.cert = ssl_conf.cert;
     }
 }
+
 impl Octane {
     /// Creates a new server instance
     pub fn new() -> Self {
@@ -136,8 +134,8 @@ impl Octane {
     ///
     /// let mut app = Octane::new();
     /// let mut router = Router::new();
-    /// router.get("/", route!(|req, res| { res.send("It's a get request!!") }));
-    /// router.post("/", route!(|req, res| { res.send("It's a post request!!") }));
+    /// router.get("/", route!(|req, res| { res.send("It's a get request!!"); Flow::Stop }));
+    /// router.post("/", route!(|req, res| { res.send("It's a post request!!"); Flow::Stop }));
     /// app.use_router(router);
     /// ```
     ///
@@ -274,14 +272,10 @@ impl Octane {
             if let Some(i) = find_in_slice(&data[..], b"\r\n\r\n") {
                 let first = &data[..i];
                 body_remainder = &data[i + 4..];
-                if let Ok(decoded) = str::from_utf8(first) {
-                    if let Some((rl, heads)) = parse_without_body(decoded) {
-                        request_line = rl;
-                        headers = heads;
-                        break;
-                    } else {
-                        declare_error!(stream_async, StatusCode::BadRequest, settings);
-                    }
+                if let Ok(Some((rl, heads))) = str::from_utf8(first).map(parse_without_body) {
+                    request_line = rl;
+                    headers = heads;
+                    break;
                 } else {
                     declare_error!(stream_async, StatusCode::BadRequest, settings);
                 }
@@ -289,7 +283,7 @@ impl Octane {
         }
         let body_len = headers
             .get("content-length")
-            .map(|s| s.parse().unwrap_or(0))
+            .and_then(|s| s.parse().ok())
             .unwrap_or(0);
         let mut body_vec: Vec<u8>;
         if body_len > 0 {
@@ -329,29 +323,54 @@ impl Octane {
 
             let mut res = Response::new(b"");
             let req = &parsed_request.request_line;
+            let mut matches = vec![];
             if req.method.is_some() {
-                let mut counter = Flow::Next;
                 if let Some(functions) = server.router.paths.get(&req.method) {
-                    for matched in functions.get(&req.path).into_iter() {
-                        if !res.has_body {
-                            if counter.should_continue() {
-                                counter = (matched.data.closure)(&parsed_request, &mut res).await;
-                            }
-                        } else {
-                            break;
-                        }
-                    }
+                    let mut routes = functions.get(&req.path);
+                    routes.sort_by_key(|v| v.index);
+                    matches.push(routes);
                 }
                 // run RequestMethod::All regardless of the request method
                 if let Some(functions) = server.router.paths.get(&RequestMethod::All) {
-                    for matched in functions.get(&req.path).into_iter() {
-                        if !res.has_body {
-                            if counter.should_continue() {
-                                counter = (matched.data.closure)(&parsed_request, &mut res).await;
-                            }
-                        } else {
-                            break;
+                    let mut routes = functions.get(&req.path);
+                    routes.sort_by_key(|v| v.index);
+                    matches.push(routes);
+                }
+                matches.push(server.router.middlewares.iter().map(|c| {
+                    MatchedPath {
+                        data: c,
+                        #[cfg(feature = "url_variables")]
+                        vars: HashMap::new()
+                    }
+                }).collect());
+                let mut indices = vec![0usize; matches.len()];
+                let total: usize = matches.iter().map(Vec::len).sum();
+                #[cfg(feature = "url_variables")]
+                let mut matched = MatchedRequest {
+                    request: &parsed_request,
+                    vars: &HashMap::new()
+                };
+                #[cfg(not(feature = "url_variables"))]
+                let matched = MatchedRequest {
+                    request: &parsed_request,
+                };
+                for _ in 0..total {
+                    let mut minind = 0;
+                    let mut minval = usize::MAX;
+                    for (n, (v, i)) in matches.iter().zip(indices.iter()).enumerate() {
+                        if *i < v.len() && v[*i].index < minval {
+                            minval = v[*i].index;
+                            minind = n;
                         }
+                    }
+                    #[cfg(feature = "url_variables")]
+                    {
+                        matched.vars = &matches[minind][indices[minind]].vars;
+                    }
+                    let flow = (matches[minind][indices[minind]].closure)(&matched, &mut res).await;
+                    indices[minind] += 1;
+                    if !flow.should_continue() {
+                        break;
                     }
                 }
                 // Run static file middleware
@@ -371,8 +390,8 @@ impl Octane {
                             for dirs in loc.1.iter() {
                                 if req.method == RequestMethod::Get {
                                     let mut dir_final = dirs.clone();
-                                    dir_final.push(poped.clone().unwrap_or(String::new()));
-                                    if !res.send_file(dir_final).await?.is_some() {
+                                    dir_final.push(poped.clone().unwrap_or_default());
+                                    if res.send_file(dir_final).await?.is_none() {
                                         declare_error!(
                                             stream_async,
                                             StatusCode::NotFound,

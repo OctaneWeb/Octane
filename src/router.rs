@@ -32,8 +32,8 @@ pub type RouterResult = Result<(), InvalidPathError>;
 ///     route!(
 ///         |req, res| {
 ///             res.send("Hello, World");
-///         },
-///         Flow::Next
+///             Flow::Stop
+///         }
 ///     ),
 /// );
 /// ```
@@ -153,8 +153,8 @@ impl Default for Router {
 ///     route!(
 ///         |req, res| {
 ///             res.send("Hello, World");
-///         },
-///         Flow::Next
+///             Flow::Stop
+///         }
 ///     ),
 /// );
 /// ```

@@ -23,6 +23,14 @@ app.get("/", route!(|_req, res| {
 });
 ```
 
+# Docs
+
+Documentation will be available on [docs.rs](https://docs.rs/octane/0.1.1/octane/) and on the offical [Octane Site]().
+
+# Contribute
+
+Checkout [CONTRIBUTING.md](https://github.com/OctaneWeb/Octane/CONTRIBUTING.md) for info on how to contribute to this project
+
 # License
 
 OctaneWeb/Octane is licensed under the

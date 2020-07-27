@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Values};
 use std::convert::TryFrom;
 use std::ops::Deref;
 
@@ -261,5 +261,67 @@ impl<T> PathNode<T> {
 impl<T> Default for PathNode<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub struct PathNodeIterator<'a, T> {
+    stack: Vec<Values<'a, PathChunk, PathNode<T>>>,
+    curvec: Option<&'a Vec<PathData<T>>>,
+    curind: usize
+}
+
+impl<'a, T> Iterator for PathNodeIterator<'a, T> {
+    type Item = &'a PathData<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // loop due to lack of tail recursive optimizations
+        loop {
+            if let Some(v) = self.curvec {
+                if self.curind < v.len() {
+                    let ret = &v[self.curind];
+                    self.curind += 1;
+                    return Some(ret);
+                }
+            }
+            self.curind = 0;
+            self.curvec = None;
+            if self.stack.is_empty() {
+                return None;
+            }
+            let len = self.stack.len();
+            if let Some(v) = self.stack[len - 1].next() {
+                // using continue as tail recursion
+                match v {
+                    PathNode::Node(n) => {
+                        self.stack.push(n.values());
+                        continue;
+                    },
+                    PathNode::Leaf(l) => {
+                        self.curvec = Some(l);
+                        continue;
+                    },
+                }
+            } else {
+                self.stack.pop();
+                continue;
+            }
+        }
+    }
+}
+
+impl<T> PathNode<T> {
+    pub fn iter(&self) -> PathNodeIterator<T> {
+        match self {
+            PathNode::Node(n) => PathNodeIterator {
+                stack: vec![n.values()],
+                curvec: None,
+                curind: 0
+            },
+            PathNode::Leaf(l) => PathNodeIterator {
+                stack: vec![],
+                curvec: Some(l),
+                curind: 0
+            }
+        }
     }
 }

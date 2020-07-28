@@ -1,6 +1,7 @@
-use std::collections::{hash_map::Values, HashMap};
+use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use std::ops::Deref;
+use std::iter::{Map, Iterator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
@@ -104,7 +105,6 @@ impl Default for PathBuf {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathData<T> {
-    #[cfg(feature = "url_variables")]
     pub orig_path: PathBuf,
     pub data: T,
 }
@@ -185,14 +185,7 @@ impl<T> PathNode<T> {
     pub fn insert(&mut self, path: PathBuf, data: T) {
         let mut cur = self.unwrap_node_mut();
         let path_chunks;
-        #[cfg(feature = "url_variables")]
-        {
-            path_chunks = path.clone().chunks;
-        }
-        #[cfg(not(feature = "url_variables"))]
-        {
-            path_chunks = path.chunks;
-        }
+        path_chunks = path.clone().chunks;
         for chunk in path_chunks.into_iter() {
             if chunk.as_bytes()[0] == b':' {
                 cur = cur
@@ -210,7 +203,6 @@ impl<T> PathNode<T> {
             .or_insert_with(|| PathNode::Leaf(vec![]))
             .unwrap_leaf_mut()
             .push(PathData {
-                #[cfg(feature = "url_variables")]
                 orig_path: path,
                 data,
             });
@@ -265,9 +257,21 @@ impl<T> Default for PathNode<T> {
 }
 
 pub struct PathNodeIterator<'a, T> {
-    stack: Vec<Values<'a, PathChunk, PathNode<T>>>,
+    stack: Vec<hash_map::Values<'a, PathChunk, PathNode<T>>>,
     curvec: Option<&'a Vec<PathData<T>>>,
     curind: usize,
+}
+
+fn get_second<T>(tup: (PathChunk, PathNode<T>)) -> PathNode<T> {
+    tup.1
+}
+
+pub struct OwnedPathNodeIterator<T, F>
+where
+    F: FnMut((PathChunk, PathNode<T>)) -> PathNode<T>
+{
+    stack: Vec<Map<hash_map::IntoIter<PathChunk, PathNode<T>>, F>>,
+    curvec: Option<Vec<PathData<T>>>,
 }
 
 impl<'a, T> Iterator for PathNodeIterator<'a, T> {
@@ -322,6 +326,69 @@ impl<T> PathNode<T> {
                 curvec: Some(l),
                 curind: 0,
             },
+        }
+    }
+}
+
+impl<T> Iterator for OwnedPathNodeIterator<T, fn((PathChunk, PathNode<T>)) -> PathNode<T>>
+{
+    type Item = PathData<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // loop due to lack of tail recursive optimizations
+        loop {
+            if let Some(v) = &mut self.curvec {
+                if !v.is_empty() {
+                    return v.pop();
+                }
+            }
+            self.curvec = None;
+            if self.stack.is_empty() {
+                return None;
+            }
+            let len = self.stack.len();
+            if let Some(v) = self.stack[len - 1].next() {
+                // using continue as tail recursion
+                match v {
+                    PathNode::Node(n) => {
+                        self.stack.push(n.into_iter().map(get_second));
+                        continue;
+                    }
+                    PathNode::Leaf(l) => {
+                        self.curvec = Some(l);
+                        continue;
+                    }
+                }
+            } else {
+                self.stack.pop();
+                continue;
+            }
+        }
+    }
+}
+
+impl<T> IntoIterator for PathNode<T> {
+    type Item = PathData<T>;
+    type IntoIter = OwnedPathNodeIterator<T, fn((PathChunk, PathNode<T>)) -> PathNode<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            PathNode::Node(n) => OwnedPathNodeIterator {
+                stack: vec![n.into_iter().map(get_second)],
+                curvec: None,
+            },
+            PathNode::Leaf(l) => OwnedPathNodeIterator {
+                stack: vec![],
+                curvec: Some(l)
+            },
+        }
+    }
+}
+
+impl<T> Extend<PathData<T>> for PathNode<T> {
+    fn extend<I: IntoIterator<Item = PathData<T>>>(&mut self, iter: I) {
+        for dat in iter {
+            self.insert(dat.orig_path, dat.data);
         }
     }
 }

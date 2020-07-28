@@ -59,14 +59,16 @@ fn fail_traversal() {
 #[test]
 #[cfg(feature = "url_variables")]
 fn success_tree() {
-    let mut node: PathNode<i32> = PathNode::new();
+    let mut temp_node: PathNode<i32> = PathNode::new();
     let path1 = PathBuf::parse("/asdf/:var/foo/").unwrap();
     let path2 = PathBuf::parse("asdf/test/foo/").unwrap();
     let path3 = PathBuf::parse("/asdf/test/foo").unwrap();
     let path4 = PathBuf::parse("/asdf/test/bad").unwrap();
     let path5 = PathBuf::parse("/asdf/test/nope").unwrap();
-    node.insert(path1.clone(), 1);
-    node.insert(path4.clone(), 4);
+    temp_node.insert(path1.clone(), 1);
+    temp_node.insert(path4.clone(), 4);
+    let mut node: PathNode<i32> = PathNode::new();
+    node.extend(temp_node);
     assert!(node.get(&path5).is_empty());
     let matched = node.get(&path2).remove(0);
     assert_eq!(*matched.data, 1);

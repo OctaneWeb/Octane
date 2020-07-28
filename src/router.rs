@@ -135,7 +135,7 @@ impl Router {
     /// to use a custom router independently from th   pe octane
     /// (main server) structure
     pub fn append(&mut self, router: Self) {
-        for all_methods in router.iter() {}
+        for _ in router.iter() {}
 
         self.route_counter = router.route_counter;
         self.middlewares.extend(router.middlewares);

@@ -60,7 +60,7 @@ impl Flow {
 /// # Example
 ///
 /// ```no_run
-/// use octane::route::Route;
+/// use octane::{route, router::{Flow, Route}};
 /// use octane::server::Octane;
 ///
 /// let mut app = Octane::new();

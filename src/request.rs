@@ -26,16 +26,7 @@ impl RequestMethod {
     pub fn values() -> [Self; 10] {
         use RequestMethod::*;
         [
-            Options,
-            Get,
-            Head,
-            Post,
-            Put,
-            Delete,
-            Trace,
-            Connect,
-            All,
-            None,
+            Options, Get, Head, Post, Put, Delete, Trace, Connect, All, None,
         ]
     }
     pub fn is_some(&self) -> bool {
@@ -297,7 +288,7 @@ impl Cookies {
 pub struct MatchedRequest<'a> {
     pub request: &'a Request<'a>,
     #[cfg(feature = "url_variables")]
-    pub vars: &'a HashMap<&'a str, &'a str>
+    pub vars: &'a HashMap<&'a str, &'a str>,
 }
 
 impl<'a> Deref for MatchedRequest<'a> {

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, hash_map::Values};
+use std::collections::{hash_map::Values, HashMap};
 use std::convert::TryFrom;
 use std::ops::Deref;
 
@@ -267,7 +267,7 @@ impl<T> Default for PathNode<T> {
 pub struct PathNodeIterator<'a, T> {
     stack: Vec<Values<'a, PathChunk, PathNode<T>>>,
     curvec: Option<&'a Vec<PathData<T>>>,
-    curind: usize
+    curind: usize,
 }
 
 impl<'a, T> Iterator for PathNodeIterator<'a, T> {
@@ -295,11 +295,11 @@ impl<'a, T> Iterator for PathNodeIterator<'a, T> {
                     PathNode::Node(n) => {
                         self.stack.push(n.values());
                         continue;
-                    },
+                    }
                     PathNode::Leaf(l) => {
                         self.curvec = Some(l);
                         continue;
-                    },
+                    }
                 }
             } else {
                 self.stack.pop();
@@ -315,13 +315,13 @@ impl<T> PathNode<T> {
             PathNode::Node(n) => PathNodeIterator {
                 stack: vec![n.values()],
                 curvec: None,
-                curind: 0
+                curind: 0,
             },
             PathNode::Leaf(l) => PathNodeIterator {
                 stack: vec![],
                 curvec: Some(l),
-                curind: 0
-            }
+                curind: 0,
+            },
         }
     }
 }

@@ -16,16 +16,16 @@ macro_rules! inject_method {
         use crate::middlewares::Closures;
         use crate::path::PathNode;
         $instance
-        .paths
-        .entry($method)
-        .or_insert(PathNode::new())
-        .insert(
-            PathBuf::parse($path)?,
-            Closures {
-                closure: $closure,
-                index: $instance.route_counter + 1,
-            },
-        );
+            .paths
+            .entry($method)
+            .or_insert(PathNode::new())
+            .insert(
+                PathBuf::parse($path)?,
+                Closures {
+                    closure: $closure,
+                    index: $instance.route_counter + 1,
+                },
+            );
         $instance.route_counter += 1;
     };
 }

@@ -2,14 +2,17 @@ use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::error::Error;
 use crate::inject_method;
-use crate::path::{PathBuf, MatchedPath};
+use crate::path::{MatchedPath, PathBuf};
 use crate::request::{
-    parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod, MatchedRequest
+    parse_without_body, Headers, HttpVersion, KeepAlive, MatchedRequest, Request, RequestLine,
+    RequestMethod,
 };
 use crate::responder::Response;
 use crate::router::{Closure, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
+#[cfg(feature = "url_variables")]
+use std::collections::HashMap;
 use std::io::Result;
 use std::marker::Unpin;
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -21,8 +24,6 @@ use tokio::io::{copy, AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
-#[cfg(feature = "url_variables")]
-use std::collections::HashMap;
 
 #[macro_use]
 macro_rules! declare_error {
@@ -77,11 +78,6 @@ impl Route for Octane {
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
         self.router.post(path, closure)
     }
-    fn all(&mut self, _path: &str, _closure: Closure) -> RouterResult {
-        // TODO: Multiple inject_method! declarations here
-        Ok(())
-    }
-
     fn add(&mut self, closure: Closure) -> RouterResult {
         self.router.add(closure)
     }
@@ -136,15 +132,14 @@ impl Octane {
     /// let mut router = Router::new();
     /// router.get("/", route!(|req, res| { res.send("It's a get request!!"); Flow::Stop }));
     /// router.post("/", route!(|req, res| { res.send("It's a post request!!"); Flow::Stop }));
-    /// app.use_router(router);
+    /// app.with_router(router);
     /// ```
     ///
     /// Note that it appends, meaning if you have 3 routes in
     /// Router struct and 3 routes in the Octane struct,
     /// you'll have total 3 + 3 routes in the Octane struct.
-    pub fn use_router(&mut self, _router: Router) {
-        // FIXME: this function
-        // self.router = router.append(self.router);
+    pub fn with_router(&mut self, router: Router) {
+        self.router.append(router);
     }
     /// Appends the config of the Octane struct with a custom
     /// generated one. The Octane struct contains an OctaneConfig
@@ -171,7 +166,6 @@ impl Octane {
     pub fn with_config(&mut self, config: OctaneConfig) {
         self.settings.append(config);
     }
-
     /// Start listening on the port specified
     ///
     /// # Example
@@ -336,19 +330,24 @@ impl Octane {
                     routes.sort_by_key(|v| v.index);
                     matches.push(routes);
                 }
-                matches.push(server.router.middlewares.iter().map(|c| {
-                    MatchedPath {
-                        data: c,
-                        #[cfg(feature = "url_variables")]
-                        vars: HashMap::new()
-                    }
-                }).collect());
+                matches.push(
+                    server
+                        .router
+                        .middlewares
+                        .iter()
+                        .map(|c| MatchedPath {
+                            data: c,
+                            #[cfg(feature = "url_variables")]
+                            vars: HashMap::new(),
+                        })
+                        .collect(),
+                );
                 let mut indices = vec![0usize; matches.len()];
                 let total: usize = matches.iter().map(Vec::len).sum();
                 #[cfg(feature = "url_variables")]
                 let mut matched = MatchedRequest {
                     request: &parsed_request,
-                    vars: &HashMap::new()
+                    vars: &HashMap::new(),
                 };
                 #[cfg(not(feature = "url_variables"))]
                 let matched = MatchedRequest {

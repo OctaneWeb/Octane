@@ -2,6 +2,7 @@ use crate::constants::*;
 use crate::file_handler::FileHandler;
 use crate::request::HttpVersion;
 use crate::time::Time;
+use octane_json::convert::ToJSON;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Result;
@@ -220,6 +221,43 @@ impl Response {
         } else {
             Ok(None)
         }
+    }
+    /// Converts the structure to a json string and sends
+    /// it as the response with the mime type `application/json`.
+    /// The structure which will be passed, should implement
+    /// `ToJSON` from `octane_macros::convert`
+    ///
+    /// TODO: add a example here with a struct that implements
+    /// ToJSON and then do res.json(structure)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    /// use std::path::PathBuf;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(
+    ///         |req, res| {
+    ///             // add example here
+    ///             // assert_eq!(res.get("Content-Type"),  Some(&"application/json".to_owned()));
+    ///             Flow::Stop
+    ///         }
+    ///     ),
+    /// );
+    ///
+    /// ```
+    pub fn json<T: ToJSON>(&mut self, structure: T) {
+        self.body = structure
+            .to_json_string()
+            .unwrap_or(String::new())
+            .as_bytes()
+            .to_vec();
+        self.with_type("application/json");
+        self.default_headers();
     }
     /// Set the status code from the status code enum
     ///

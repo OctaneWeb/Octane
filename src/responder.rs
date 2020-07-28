@@ -38,7 +38,6 @@ pub struct Response {
     pub body: Vec<u8>,
     pub http_version: String,
     pub headers: HashMap<String, String>,
-    pub has_body: bool,
 }
 
 impl fmt::Debug for Response {
@@ -61,37 +60,50 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::server::Octane;
     /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
     ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut app = Octane::new();
-    ///     app.get(
-    ///         "/",
-    ///         route!(
-    ///             |req, res| {
-    ///                 res
-    ///                     .with_header("header-name", "header-value")
-    ///                     .send("HELLO");
-    ///                 Flow::Stop
-    ///             }
-    ///         ),
-    ///     );
-    ///
-    ///     app.listen(8080).await.expect("Cannot establish connection");
-    /// }
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         res
+    ///             .set("header-name", "header-value")
+    ///             .send("HELLO");
+    ///         Flow::Stop
+    ///     }),
+    /// );
     /// ```
-    pub fn with_header(&mut self, key: &'static str, value: &'static str) -> &mut Self {
+    pub fn set(&mut self, key: &str, value: &str) -> &mut Self {
         self.headers.insert(key.to_owned(), value.to_owned());
 
         self
     }
-    /// Generates a new response empty response, usually
-    /// you should not be using this method.
+    /// Asks for the Returns the value of the header
+    /// key and returns the value of the field
+    ///
+    /// # Example
+    /// ```no_run
+    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         res.send("Hello, world");
+    ///         assert_eq!(res.get("Content-Type"),  Some(&"text/html".to_owned()));
+    ///         Flow::Stop
+    ///     }),
+    /// );
+    /// ```
+    pub fn get(&mut self, field: &'static str) -> Option<&String> {
+        self.headers.get(field)
+    }
+    /// Generates a new empty response, usually
+    /// you should not be using this method directly.
     pub fn new(body: &[u8]) -> Self {
         Response {
-            has_body: false,
             status_code: StatusCode::Ok,
             body: body.to_vec(),
             http_version: "1.1".to_owned(),
@@ -102,33 +114,29 @@ impl Response {
     /// as html by default
     ///
     /// # Example
-    ///
     /// ```no_run
-    /// use octane::server::Octane;
     /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
     ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut app = Octane::new();
-    ///     app.get(
-    ///         "/",
-    ///         route!(
-    ///             |req, res| {
-    ///                 res.send("HELLO");
-    ///                 Flow::Stop
-    ///             }
-    ///         ),
-    ///     );
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(
+    ///         |req, res| {
+    ///             res.send("HELLO");
+    ///             Flow::Stop
+    ///         }
+    ///     ),
+    /// );
     ///
-    ///     app.listen(8080).await.expect("Cannot establish connection");
-    /// }
     /// ```
     pub fn send(&mut self, body: &'static str) {
         self.body = body.as_bytes().to_vec();
-        self.has_body = true;
         self.default_headers();
     }
-    /// Add some default headers like time, content-type
+    /// Automatically set headers like date, content
+    /// length, and sent content to "text/html" if no
+    /// content header is sent
     pub fn default_headers(&mut self) -> &mut Self {
         self.headers
             .insert("Content-Length".to_string(), self.body.len().to_string());
@@ -136,39 +144,34 @@ impl Response {
             self.headers.insert("Date".to_string(), date.format());
         }
         if self.headers.get("Content-Type").is_none() {
-            self.with_header("Content-Type", "text/html");
+            self.set("Content-Type", "text/html");
         }
         self
     }
-    /// Modify the Content-Type header to fit the data
-    /// which is being send
+    /// Modify the `Content-Type` header as passed
+    /// in the argument
+    ///
     /// # Example
-    ///
     /// ```no_run
-    /// use octane::server::Octane;
     /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
     ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut app = Octane::new();
-    ///     app.get(
-    ///         "/",
-    ///         route!(
-    ///             |req, res| {
-    ///                 res.with_type("json").send(r#"{"server": "Octane"}"#);
-    ///                 Flow::Stop
-    ///             }
-    ///         ),
-    ///     );
-    ///
-    ///     app.listen(8080).await.expect("Cannot establish connection");
-    /// }
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(
+    ///         |req, res| {
+    ///             res.with_type("json").send(r#"{"server": "Octane"}"#);
+    ///             Flow::Stop
+    ///         }
+    ///     ),
+    /// );
     /// ```
     pub fn with_type(&mut self, _type: &'static str) -> &mut Self {
         // TODO:
         // res.with_type("json") => application/json
         // res.with_type("application/json") => application/json
-        self.with_header("Content-Type", _type);
+        self.set("Content-Type", _type);
         self
     }
     /// Consume the response and get the final formed http
@@ -184,55 +187,40 @@ impl Response {
         ]
         .concat()
     }
-    /// Determine the content type and server the file
-    /// contents as the response
+    /// Send a file as the response, automatically detect the
+    /// mime type and set the headers accordingly
     ///
     /// # Example
     ///
     /// ```no_run
-    /// use octane::server::Octane;
     /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    /// use std::path::PathBuf;
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(
+    ///         |req, res| {
+    ///             res.send_file(PathBuf::from("templates/index.html"));
+    ///             assert_eq!(res.get("Content-Type"),  Some(&"text/html".to_owned()));
+    ///             Flow::Stop
+    ///         }
+    ///     ),
+    /// );
     ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut app = Octane::new();
-    ///     app.get(
-    ///         "/",
-    ///         route!(
-    ///             |req, res| {
-    ///                 res.with_type("json").send(r#"{"server": "Octane"}"#);
-    ///                 Flow::Stop
-    ///             }
-    ///         ),
-    ///     );
-    ///
-    ///     app.listen(8080).await.expect("Cannot establish connection");
-    /// }
     /// ```
     pub async fn send_file(&mut self, file: PathBuf) -> Result<Option<()>> {
         if let Some(file) = FileHandler::handle_file(&file)? {
-            self.has_body = true;
-            self.headers
-                .insert("Content-Type".to_string(), file.get_mime_type());
+            self.headers.insert(
+                "Content-Type".to_string(),
+                FileHandler::mime_type(file.extension),
+            );
             self.body = file.contents;
             Ok(Some(()))
         } else {
             Ok(None)
         }
     }
-    fn status_line(&self) -> String {
-        format!(
-            "{}/{}{}{}{}{}{}",
-            "HTTP",
-            self.http_version,
-            SP,
-            self.status_code(),
-            SP,
-            self.reason_phrase(),
-            CRLF
-        )
-    }
-
     /// Set the status code from the status code enum
     ///
     /// # Example
@@ -262,14 +250,100 @@ impl Response {
         self.status_code = code;
         self
     }
+    /// Sets the http version specified, to specify a version
+    /// the versios type should be variant of HttpVersion
     pub fn http_version(&mut self, version: HttpVersion) -> &mut Self {
         self.http_version = version.get_version_string();
         self
+    }
+    /// Tells if the headers are sent or not
+    ///
+    /// # Example
+    /// ```no_run
+    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         assert_eq!(false, res.headers_sent());
+    ///         res.send("Hello, World");
+    ///         assert_eq!(true, res.headers_sent());
+    ///         Flow::Stop
+    ///     }),
+    /// );
+    /// ```
+    pub fn headers_sent(&self) -> bool {
+        self.headers.len() != 0
+    }
+    /// Sets the http `Content-Disposition` header field
+    /// to `attachment`
+    ///
+    /// # Example
+    /// ```no_run
+    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         res.attachment();
+    ///         Flow::Stop
+    ///     }),
+    /// );
+    /// ```
+    pub fn attachment(&mut self) {
+        self.set("Content-Disposition", "attachment");
+    }
+    /// Sets the http `Content-Disposition` header field
+    /// to `attachment` with the filename and automatically
+    /// updates the content type with the extension
+    /// provided in the filename
+    ///
+    /// # Example
+    /// ```no_run
+    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         res.attachment_with_filename("image.png");
+    ///         Flow::Stop
+    ///     }),
+    /// );
+    /// ```
+    pub fn attachment_with_filename(&mut self, file_name: &'static str) {
+        let extension = FileHandler::get_extension(&PathBuf::from(file_name));
+        self.set(
+            "Content-Disposition",
+            &format!("attachment; filename = {:?}", file_name),
+        );
+        self.set("Content-Type", &extension);
+    }
+    /// Sets the location header to the field specified
+    pub fn location(&mut self, field: &'static str) {
+        self.set("Location", field);
     }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()
     }
     fn status_code(&self) -> i32 {
         self.status_code.into()
+    }
+    fn status_line(&self) -> String {
+        format!(
+            "{}/{}{}{}{}{}{}",
+            "HTTP",
+            self.http_version,
+            SP,
+            self.status_code(),
+            SP,
+            self.reason_phrase(),
+            CRLF
+        )
     }
 }

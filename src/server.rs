@@ -373,7 +373,7 @@ impl Octane {
                     }
                 }
                 // Run static file middleware
-                if !res.has_body {
+                if res.body.len() == 0 {
                     let mut parent_path = req.path.clone();
                     let poped = parent_path.chunks.pop();
                     for loc in server.settings.static_dir.iter() {

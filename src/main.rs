@@ -47,5 +47,13 @@ async fn main() {
     )
     .unwrap();
     app.with_router(router);
+    app.get(
+        "/to_home",
+        route!(|req, res| {
+            res.redirect("/");
+            Flow::Stop
+        }),
+    )
+    .unwrap();
     app.listen(8080).await.expect("Cannot establish connection");
 }

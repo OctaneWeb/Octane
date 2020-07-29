@@ -131,8 +131,8 @@ impl Response {
     /// );
     ///
     /// ```
-    pub fn send(&mut self, body: &'static str) {
-        self.body = body.as_bytes().to_vec();
+    pub fn send<T: AsRef<[u8]>>(&mut self, body: T) {
+        self.body = body.as_ref().to_vec();
         self.default_headers();
     }
     /// Automatically set headers like date, content
@@ -362,9 +362,10 @@ impl Response {
         );
         self.set("Content-Type", &extension);
     }
-    /// Sets the location header to the field specified
-    pub fn location(&mut self, field: &'static str) {
-        self.set("Location", field);
+    pub fn redirect(&mut self, location: &str) {
+        self.status(StatusCode::Found);
+        self.send(&format!("Found, redirecting to {}", location));
+        self.set("Location", location);
     }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()

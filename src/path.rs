@@ -1,7 +1,7 @@
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
+use std::iter::{Iterator, Map};
 use std::ops::Deref;
-use std::iter::{Map, Iterator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
@@ -268,7 +268,7 @@ fn get_second<T>(tup: (PathChunk, PathNode<T>)) -> PathNode<T> {
 
 pub struct OwnedPathNodeIterator<T, F>
 where
-    F: FnMut((PathChunk, PathNode<T>)) -> PathNode<T>
+    F: FnMut((PathChunk, PathNode<T>)) -> PathNode<T>,
 {
     stack: Vec<Map<hash_map::IntoIter<PathChunk, PathNode<T>>, F>>,
     curvec: Option<Vec<PathData<T>>>,
@@ -330,8 +330,7 @@ impl<T> PathNode<T> {
     }
 }
 
-impl<T> Iterator for OwnedPathNodeIterator<T, fn((PathChunk, PathNode<T>)) -> PathNode<T>>
-{
+impl<T> Iterator for OwnedPathNodeIterator<T, fn((PathChunk, PathNode<T>)) -> PathNode<T>> {
     type Item = PathData<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -379,7 +378,7 @@ impl<T> IntoIterator for PathNode<T> {
             },
             PathNode::Leaf(l) => OwnedPathNodeIterator {
                 stack: vec![],
-                curvec: Some(l)
+                curvec: Some(l),
             },
         }
     }

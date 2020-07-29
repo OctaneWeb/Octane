@@ -131,20 +131,30 @@ impl Router {
             middlewares: Vec::new(),
         }
     }
+
     /// Append a router instance to itself, allows users
     /// to use a custom router independently from th   pe octane
     /// (main server) structure
     pub fn append(&mut self, router: Self) {
+        let self_count = self.route_counter;
+        let other_count = router.route_counter;
         for (methods, paths) in router.paths.into_iter() {
             if let Some(x) = self.paths.get_mut(&methods) {
-                x.extend(paths.into_iter());
+                x.extend(paths.into_iter().map(|mut v| {
+                    v.data.index += self_count;
+                    v
+                }));
             } else {
                 self.paths.insert(methods, paths);
             }
         }
 
-        self.route_counter = router.route_counter;
-        self.middlewares.extend(router.middlewares);
+        self.middlewares
+            .extend(router.middlewares.into_iter().map(|mut v| {
+                v.index += self_count;
+                v
+            }));
+        self.route_counter += other_count;
     }
 }
 

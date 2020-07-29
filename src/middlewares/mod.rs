@@ -23,7 +23,7 @@ macro_rules! inject_method {
                 PathBuf::parse($path)?,
                 Closures {
                     closure: $closure,
-                    index: $instance.route_counter + 1,
+                    index: $instance.route_counter,
                 },
             );
         $instance.route_counter += 1;

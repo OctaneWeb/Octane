@@ -1,4 +1,5 @@
 use crate::constants::*;
+#[cfg(feature = "cookies")]
 use crate::cookies::Cookies;
 use crate::file_handler::FileHandler;
 use crate::request::HttpVersion;
@@ -41,6 +42,7 @@ pub struct Response {
     pub body: Vec<u8>,
     pub http_version: String,
     pub headers: HashMap<String, String>,
+    #[cfg(feature = "cookies")]
     pub cookies: Cookies,
 }
 
@@ -111,6 +113,7 @@ impl Response {
             body: body.to_vec(),
             http_version: "1.1".to_owned(),
             headers: HashMap::new(),
+            #[cfg(feature = "cookies")]
             cookies: Cookies::new(),
         }
     }
@@ -390,7 +393,8 @@ impl Response {
         self
     }
     /// Creates a cookie with the specified name
-    /// and value
+    /// and value. Cookies are behind a feature
+    /// but are included in the default one
     ///
     /// # Example
     ///
@@ -410,6 +414,7 @@ impl Response {
     ///     }),
     /// );
     /// ```
+    #[cfg(feature = "cookies")]
     pub fn cookie(&mut self, name: &str, value: &str) -> &mut Self {
         self.cookies.set(name, value);
         self
@@ -439,7 +444,10 @@ impl Response {
             .iter()
             .for_each(|data| headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF)));
         // push cookies
-        headers_str.push_str(&self.cookies.serialise());
+        #[cfg(feature = "cookies")]
+        {
+            headers_str.push_str(&self.cookies.serialise());
+        }
         headers_str
     }
 }

@@ -1,4 +1,5 @@
 use crate::constants::*;
+#[cfg(feature = "cookies")]
 use crate::cookies::Cookies;
 use crate::path::PathBuf;
 use crate::util::Spliterator;

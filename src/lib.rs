@@ -55,6 +55,7 @@
 extern crate lazy_static;
 pub mod config;
 pub mod constants;
+pub mod cookies;
 pub mod error;
 pub mod file_handler;
 pub mod middlewares;

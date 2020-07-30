@@ -1,4 +1,5 @@
 use crate::constants::*;
+use crate::cookies::Cookies;
 use crate::path::PathBuf;
 use crate::util::Spliterator;
 use std::cfg;
@@ -245,42 +246,6 @@ impl KeepAlive {
             };
         }
         ret
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cookies {
-    pub cookies: HashMap<String, String>,
-}
-
-impl Deref for Cookies {
-    type Target = HashMap<String, String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.cookies
-    }
-}
-
-impl Default for Cookies {
-    fn default() -> Self {
-        Self {
-            cookies: HashMap::new(),
-        }
-    }
-}
-
-impl Cookies {
-    pub fn parse(header: &str) -> Self {
-        let mut hashmap: HashMap<String, String> = HashMap::new();
-        for tok in header.split("; ") {
-            let eq_ind = match tok.find('=') {
-                Some(v) => v,
-                None => continue,
-            };
-            let (first, second) = tok.split_at(eq_ind);
-            hashmap.insert(first.to_owned(), second[1..].to_owned());
-        }
-        Self { cookies: hashmap }
     }
 }
 

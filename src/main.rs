@@ -42,6 +42,10 @@ async fn main() {
         "/somethingelse",
         route!(|req, res| {
             res.send("HMMM I SEE!!");
+            res.cookie("name", "value");
+            if let Some(value) = req.request.cookies.get("name") {
+                println!("{:?}", value); // value
+            }
             Flow::Stop
         }),
     )
@@ -50,7 +54,7 @@ async fn main() {
     app.get(
         "/to_home",
         route!(|req, res| {
-            res.redirect("/");
+            res.redirect("/").send("redirecting");
             Flow::Stop
         }),
     )

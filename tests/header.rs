@@ -1,4 +1,5 @@
-use octane::request::{Cookies, Header, KeepAlive};
+use octane::cookies::Cookies;
+use octane::request::{Header, KeepAlive};
 
 #[test]
 fn success_standard() {
@@ -62,4 +63,10 @@ fn success_cookies() {
     assert_eq!(cookies.get("b"), Some(&"fdsa".to_string()));
     assert_eq!(cookies.get("c"), Some(&"".to_string()));
     assert_eq!(cookies.get("d"), Some(&"x=5".to_string()));
+}
+
+#[test]
+fn seriialise_cookies() {
+    let cookies = Cookies::parse("a=asdf");
+    assert_eq!(cookies.serialise(), "Set-Cookie:a=asdf\r\n");
 }

@@ -1,4 +1,5 @@
 use crate::constants::*;
+use crate::cookies::Cookies;
 use crate::file_handler::FileHandler;
 use crate::request::HttpVersion;
 use crate::time::Time;
@@ -7,6 +8,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Result;
 use std::path::PathBuf;
+use std::str::from_utf8;
 
 /// The response struct contains the data which is
 /// to be send on a request. The struct has several
@@ -39,6 +41,7 @@ pub struct Response {
     pub body: Vec<u8>,
     pub http_version: String,
     pub headers: HashMap<String, String>,
+    pub cookies: Cookies,
 }
 
 impl fmt::Debug for Response {
@@ -46,7 +49,7 @@ impl fmt::Debug for Response {
         f.debug_struct("Response")
             .field("status_code", &self.status_code)
             .field("http_version", &self.http_version)
-            .field("body", &std::str::from_utf8(&self.body))
+            .field("body", &from_utf8(&self.body))
             .finish()
     }
 }
@@ -77,7 +80,6 @@ impl Response {
     /// ```
     pub fn set(&mut self, key: &str, value: &str) -> &mut Self {
         self.headers.insert(key.to_owned(), value.to_owned());
-
         self
     }
     /// Asks for the Returns the value of the header
@@ -109,6 +111,7 @@ impl Response {
             body: body.to_vec(),
             http_version: "1.1".to_owned(),
             headers: HashMap::new(),
+            cookies: Cookies::new(),
         }
     }
     /// Puts the given text to the body and send it
@@ -178,12 +181,8 @@ impl Response {
     /// Consume the response and get the final formed http
     /// response that the server will send in bytes
     pub fn get_data(self) -> Vec<u8> {
-        let mut headers_str = String::from("");
-        self.headers
-            .iter()
-            .for_each(|data| headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF)));
         [
-            format!("{}{}{}", self.status_line(), headers_str, CRLF).as_bytes(),
+            format!("{}{}{}", self.status_line(), &self.headers(), CRLF).as_bytes(),
             &self.body,
         ]
         .concat()
@@ -197,6 +196,7 @@ impl Response {
     /// use octane::{route, router::{Flow, Route}};
     /// use octane::server::Octane;
     /// use std::path::PathBuf;
+    ///
     /// let mut app = Octane::new();
     /// app.get(
     ///     "/",
@@ -297,6 +297,7 @@ impl Response {
     /// Tells if the headers are sent or not
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use octane::{route, router::{Flow, Route}};
     /// use octane::server::Octane;
@@ -319,6 +320,7 @@ impl Response {
     /// to `attachment`
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use octane::{route, router::{Flow, Route}};
     /// use octane::server::Octane;
@@ -332,8 +334,9 @@ impl Response {
     ///     }),
     /// );
     /// ```
-    pub fn attachment(&mut self) {
+    pub fn attachment(&mut self) -> &mut Self {
         self.set("Content-Disposition", "attachment");
+        self
     }
     /// Sets the http `Content-Disposition` header field
     /// to `attachment` with the filename and automatically
@@ -341,6 +344,7 @@ impl Response {
     /// provided in the filename
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use octane::{route, router::{Flow, Route}};
     /// use octane::server::Octane;
@@ -354,18 +358,61 @@ impl Response {
     ///     }),
     /// );
     /// ```
-    pub fn attachment_with_filename(&mut self, file_name: &'static str) {
+    pub fn attachment_with_filename(&mut self, file_name: &'static str) -> &mut Self {
         let extension = FileHandler::get_extension(&PathBuf::from(file_name));
         self.set(
             "Content-Disposition",
             &format!("attachment; filename = {:?}", file_name),
         );
         self.set("Content-Type", &extension);
+        self
     }
-    pub fn redirect(&mut self, location: &str) {
+    /// Sets the Location header with a status code `302 FOUND`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         res.redirect("/").send("Taking you to home");
+    ///         Flow::Stop
+    ///     }),
+    /// );
+    /// ```
+    pub fn redirect(&mut self, location: &str) -> &mut Self {
         self.status(StatusCode::Found);
-        self.send(&format!("Found, redirecting to {}", location));
         self.set("Location", location);
+        self
+    }
+    /// Creates a cookie with the specified name
+    /// and value
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::server::Octane;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         res.cookie("name", "value").send("Cookie has been set!");            res.cookie("name", "value");
+    ///         if let Some(value) = req.request.cookies.get("name") {
+    ///             println!("{:?}", value); // value
+    ///         }
+    ///         Flow::Stop
+    ///     }),
+    /// );
+    /// ```
+    pub fn cookie(&mut self, name: &str, value: &str) -> &mut Self {
+        self.cookies.set(name, value);
+        self
     }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()
@@ -384,5 +431,15 @@ impl Response {
             self.reason_phrase(),
             CRLF
         )
+    }
+    fn headers(&self) -> String {
+        let mut headers_str = String::new();
+        // push normal headers
+        self.headers
+            .iter()
+            .for_each(|data| headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF)));
+        // push cookies
+        headers_str.push_str(&self.cookies.serialise());
+        headers_str
     }
 }

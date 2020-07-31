@@ -22,3 +22,9 @@ If you want to cross-validate, don't hesitate to ask in the discord server!
 
 We follow [rust guidelines](https://doc.rust-lang.org/1.0.0/style/README.html) for style, make sure that you format your code with rustfmt. 
 
+# Labels 
+
+We have a total of 14 labels, their prefixes stand for
+- **DT**: Difficulty type, eg. DT-easy, DT-hard
+- **ST**: Status, eg. ST-help-wanted, ST-wont-fix
+- **T**: Type, eg. T-bug, T-Question

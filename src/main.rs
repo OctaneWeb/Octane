@@ -1,4 +1,5 @@
 use octane::config::{Config, OctaneConfig};
+use octane::request::HttpVersion;
 use octane::server::Octane;
 use octane::{
     route,
@@ -32,24 +33,13 @@ async fn main() {
         .get(
             "/testing",
             route!(|req, res| {
+                let some_header = req.headers.get("HeaderName");
                 res.with_type("application/json")
                     .send(r#"{"hotel": "trivago"}"#);
                 Flow::Stop
             }),
         )
         .unwrap();
-    app.get(
-        "/somethingelse",
-        route!(|req, res| {
-            res.send("HMMM I SEE!!");
-            res.cookie("name", "value");
-            if let Some(value) = req.request.cookies.get("name") {
-                println!("{:?}", value); // value
-            }
-            Flow::Stop
-        }),
-    )
-    .unwrap();
     app.with_router(router);
     app.get(
         "/to_home",

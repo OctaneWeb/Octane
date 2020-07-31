@@ -1,3 +1,4 @@
+#[cfg(feature = "cookies")]
 use octane::cookies::Cookies;
 use octane::request::{Header, KeepAlive};
 
@@ -55,6 +56,7 @@ fn success_keepalive_edge() {
     assert_eq!(req.max, None);
 }
 
+#[cfg(feature = "cookies")]
 #[test]
 fn success_cookies() {
     // Parsing should work as expected.
@@ -65,6 +67,7 @@ fn success_cookies() {
     assert_eq!(cookies.get("d"), Some(&"x=5".to_string()));
 }
 
+#[cfg(feature = "cookies")]
 #[test]
 fn seriialise_cookies() {
     let cookies = Cookies::parse("a=asdf");

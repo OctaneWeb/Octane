@@ -10,6 +10,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::str;
 
+/// Holds the type of request method, like GET
+/// POST etc. You don't need to use it directly
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
 pub enum RequestMethod {
     Options,
@@ -25,12 +27,18 @@ pub enum RequestMethod {
 }
 
 impl RequestMethod {
+    /// Get all the values of the enum in an
+    /// array. Useful for iterating and populating
+    /// HashMap that holds closures for different
+    /// different methods.
     pub fn values() -> [Self; 10] {
         use RequestMethod::*;
         [
             Options, Get, Head, Post, Put, Delete, Trace, Connect, All, None,
         ]
     }
+    /// Return false if the RequestMethod has the
+    /// variant `None` else return true
     pub fn is_some(&self) -> bool {
         if let Self::None = self {
             false
@@ -39,7 +47,28 @@ impl RequestMethod {
         }
     }
 }
-
+/// Holds the http versions you can match the
+/// variants by doing a comparison with the version
+/// in the request_line
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+/// use octane::request::HttpVersion;
+///
+/// let mut app = Octane::new();
+/// app
+/// .get("/",
+///     route!(|req, res| {
+///        if req.request_line.version == HttpVersion::Http11 {
+///            // do something
+///         }
+///         Flow::Stop
+///     }),
+/// );
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HttpVersion {
     Http11,
@@ -50,6 +79,8 @@ pub enum HttpVersion {
 }
 
 impl HttpVersion {
+    /// Returns the version in string like "1.1"
+    /// or "1.0" etc
     pub fn get_version_string(self) -> String {
         match self {
             Self::Http11 => "1.1",
@@ -61,7 +92,26 @@ impl HttpVersion {
         .to_owned()
     }
 }
-
+/// The RequestLine struct represents the first
+/// line of the http request, which contains
+/// the http version, path and method of request
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+/// use octane::request::RequestMethod;
+///
+/// let mut app = Octane::new();
+/// app
+/// .get("/",
+///     route!(|req, res| {
+///         assert_eq!(RequestMethod::Get, req.request_line.method);
+///         Flow::Stop
+///     }),
+/// );
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestLine {
     pub method: RequestMethod,
@@ -70,6 +120,9 @@ pub struct RequestLine {
 }
 
 impl RequestLine {
+    /// Parses a request line str and returns a
+    /// request line struct. You don't have to
+    /// ever use this directly.
     pub fn parse(request_line: &str) -> Option<Self> {
         let mut toks = request_line.split(SP);
         let method = toks.next()?;
@@ -109,6 +162,14 @@ impl RequestLine {
     }
 }
 
+/// The header structure represents a parsed value
+/// of unit header that looks like `key: value`
+/// and holds the key and value both. You
+/// shouldn't use it directly as the parsing has
+/// been done for you and all the headers are
+/// available in the `Headers` struct which you
+/// get as a field in the `req` variable in
+/// closures
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Header<'a> {
     pub name: &'a str,
@@ -116,6 +177,8 @@ pub struct Header<'a> {
 }
 
 impl<'a> Header<'a> {
+    /// Parses the `key: value` header unit
+    /// str and returns a Header struct
     pub fn parse(header: &'a str) -> Option<Self> {
         let mut toks = header.splitn(2, ':');
         let name = toks.next()?;
@@ -135,6 +198,27 @@ impl<'a> Header<'a> {
     }
 }
 
+/// The `Headers` struct holds _all_ the headers
+/// a request might have in raw form (if the
+/// feature is enabled) and in a HashMap with key
+/// and value of the type `String`
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+/// use octane::request::RequestMethod;
+///
+/// let mut app = Octane::new();
+/// app
+/// .get("/",
+///     route!(|req, res| {
+///         let some_header = req.headers.get("HeaderName");
+///         Flow::Stop
+///     }),
+/// );
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Headers<'a> {
     pub parsed: HashMap<String, String>,
@@ -145,6 +229,7 @@ pub struct Headers<'a> {
 }
 
 impl<'a> Headers<'a> {
+    /// Parse all the headers on a request
     pub fn parse(request: &'a str) -> Option<Self> {
         let toks = Spliterator::new(request.as_bytes(), B_CRLF);
         let mut headers: HashMap<String, String> = HashMap::new();
@@ -188,6 +273,31 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
     Some((request_line, headers))
 }
 
+/// Represents a single request
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+/// use octane::request::RequestMethod;
+///
+/// let mut app = Octane::new();
+/// app
+/// .get("/",
+///     route!(|req, res| {
+///         // The req here is not actually a
+///         // Request but a MatchedRequest which
+///         // implements deref to Request.
+///         req.request; // <- the Request struct
+///         Flow::Stop
+///     }),
+/// );
+/// ```
+///
+/// The request struct holds cookies (if enabled
+/// in features) headers, the request body, the
+/// request_line
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Request<'a> {
     pub request_line: RequestLine,
@@ -198,6 +308,8 @@ pub struct Request<'a> {
 }
 
 impl<'a> Request<'a> {
+    /// Parse a Request with request_line, headers
+    /// and body and return a Request struct
     pub fn parse(request_line: RequestLine, headers: Headers<'a>, body: &'a [u8]) -> Option<Self> {
         #[cfg(feature = "cookies")]
         let cookies: Cookies;
@@ -217,6 +329,9 @@ impl<'a> Request<'a> {
     }
 }
 
+/// The KeepAlive struct represents the value
+/// parsed in the KeepAlive header. It holds the
+/// timeout and max duration as a u64
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeepAlive {
     pub timeout: Option<u64>,
@@ -224,6 +339,9 @@ pub struct KeepAlive {
 }
 
 impl KeepAlive {
+    /// The parse method takes a single valid
+    /// `Keep-Alive` header and parses it to
+    /// return a KeepAlive struct
     pub fn parse(header: &str) -> Self {
         let mut ret = Self {
             timeout: None,
@@ -250,6 +368,36 @@ impl KeepAlive {
     }
 }
 
+/// The MatchedRequest is the struct which you see
+/// when you have the `req` variable in the closure
+/// It implements Deref to Request so you can use
+/// Requet methods/properties directly on it
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::server::Octane;
+/// use octane::{route, router::{Flow, Route}};
+/// use octane::request::RequestMethod;
+///
+/// let mut app = Octane::new();
+/// app
+/// .get("/",
+///     route!(|req, res| {
+///         // The req here is not actually a
+///         // Request but a MatchedRequest which
+///         // implements deref to Request.
+///         req.request; // <- the Request struct
+///         // Or you just directly use Request
+///         // methods on it
+///         let header = req.headers.get("Some-Header");
+///         Flow::Stop
+///     }),
+/// );
+/// ```
+/// The struct also have the values of the url
+/// variables
+/// TODO: Add a url variable example
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MatchedRequest<'a> {
     pub request: &'a Request<'a>,

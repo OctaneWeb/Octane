@@ -1,6 +1,7 @@
 use crate::constants::*;
 #[cfg(feature = "cookies")]
 use crate::cookies::Cookies;
+use crate::default;
 use crate::file_handler::FileHandler;
 use crate::request::HttpVersion;
 use crate::time::Time;
@@ -45,6 +46,8 @@ pub struct Response {
     #[cfg(feature = "cookies")]
     pub cookies: Cookies,
 }
+
+default!(Response, b"");
 
 impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

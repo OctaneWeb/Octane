@@ -1,7 +1,7 @@
+use crate::{default, deref};
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use std::iter::{Iterator, Map};
-use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
@@ -73,13 +73,7 @@ impl PathBuf {
     }
 }
 
-impl Deref for PathBuf {
-    type Target = Vec<String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.chunks
-    }
-}
+deref!(PathBuf, Vec<String>, chunks);
 
 impl TryFrom<String> for PathBuf {
     type Error = InvalidPathError;
@@ -97,11 +91,7 @@ impl TryFrom<&str> for PathBuf {
     }
 }
 
-impl Default for PathBuf {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+default!(PathBuf);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathData<T> {
@@ -116,21 +106,8 @@ pub struct MatchedPath<'a, T> {
     pub data: &'a T,
 }
 
-impl<T> Deref for PathData<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
-impl<'a, T> Deref for MatchedPath<'a, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
+deref!(PathData<T>, T, data);
+deref!(MatchedPath<'a, T>, T, data);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathChunk {
@@ -250,11 +227,7 @@ impl<T> PathNode<T> {
     }
 }
 
-impl<T> Default for PathNode<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+default!(PathNode<T>);
 
 pub struct PathNodeIterator<'a, T> {
     stack: Vec<hash_map::Values<'a, PathChunk, PathNode<T>>>,

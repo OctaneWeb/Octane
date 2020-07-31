@@ -1,27 +1,15 @@
 use crate::constants::*;
+use crate::{default, deref};
 use std::collections::HashMap;
-use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cookies {
     pub cookies: HashMap<String, String>,
 }
 
-impl Deref for Cookies {
-    type Target = HashMap<String, String>;
+deref!(Cookies, HashMap<String, String>, cookies);
 
-    fn deref(&self) -> &Self::Target {
-        &self.cookies
-    }
-}
-
-impl Default for Cookies {
-    fn default() -> Self {
-        Self {
-            cookies: HashMap::new(),
-        }
-    }
-}
+default!(Cookies);
 
 impl Cookies {
     pub fn new() -> Self {

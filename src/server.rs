@@ -1,5 +1,6 @@
 use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
+use crate::default;
 use crate::error::Error;
 use crate::inject_method;
 use crate::path::{MatchedPath, PathBuf};
@@ -421,8 +422,4 @@ impl Octane {
     }
 }
 
-impl Default for Octane {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+default!(Octane);

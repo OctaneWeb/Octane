@@ -1,13 +1,14 @@
 use crate::constants::*;
 #[cfg(feature = "cookies")]
 use crate::cookies::Cookies;
+use crate::deref;
 use crate::path::PathBuf;
 use crate::util::Spliterator;
 use std::cfg;
 use std::collections::HashMap;
 #[cfg(not(feature = "raw_headers"))]
 use std::marker::PhantomData;
-use std::ops::Deref;
+
 use std::str;
 
 /// Holds the type of request method, like GET
@@ -257,13 +258,7 @@ impl<'a> Headers<'a> {
     }
 }
 
-impl<'a> Deref for Headers<'a> {
-    type Target = HashMap<String, String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.parsed
-    }
-}
+deref!(Headers<'a>, HashMap<String, String>, parsed);
 
 pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
     let n = data.find("\r\n")?;
@@ -405,10 +400,4 @@ pub struct MatchedRequest<'a> {
     pub vars: &'a HashMap<&'a str, &'a str>,
 }
 
-impl<'a> Deref for MatchedRequest<'a> {
-    type Target = Request<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.request
-    }
-}
+deref!(MatchedRequest<'a>, Request<'a>, request);

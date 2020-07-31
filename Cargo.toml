@@ -25,7 +25,7 @@ path = "octane_json"
 version = "0.1.2"
 
 [features]
-default = ["faithful", "query_strings", "url_variables", "raw_headers"]
+default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers"]
 faithful = []
 raw_headers = []
 query_strings = []

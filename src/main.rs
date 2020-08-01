@@ -12,6 +12,7 @@ async fn main() {
     let mut config = OctaneConfig::new();
     let mut router = Router::new();
     config.add_static_dir("/", "templates");
+    config.add_static_dir("/", "target");
     app.with_config(config);
     router
         .get(

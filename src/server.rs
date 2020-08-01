@@ -375,33 +375,19 @@ impl Octane {
                 }
                 // Run static file middleware
                 if res.body.len() == 0 {
-                    let mut parent_path = req.path.clone();
-                    let poped = parent_path.chunks.pop();
+                    let parent_path = &req.path;
                     for loc in server.settings.static_dir.iter() {
-                        let mut matched = true;
-                        for (i, chunks) in loc.0.iter().enumerate() {
-                            if let Some(val) = parent_path.chunks.get(i) {
-                                if val != chunks.to_str().unwrap_or("") {
-                                    matched = false
-                                }
-                            }
-                        }
-                        if matched {
-                            for dirs in loc.1.iter() {
-                                if req.method == RequestMethod::Get {
-                                    let mut dir_final = dirs.clone();
-                                    dir_final.push(poped.clone().unwrap_or_default());
-                                    if res.send_file(dir_final).await?.is_none() {
-                                        declare_error!(
-                                            stream_async,
-                                            StatusCode::NotFound,
-                                            settings
-                                        );
-                                    }
-                                }
+                        for dirs in loc.1.iter() {
+                            if req.method == RequestMethod::Get {
+                                let mut dir_final = dirs.clone();
+                                dir_final.extend(parent_path.clone().chunks);
+                                res.send_file(dir_final).await;
                             }
                         }
                     }
+                }
+                if res.body.len() == 0 {
+                    declare_error!(stream_async, StatusCode::NotFound, settings);
                 }
 
                 Self::send_data(res.get_data(), stream_async).await?;

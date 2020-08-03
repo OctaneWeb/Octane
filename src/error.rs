@@ -28,7 +28,10 @@ impl Error {
         let mut res = Response::new_from_slice(b"");
         if let Some(file_404) = file {
             if self.kind == StatusCode::NotFound {
-                res = Response::new(Box::new(file_404.file) as BoxReader, Some(file_404.meta.len() as usize));
+                res = Response::new(
+                    Box::new(file_404.file) as BoxReader,
+                    Some(file_404.meta.len() as usize),
+                );
                 res.status(self.kind)
                     .default_headers()
                     .set("Content-Type", "text/html");

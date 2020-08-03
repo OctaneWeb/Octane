@@ -3,9 +3,10 @@ use crate::middlewares::{Closures, Paths};
 use crate::path::{InvalidPathError, PathBuf};
 use crate::request::{MatchedRequest, RequestMethod};
 use crate::responder::Response;
+use crate::{default, deref};
 use futures::future::BoxFuture;
 use std::collections::HashMap;
-use std::ops::Deref;
+
 use std::result::Result;
 
 /// The Closure type is a type alias for the type
@@ -115,13 +116,8 @@ pub struct Router {
     pub middlewares: Vec<Closures>,
 }
 
-impl Deref for Router {
-    type Target = Paths;
-
-    fn deref(&self) -> &Self::Target {
-        &self.paths
-    }
-}
+deref!(Router, Paths, paths);
+default!(Router);
 
 impl Router {
     pub fn new() -> Self {
@@ -157,7 +153,6 @@ impl Router {
         self.route_counter += other_count;
     }
 }
-
 impl Route for Router {
     fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
         inject_method!(self, path, closure, RequestMethod::Options);
@@ -193,13 +188,6 @@ impl Route for Router {
         Ok(())
     }
 }
-
-impl Default for Router {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// The route macro makes it easy to pass anonymous
 /// functions to app.METHODs.
 ///

@@ -1,3 +1,4 @@
+use crate::default;
 use core::time::Duration;
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -21,6 +22,8 @@ pub struct Ssl {
     pub key: PathBuf,
     pub cert: PathBuf,
 }
+
+default!(Ssl);
 
 impl Ssl {
     fn new() -> Self {
@@ -279,8 +282,4 @@ impl OctaneConfig {
     }
 }
 
-impl Default for OctaneConfig {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+default!(OctaneConfig);

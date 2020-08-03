@@ -11,6 +11,7 @@ async fn main() {
     let mut config = OctaneConfig::new();
     let mut router = Router::new();
     config.add_static_dir("/", "templates");
+    config.add_static_dir("/", "target");
     app.with_config(config);
     router
         .get(
@@ -32,25 +33,18 @@ async fn main() {
         .get(
             "/testing",
             route!(|req, res| {
+                let some_header = req.headers.get("HeaderName");
                 res.with_type("application/json")
                     .send(r#"{"hotel": "trivago"}"#);
                 Flow::Stop
             }),
         )
         .unwrap();
-    app.get(
-        "/somethingelse",
-        route!(|req, res| {
-            res.send("HMMM I SEE!!");
-            Flow::Stop
-        }),
-    )
-    .unwrap();
     app.with_router(router);
     app.get(
         "/to_home",
         route!(|req, res| {
-            res.redirect("/");
+            res.redirect("/").send("redirecting");
             Flow::Stop
         }),
     )

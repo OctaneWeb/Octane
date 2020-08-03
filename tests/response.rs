@@ -1,6 +1,6 @@
 use octane::constants::StatusCode;
 use octane::request::HttpVersion;
-use octane::responder::{Response, BoxReader};
+use octane::responder::{BoxReader, Response};
 use tokio::io::AsyncReadExt;
 
 async fn data_to_string(mut data: (String, BoxReader)) -> String {

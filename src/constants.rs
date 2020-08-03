@@ -107,3 +107,51 @@ impl fmt::Display for StatusCode {
         write!(f, "{}", s)
     }
 }
+
+#[macro_export]
+macro_rules! deref {
+    ( $struct : ident<$($gen: tt),+>, $target : ty, $body : ident ) => {
+        impl<$($gen),+> std::ops::Deref for $struct <$($gen),+> {
+            type Target = $target;
+
+            fn deref(&self) -> &Self::Target {
+                &self.$body
+            }
+        }
+    };
+    ( $struct : ty, $target : ty, $body : ident ) => {
+        impl std::ops::Deref for $struct {
+            type Target = $target;
+
+            fn deref(&self) -> &Self::Target {
+                &self.$body
+            }
+        }
+    };
+
+}
+
+#[macro_export]
+macro_rules! default {
+    ( $struct : ident<$($gen: tt),+> ) => {
+        impl<$($gen),+> Default for $struct <$($gen),+> {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    };
+    ( $struct : ty ) => {
+        impl Default for $struct {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    };
+    ( $struct : ty, $args : expr ) => {
+        impl Default for $struct {
+            fn default() -> Self {
+                Self::new($args)
+            }
+        }
+    };
+}

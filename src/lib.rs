@@ -55,6 +55,8 @@
 extern crate lazy_static;
 pub mod config;
 pub mod constants;
+#[cfg(feature = "cookies")]
+pub mod cookies;
 pub mod error;
 pub mod file_handler;
 pub mod middlewares;

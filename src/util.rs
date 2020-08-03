@@ -1,10 +1,10 @@
+use std::io::Read;
 use std::iter::FusedIterator;
 use std::mem;
-use tokio::io::{AsyncRead, Result};
-use std::io::Read;
-use std::task::{Context, Poll};
 use std::ops::Deref;
 use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, Result};
 
 pub fn from_hex(chr: char) -> Option<u8> {
     if chr > 'f' {
@@ -157,7 +157,7 @@ impl<'a, T: Eq> FusedIterator for Spliterator<'a, T> {}
 
 #[derive(Debug, Clone, Default)]
 pub struct AsyncReader<T: Read> {
-    pub reader: T
+    pub reader: T,
 }
 
 impl<T: Read + Unpin> Deref for AsyncReader<T> {
@@ -176,8 +176,6 @@ impl<T: Read + Unpin> AsyncRead for AsyncReader<T> {
 
 impl<T: Read + Unpin> AsyncReader<T> {
     pub fn new(reader: T) -> Self {
-        Self {
-            reader
-        }
+        Self { reader }
     }
 }

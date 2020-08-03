@@ -1,7 +1,7 @@
 use crate::config::OctaneConfig;
 use crate::constants::*;
 use crate::file_handler::FileHandler;
-use crate::responder::Response;
+use crate::responder::{BoxReader, Response};
 use crate::server::Octane;
 use std::io::Result;
 use std::marker::Unpin;
@@ -25,16 +25,16 @@ impl Error {
         S: AsyncRead + AsyncWrite + Unpin,
     {
         let file = FileHandler::handle_file(&self.file_404)?;
-        let mut res = Response::new(b"");
+        let mut res = Response::new_from_slice(b"");
         if let Some(file_404) = file {
             if self.kind == StatusCode::NotFound {
-                res = Response::new(&file_404.contents[..]);
+                res = Response::new(Box::new(file_404.file) as BoxReader, Some(file_404.meta.len() as usize));
                 res.status(self.kind)
                     .default_headers()
                     .set("Content-Type", "text/html");
             }
         } else {
-            res = Response::new(b"");
+            res = Response::new_from_slice(b"");
             res.status(self.kind).default_headers();
         }
 

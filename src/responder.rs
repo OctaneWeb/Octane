@@ -4,9 +4,11 @@ use crate::request::HttpVersion;
 use crate::time::Time;
 use octane_json::convert::ToJSON;
 use std::collections::HashMap;
-use std::fmt;
-use std::io::Result;
+use std::io::{Cursor, Result};
 use std::path::PathBuf;
+use tokio::io::AsyncRead;
+
+pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 
 /// The response struct contains the data which is
 /// to be send on a request. The struct has several
@@ -36,11 +38,13 @@ use std::path::PathBuf;
 /// ```
 pub struct Response {
     pub status_code: StatusCode,
-    pub body: Vec<u8>,
+    pub body: BoxReader,
+    pub content_len: Option<usize>,
     pub http_version: String,
     pub headers: HashMap<String, String>,
 }
 
+/*
 impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Response")
@@ -50,6 +54,7 @@ impl fmt::Debug for Response {
             .finish()
     }
 }
+*/
 
 impl Response {
     /// Adds appends a custom header with the headers
@@ -101,12 +106,17 @@ impl Response {
     pub fn get(&mut self, field: &'static str) -> Option<&String> {
         self.headers.get(field)
     }
+    pub fn new_from_slice<T: AsRef<[u8]>>(body: T) -> Self {
+        let body_slice = body.as_ref();
+        Self::new(Box::new(Cursor::new(body_slice.to_vec())) as BoxReader, Some(body_slice.len()))
+    }
     /// Generates a new empty response, usually
     /// you should not be using this method directly.
-    pub fn new(body: &[u8]) -> Self {
+    pub fn new(body: BoxReader, content_len: Option<usize>) -> Self {
         Response {
             status_code: StatusCode::Ok,
-            body: body.to_vec(),
+            body,
+            content_len,
             http_version: "1.1".to_owned(),
             headers: HashMap::new(),
         }
@@ -132,15 +142,19 @@ impl Response {
     ///
     /// ```
     pub fn send<T: AsRef<[u8]>>(&mut self, body: T) {
-        self.body = body.as_ref().to_vec();
+        let body_slice = body.as_ref();
+        self.body = Box::new(Cursor::new(body_slice.to_vec())) as BoxReader;
+        self.content_len = Some(body_slice.len());
         self.default_headers();
     }
     /// Automatically set headers like date, content
     /// length, and sent content to "text/html" if no
     /// content header is sent
     pub fn default_headers(&mut self) -> &mut Self {
-        self.headers
-            .insert("Content-Length".to_string(), self.body.len().to_string());
+        if let Some(x) = self.content_len {
+            self.headers
+                .insert("Content-Length".to_string(), x.to_string());
+        }
         if let Some(date) = Time::now() {
             self.headers.insert("Date".to_string(), date.format());
         }
@@ -177,16 +191,12 @@ impl Response {
     }
     /// Consume the response and get the final formed http
     /// response that the server will send in bytes
-    pub fn get_data(self) -> Vec<u8> {
+    pub fn get_data(self) -> (String, BoxReader) {
         let mut headers_str = String::from("");
-        self.headers
-            .iter()
-            .for_each(|data| headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF)));
-        [
-            format!("{}{}{}", self.status_line(), headers_str, CRLF).as_bytes(),
-            &self.body,
-        ]
-        .concat()
+        for data in self.headers.iter() {
+            headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF));
+        }
+        (format!("{}{}{}", self.status_line(), headers_str, CRLF), self.body)
     }
     /// Send a file as the response, automatically detect the
     /// mime type and set the headers accordingly
@@ -216,7 +226,7 @@ impl Response {
                 "Content-Type".to_string(),
                 FileHandler::mime_type(file.extension),
             );
-            self.body = file.contents;
+            self.body = Box::new(file.file) as BoxReader;
             Ok(Some(()))
         } else {
             Ok(None)
@@ -251,11 +261,13 @@ impl Response {
     ///
     /// ```
     pub fn json<T: ToJSON>(&mut self, structure: T) {
-        self.body = structure
-            .to_json_string()
-            .unwrap_or(String::new())
-            .as_bytes()
-            .to_vec();
+        self.body = Box::new(Cursor::new(
+            structure
+                .to_json_string()
+                .unwrap_or(String::new())
+                .as_bytes()
+                .to_vec(),
+        )) as BoxReader;
         self.with_type("application/json");
         self.default_headers();
     }
@@ -289,7 +301,7 @@ impl Response {
         self
     }
     /// Sets the http version specified, to specify a version
-    /// the versios type should be variant of HttpVersion
+    /// the version type should be variant of HttpVersion
     pub fn http_version(&mut self, version: HttpVersion) -> &mut Self {
         self.http_version = version.get_version_string();
         self

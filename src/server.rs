@@ -7,7 +7,7 @@ use crate::request::{
     parse_without_body, Headers, HttpVersion, KeepAlive, MatchedRequest, Request, RequestLine,
     RequestMethod,
 };
-use crate::responder::Response;
+use crate::responder::{BoxReader, Response};
 use crate::router::{Closure, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
@@ -20,7 +20,7 @@ use std::path::PathBuf as StdPathBuf;
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{copy, AsyncRead, AsyncWrite};
+use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
@@ -315,7 +315,7 @@ impl Octane {
                 }
             }
 
-            let mut res = Response::new(b"");
+            let mut res = Response::new_from_slice(b"");
             let req = &parsed_request.request_line;
             let mut matches = vec![];
             if req.method.is_some() {
@@ -373,7 +373,7 @@ impl Octane {
                     }
                 }
                 // Run static file middleware
-                if res.body.len() == 0 {
+                if res.content_len.unwrap_or(0) == 0 {
                     let mut parent_path = req.path.clone();
                     let poped = parent_path.chunks.pop();
                     for loc in server.settings.static_dir.iter() {
@@ -412,11 +412,12 @@ impl Octane {
         }
         Ok(())
     }
-    pub async fn send_data<S>(response: Vec<u8>, mut stream_async: S) -> Result<()>
+    pub async fn send_data<S>(mut response: (String, BoxReader), mut stream_async: S) -> Result<()>
     where
-        S: AsyncRead + AsyncWrite + Unpin,
+        S: AsyncWrite + Unpin,
     {
-        copy(&mut &response[..], &mut stream_async).await?;
+        stream_async.write_all(response.0.as_bytes()).await?;
+        copy(&mut response.1, &mut stream_async).await?;
         Ok(())
     }
 }

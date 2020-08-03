@@ -1,12 +1,14 @@
 use std::ffi::OsStr;
-use std::fs::File;
+use std::fs::{File, Metadata};
 use std::io::{BufReader, Read, Result};
 use std::path::PathBuf;
+use crate::util::AsyncReader;
 
 pub struct FileHandler {
     pub file_name: String,
-    pub contents: Vec<u8>,
+    pub file: AsyncReader<File>,
     pub extension: String,
+    pub meta: Metadata
 }
 
 impl FileHandler {
@@ -18,14 +20,12 @@ impl FileHandler {
                 .extension()
                 .and_then(OsStr::to_str)
                 .unwrap_or("");
-
-            let mut buf_reader = BufReader::new(file);
-            let mut contents = Vec::new();
-            buf_reader.read_to_end(&mut contents)?;
+            let meta = file.metadata()?;
             Ok(Some(FileHandler {
                 file_name: path.file_name().and_then(OsStr::to_str).unwrap().to_owned(),
-                contents,
+                file: AsyncReader::new(file),
                 extension: extension.to_owned(),
+                meta
             }))
         } else {
             Ok(None)

@@ -4,10 +4,12 @@ use crate::path::{InvalidPathError, PathBuf};
 use crate::request::{MatchedRequest, RequestMethod};
 use crate::responder::Response;
 use crate::{default, deref};
-use futures::future::BoxFuture;
+use core::future::Future;
+use core::pin::Pin;
 use std::collections::HashMap;
-
 use std::result::Result;
+
+type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a + Send>>;
 
 /// The Closure type is a type alias for the type
 /// that the routes should return

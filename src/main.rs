@@ -5,11 +5,11 @@ use octane::{
     router::{Flow, Route, Router},
 };
 
-#[tokio::main]
-async fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = Octane::new();
     let mut config = OctaneConfig::new();
     let mut router = Router::new();
+    let port = 8080;
     config.add_static_dir("/", "templates");
     config.add_static_dir("/", "target");
     app.with_config(config);
@@ -49,5 +49,5 @@ async fn main() {
         }),
     )
     .unwrap();
-    app.listen(8080).await.expect("Cannot establish connection");
+    app.listen(port)
 }

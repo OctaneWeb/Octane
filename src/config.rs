@@ -103,6 +103,7 @@ pub struct OctaneConfig {
     pub static_dir: HashMap<PathBuf, Vec<PathBuf>>,
     pub ssl: Ssl,
     pub file_404: PathBuf,
+    pub worker_threads: Option<usize>,
 }
 
 /// Shared config trait which allows us to use the config
@@ -238,6 +239,7 @@ impl OctaneConfig {
         OctaneConfig {
             ssl: Ssl::new(),
             keep_alive: None,
+            worker_threads: None,
             static_dir: HashMap::new(),
             file_404: PathBuf::new(),
         }
@@ -247,6 +249,11 @@ impl OctaneConfig {
         self.ssl = settings.ssl;
         self.keep_alive = settings.keep_alive;
         self.static_dir.extend(settings.static_dir);
+    }
+
+    pub fn worker_threads(&mut self, threads: usize) -> &mut Self {
+        self.worker_threads = Some(threads);
+        self
     }
 
     #[cfg(feature = "rustls")]

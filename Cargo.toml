@@ -13,7 +13,7 @@ lazy_static = "1.4.0"
 tokio-rustls = { version = "0.14.0", optional = true }
 openssl = { version = "0.10.30", optional = true }
 tokio-openssl = { version = "0.4", optional = true }
-tokio = { version = "0.2.21", features = ["tcp", "fs", "stream", "macros", "io-util"] }
+tokio = { version = "0.2.21", features = ["tcp", "fs", "stream", "macros", "io-util", "rt-threaded"] }
 futures = { version = "0.3", default-features = false, features = ["std"] }
 
 [dependencies.octane_macros]

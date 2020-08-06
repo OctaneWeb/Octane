@@ -24,6 +24,7 @@ use std::time::Duration;
 use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::prelude::*;
+use tokio::runtime::Builder;
 use tokio::stream::StreamExt;
 
 #[macro_use]
@@ -179,71 +180,79 @@ impl Octane {
     ///     app.listen(8080).await.expect("Cannot establish connection");
     /// }
     /// ```
-    pub async fn listen(self, port: u16) -> Result<()> {
-        let mut listener =
-            TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
-        let server = Arc::new(self);
-        #[cfg(feature = "rustls")]
-        {
-            use crate::tls::rustls::acceptor;
-            let acceptor = acceptor(&server.settings)?;
-            while let Some(stream) = StreamExt::next(&mut listener).await {
-                let server_clone = Arc::clone(&server);
-                let acceptor = acceptor.clone();
-                tokio::spawn(async move {
-                    match stream {
-                        Ok(value) => {
-                            let stream = acceptor.accept(value).await;
-                            match stream {
-                                Ok(stream_ssl) => {
-                                    Self::catch_request(stream_ssl, server_clone).await;
+    pub fn listen(self, port: u16) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut builder = Builder::new();
+        builder.threaded_scheduler().enable_io();
+        if let Some(threads) = &self.settings.worker_threads {
+            builder.core_threads(*threads);
+        }
+        let mut runtime = builder.build()?;
+        runtime.block_on(async {
+            let mut listener =
+                TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
+            let server = Arc::new(self);
+            #[cfg(feature = "rustls")]
+            {
+                use crate::tls::rustls::acceptor;
+                let acceptor = acceptor(&server.settings)?;
+                while let Some(stream) = StreamExt::next(&mut listener).await {
+                    let server_clone = Arc::clone(&server);
+                    let acceptor = acceptor.clone();
+                    tokio::spawn(async move {
+                        match stream {
+                            Ok(value) => {
+                                let stream = acceptor.accept(value).await;
+                                match stream {
+                                    Ok(stream_ssl) => {
+                                        Self::catch_request(stream_ssl, server_clone).await;
+                                    }
+                                    Err(e) => println!("{:#?}", e),
                                 }
-                                Err(e) => println!("{:#?}", e),
                             }
-                        }
-                        Err(e) => println!("{:#?}", e),
-                    };
-                });
+                            Err(e) => println!("{:#?}", e),
+                        };
+                    });
+                }
             }
-        }
-        #[cfg(feature = "openSSL")]
-        {
-            use crate::tls::openssl::acceptor;
-            let acceptor = acceptor(&server.settings)?;
-            while let Some(stream) = StreamExt::next(&mut listener).await {
-                let server_clone = Arc::clone(&server);
-                let acceptor = acceptor.clone();
-                tokio::spawn(async move {
-                    match stream {
-                        Ok(value) => {
-                            let stream = tokio_openssl::accept(&acceptor, value).await;
-                            match stream {
-                                Ok(stream_ssl) => {
-                                    Self::catch_request(stream_ssl, server_clone).await;
+            #[cfg(feature = "openSSL")]
+            {
+                use crate::tls::openssl::acceptor;
+                let acceptor = acceptor(&server.settings)?;
+                while let Some(stream) = StreamExt::next(&mut listener).await {
+                    let server_clone = Arc::clone(&server);
+                    let acceptor = acceptor.clone();
+                    tokio::spawn(async move {
+                        match stream {
+                            Ok(value) => {
+                                let stream = tokio_openssl::accept(&acceptor, value).await;
+                                match stream {
+                                    Ok(stream_ssl) => {
+                                        Self::catch_request(stream_ssl, server_clone).await;
+                                    }
+                                    Err(e) => println!("{:#?}", e),
                                 }
-                                Err(e) => println!("{:#?}", e),
                             }
-                        }
-                        Err(_e) => (),
-                    };
-                });
+                            Err(_e) => (),
+                        };
+                    });
+                }
             }
-        }
-        #[cfg(not(any(feature = "openSSL", feature = "rustls")))]
-        {
-            while let Some(stream) = StreamExt::next(&mut listener).await {
-                let server_clone = Arc::clone(&server);
-                tokio::spawn(async move {
-                    match stream {
-                        Ok(value) => {
-                            let _res = Self::catch_request(value, server_clone).await;
-                        }
-                        Err(_e) => (),
-                    };
-                });
+            #[cfg(not(any(feature = "openSSL", feature = "rustls")))]
+            {
+                while let Some(stream) = StreamExt::next(&mut listener).await {
+                    let server_clone = Arc::clone(&server);
+                    tokio::spawn(async move {
+                        match stream {
+                            Ok(value) => {
+                                let _res = Self::catch_request(value, server_clone).await;
+                            }
+                            Err(_e) => (),
+                        };
+                    });
+                }
             }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 
     async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>) -> Result<()>

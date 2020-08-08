@@ -10,7 +10,12 @@
     <a href="https://discord.gg/j6PsmNC" title="Discord server"><img src="https://img.shields.io/discord/708306551705698446"></a>
 </p>
 
-A no-nonsense, high-powered web server aimed at minimizing dependencies while maintaining speed. Modeled after Express, a popular Javascript web framework, Octane combines the speed of Rust with the ease-of-use and flexibility of Express to create the optimal user experience.
+A high-powered web server aimed at minimizing dependencies while maintaining speed. Modeled after Express, a popular Javascript web framework, Octane combines the speed of Rust with the ease-of-use and flexibility of Express to create the optimal user experience.
+
+- Multithreaded 🚄
+- Asynchronous design 🐆
+- Easy to use, intuitive design 🌱
+- Minimal dependencies (working to reduce them more!) 💕
 
 #  Basic Usage 
 

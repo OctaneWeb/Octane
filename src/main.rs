@@ -5,11 +5,15 @@ use octane::{
     router::{Flow, Route, Router},
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> std::io::Result<()> {
     let mut app = Octane::new();
     let mut config = OctaneConfig::new();
+    config
+        .ssl
+        .cert("templates/cert.pem")
+        .key("templates/key.pem");
     let mut router = Router::new();
-    let port = 8080;
+    let port = 80;
     config.add_static_dir("/", "templates");
     config.add_static_dir("/", "target");
     app.with_config(config);
@@ -33,9 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get(
             "/testing",
             route!(|req, res| {
-                let some_header = req.headers.get("HeaderName");
-                res.with_type("application/json")
-                    .send(r#"{"hotel": "trivago"}"#);
+                res.cookies.set("Name", "Value");
                 Flow::Stop
             }),
         )

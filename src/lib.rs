@@ -11,18 +11,19 @@
 //! Get started by adding the lib entry in your cargo.toml file
 //!
 //! ```toml
-//! octane = "0.2"
+//! octane = "0.1.1"
 //! ```
-//! and then in your main file,
+//!
+//! and then in your main.rs,
+//!
 //! ```no_run
 //! use octane::server::Octane;
 //! use octane::config::Config;
 //! use octane::{route, router::{Flow, Route}};
 //!
-//! #[tokio::main]
-//! async fn main() {
+//! fn main() {
 //!     let mut app = Octane::new();
-//!     app.add_static_dir("/", "dir_name"); // server a static directory
+//!     app.add_static_dir("/", "dir_name"); // serve a static directory
 //!     app.get(
 //!         "/",
 //!         route!(
@@ -33,23 +34,29 @@
 //!         ),
 //!     );
 //!
-//!     app.listen(8080).await.expect("Cannot establish connection");
+//!     app.listen(8080).expect("Cannot establish connection");
 //! }
 //! ```
 //! and now you can see the page at http://0.0.0.0:8080.
 //!
 //! ## Features
-//! Octane divides most of the things that one might _leave_ out for
-//! any reason into features. These include
-//! - `faithful`
-//! - `query_strings`
-//! - `cookies`
-//! - `url_variables`
-//! - `raw_headers`
-//! - `rustls`
-//! - `openSSL`
-//! - 'default`
 //!
+//! Octane divides most of the things that one might _leave_ out for
+//! any reason into features. These include,
+//!
+//! - `faithful`:
+//! - `query_strings`:
+//! - `cookies`: Basic cookie parsing and value handling.
+//! - `url_variables`: To support variables in url.
+//! - `raw_headers`:
+//! - `rustls`: To use rustls for ssl.
+//! - `openSSL`: To use openssl for ssl.
+//! - 'default`: The default set includes faithful, query_strings, cookies,
+//! url_variables, raw_headers.
+//!
+//! **Note**: If both `rustls` and `openSSL` features are enabled then
+//! Ssl will not work but http will keep on running. Make sure you have
+//! only one of them on.
 
 #[macro_use]
 extern crate lazy_static;

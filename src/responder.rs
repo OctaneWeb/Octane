@@ -6,6 +6,7 @@ use crate::request::HttpVersion;
 use crate::time::Time;
 use octane_json::convert::ToJSON;
 use std::collections::HashMap;
+use std::fmt;
 use std::io::{Cursor, Result};
 use std::path::PathBuf;
 use tokio::io::AsyncRead;
@@ -22,8 +23,7 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// use octane::server::Octane;
 /// use octane::{route, router::{Flow, Route}};
 ///
-/// #[tokio::main]
-/// async fn main() {
+/// fn main() {
 ///     let mut app = Octane::new();
 ///     app.get(
 ///         "/",
@@ -35,7 +35,7 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 ///         ),
 ///     );
 ///
-///     app.listen(8080).await.expect("Cannot establish connection");
+///     app.listen(8080).expect("Cannot establish connection");
 /// }
 /// ```
 pub struct Response {
@@ -44,23 +44,10 @@ pub struct Response {
     pub content_len: Option<usize>,
     pub http_version: String,
     pub headers: HashMap<String, String>,
+    pub charset: Option<String>,
     #[cfg(feature = "cookies")]
     pub cookies: Cookies,
 }
-
-/*
-default!(Response, b"");
-
-impl fmt::Debug for Response {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Response")
-            .field("status_code", &self.status_code)
-            .field("http_version", &self.http_version)
-            .field("body", &from_utf8(&self.body))
-            .finish()
-    }
-}
-*/
 
 impl Response {
     /// Adds appends a custom header with the headers
@@ -111,6 +98,7 @@ impl Response {
     pub fn get(&mut self, field: &'static str) -> Option<&String> {
         self.headers.get(field)
     }
+    /// Creates a new response from a slice
     pub fn new_from_slice<T: AsRef<[u8]>>(body: T) -> Self {
         let body_slice = body.as_ref();
         Self::new(
@@ -127,6 +115,7 @@ impl Response {
             content_len,
             http_version: "1.1".to_owned(),
             headers: HashMap::new(),
+            charset: None,
             #[cfg(feature = "cookies")]
             cookies: Cookies::new(),
         }
@@ -158,8 +147,8 @@ impl Response {
         self.default_headers();
     }
     /// Automatically set headers like date, content
-    /// length, and sent content to "text/html" if no
-    /// content header is sent
+    /// length, and sent content header to "text/html"
+    /// if no content header is sent
     pub fn default_headers(&mut self) -> &mut Self {
         if let Some(x) = self.content_len {
             self.headers
@@ -169,7 +158,11 @@ impl Response {
             self.headers.insert("Date".to_string(), date.format());
         }
         if self.headers.get("Content-Type").is_none() {
-            self.set("Content-Type", "text/html");
+            let mut format = String::from("text/html");
+            if let Some(charset) = &self.charset {
+                format.push_str(&format!(" ;charset={:?}", charset));
+            }
+            self.set("Content-Type", &format);
         }
         self
     }
@@ -202,12 +195,8 @@ impl Response {
     /// Consume the response and get the final formed http
     /// response that the server will send in bytes
     pub fn get_data(self) -> (String, BoxReader) {
-        let mut headers_str = String::from("");
-        for data in self.headers.iter() {
-            headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF));
-        }
         (
-            format!("{}{}{}", self.status_line(), headers_str, CRLF),
+            format!("{}{}{}", self.status_line(), self.headers(), CRLF),
             self.body,
         )
     }
@@ -294,8 +283,7 @@ impl Response {
     /// use octane::{route, router::{Flow, Route}};
     /// use octane::constants::StatusCode;
     ///
-    /// #[tokio::main]
-    /// async fn main() {
+    /// fn main() {
     ///     let mut app = Octane::new();
     ///     app.get(
     ///         "/",
@@ -307,7 +295,7 @@ impl Response {
     ///         ),
     ///     );
     ///
-    ///     app.listen(8080).await.expect("Cannot establish connection");
+    ///     app.listen(8080).expect("Cannot establish connection");
     /// }
     /// ```
     pub fn status(&mut self, code: StatusCode) -> &mut Self {
@@ -442,6 +430,10 @@ impl Response {
         self.cookies.set(name, value);
         self
     }
+    pub fn charset(&mut self, charset: &str) -> &mut Self {
+        self.charset = Some(charset.to_owned());
+        self
+    }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()
     }
@@ -472,5 +464,20 @@ impl Response {
             headers_str.push_str(&self.cookies.serialise());
         }
         headers_str
+    }
+}
+
+impl Default for Response {
+    fn default() -> Self {
+        Self::new_from_slice(b"")
+    }
+}
+
+impl fmt::Debug for Response {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Response")
+            .field("status_code", &self.status_code)
+            .field("http_version", &self.http_version)
+            .finish()
     }
 }

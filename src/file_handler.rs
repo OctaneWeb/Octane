@@ -15,8 +15,7 @@ pub struct FileHandler {
 }
 
 impl FileHandler {
-    /// Takes a Pathbuf and returns a FileHandler
-    /// struct
+    /// Takes a Pathbuf and returns a FileHandler struct
     pub fn handle_file(path: &PathBuf) -> Result<Option<Self>> {
         let file = File::open(path)?;
         if file.metadata()?.file_type().is_file() {

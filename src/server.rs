@@ -10,6 +10,7 @@ use crate::request::{
 };
 use crate::responder::{BoxReader, Response};
 use crate::router::{Closure, Route, Router, RouterResult};
+use crate::tls;
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
 #[cfg(feature = "url_variables")]
@@ -34,7 +35,6 @@ macro_rules! declare_error {
         return Ok(());
     };
 }
-
 /// The octane server
 ///
 /// # Example
@@ -43,8 +43,7 @@ macro_rules! declare_error {
 /// use octane::server::Octane;
 /// use octane::{route, router::{Flow, Route}};
 ///
-/// #[tokio::main]
-/// async fn main() {
+/// fn main() {
 ///     let mut app = Octane::new();
 ///     app.get(
 ///         "/",
@@ -56,59 +55,12 @@ macro_rules! declare_error {
 ///         ),
 ///     );
 ///
-///     app.listen(8080).await.expect("Cannot establish connection");
+///     app.listen(8080).expect("Cannot establish connection");
 /// }
 /// ```
 pub struct Octane {
     pub settings: OctaneConfig,
     pub router: Router,
-}
-
-impl Route for Octane {
-    fn options(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.options(path, closure)
-    }
-    fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.head(path, closure)
-    }
-    fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.put(path, closure)
-    }
-    fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.get(path, closure)
-    }
-    fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.post(path, closure)
-    }
-    fn add(&mut self, closure: Closure) -> RouterResult {
-        self.router.add(closure)
-    }
-    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::All);
-        Ok(())
-    }
-}
-
-impl Config for Octane {
-    fn set_keepalive(&mut self, duration: Duration) {
-        self.settings.keep_alive = Some(duration);
-    }
-    fn add_static_dir(&mut self, loc: &'static str, dir_name: &'static str) {
-        let loc_buf = StdPathBuf::from(loc);
-        let dir_buf = StdPathBuf::from(dir_name);
-        if let Some(paths) = self.settings.static_dir.get_mut(&loc_buf) {
-            paths.push(dir_buf)
-        } else {
-            self.settings.static_dir.insert(loc_buf, vec![dir_buf]);
-        }
-    }
-    fn set_404_file(&mut self, dir_name: &'static str) {
-        self.settings.file_404 = StdPathBuf::from(dir_name);
-    }
-    fn with_ssl_config(&mut self, ssl_conf: Ssl) {
-        self.settings.ssl.key = ssl_conf.key;
-        self.settings.ssl.cert = ssl_conf.cert;
-    }
 }
 
 impl Octane {
@@ -168,19 +120,20 @@ impl Octane {
     pub fn with_config(&mut self, config: OctaneConfig) {
         self.settings.append(config);
     }
-    /// Start listening on the port specified
+    /// Start listening on the port specified, the listen
+    /// function also starts the Ssl server if the features
+    /// are enabled and the key/certs are provided
     ///
     /// # Example
     /// ```no_run
     /// use octane::server::Octane;
     ///
-    /// #[tokio::main]
-    /// async fn main() {
+    /// fn main() {
     ///     let mut app = Octane::new();
-    ///     app.listen(8080).await.expect("Cannot establish connection");
+    ///     app.listen(80).expect("Cannot establish connection");
     /// }
     /// ```
-    pub fn listen(self, port: u16) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    pub fn listen(self, port: u16) -> Result<()> {
         let mut builder = Builder::new();
         builder.threaded_scheduler().enable_io();
         if let Some(threads) = &self.settings.worker_threads {
@@ -191,70 +144,61 @@ impl Octane {
             let mut listener =
                 TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
             let server = Arc::new(self);
-            #[cfg(feature = "rustls")]
+            #[cfg(any(
+                all(not(feature = "rustls"), feature = "openSSL"),
+                all(feature = "rustls", not(feature = "openSSL"))
+            ))]
             {
-                use crate::tls::rustls::acceptor;
-                let acceptor = acceptor(&server.settings)?;
-                while let Some(stream) = StreamExt::next(&mut listener).await {
-                    let server_clone = Arc::clone(&server);
-                    let acceptor = acceptor.clone();
-                    tokio::spawn(async move {
-                        match stream {
-                            Ok(value) => {
-                                let stream = acceptor.accept(value).await;
-                                match stream {
-                                    Ok(stream_ssl) => {
-                                        Self::catch_request(stream_ssl, server_clone).await;
+                let mut ssl_listener = TcpListener::bind(SocketAddrV4::new(
+                    Ipv4Addr::new(0, 0, 0, 0),
+                    server.settings.ssl.port,
+                ))
+                .await?;
+                #[cfg(feature = "openSSL")]
+                let acceptor = tls::openssl::acceptor(&server.settings)?;
+                #[cfg(feature = "rustls")]
+                let acceptor = tls::rustls::acceptor(&server.settings)?;
+                let server_clone = Arc::clone(&server);
+                tokio::spawn(async move {
+                    while let Some(stream) = StreamExt::next(&mut ssl_listener).await {
+                        let server_clone = Arc::clone(&server_clone);
+                        let acceptor = acceptor.clone();
+                        tokio::spawn(async move {
+                            match stream {
+                                Ok(value) => {
+                                    #[cfg(feature = "rustls")]
+                                    let stream = acceptor.accept(value).await;
+                                    #[cfg(feature = "openSSL")]
+                                    let stream = tokio_openssl::accept(&acceptor, value).await;
+                                    match stream {
+                                        Ok(stream_ssl) => {
+                                            let _res =
+                                                Self::catch_request(stream_ssl, server_clone).await;
+                                        }
+                                        Err(e) => println!("{:#?}", e),
                                     }
-                                    Err(e) => println!("{:#?}", e),
                                 }
-                            }
-                            Err(e) => println!("{:#?}", e),
-                        };
-                    });
-                }
+                                Err(e) => println!("{:#?}", e),
+                            };
+                        });
+                    }
+                });
             }
-            #[cfg(feature = "openSSL")]
-            {
-                use crate::tls::openssl::acceptor;
-                let acceptor = acceptor(&server.settings)?;
-                while let Some(stream) = StreamExt::next(&mut listener).await {
-                    let server_clone = Arc::clone(&server);
-                    let acceptor = acceptor.clone();
-                    tokio::spawn(async move {
-                        match stream {
-                            Ok(value) => {
-                                let stream = tokio_openssl::accept(&acceptor, value).await;
-                                match stream {
-                                    Ok(stream_ssl) => {
-                                        Self::catch_request(stream_ssl, server_clone).await;
-                                    }
-                                    Err(e) => println!("{:#?}", e),
-                                }
-                            }
-                            Err(_e) => (),
-                        };
-                    });
-                }
-            }
-            #[cfg(not(any(feature = "openSSL", feature = "rustls")))]
-            {
-                while let Some(stream) = StreamExt::next(&mut listener).await {
-                    let server_clone = Arc::clone(&server);
-                    tokio::spawn(async move {
-                        match stream {
-                            Ok(value) => {
-                                let _res = Self::catch_request(value, server_clone).await;
-                            }
-                            Err(_e) => (),
-                        };
-                    });
-                }
+            // http
+            while let Some(stream) = StreamExt::next(&mut listener).await {
+                let server_clone = Arc::clone(&server);
+                tokio::spawn(async move {
+                    match stream {
+                        Ok(value) => {
+                            let _res = Self::catch_request(value, server_clone).await;
+                        }
+                        Err(_e) => (),
+                    };
+                });
             }
             Ok(())
         })
     }
-
     async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>) -> Result<()>
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
@@ -387,7 +331,7 @@ impl Octane {
                     let mut parent_path = req.path.clone();
                     parent_path.chunks.pop();
                     for loc in server.settings.static_dir.iter() {
-                        for dirs in loc.1.iter() {
+                        for dirs in loc.1.into_iter() {
                             if req.method == RequestMethod::Get {
                                 let mut dir_final = dirs.clone();
                                 dir_final.extend(parent_path.clone().chunks);
@@ -420,3 +364,54 @@ impl Octane {
 }
 
 default!(Octane);
+
+impl Route for Octane {
+    fn option(&mut self, path: &str, closure: Closure) -> RouterResult {
+        self.router.option(path, closure)
+    }
+    fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
+        self.router.head(path, closure)
+    }
+    fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
+        self.router.put(path, closure)
+    }
+    fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
+        self.router.get(path, closure)
+    }
+    fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
+        self.router.post(path, closure)
+    }
+    fn add(&mut self, closure: Closure) -> RouterResult {
+        self.router.add(closure)
+    }
+    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_method!(self.router, path, closure, RequestMethod::All);
+        Ok(())
+    }
+}
+
+impl Config for Octane {
+    fn set_keepalive(&mut self, duration: Duration) {
+        self.settings.keep_alive = Some(duration);
+    }
+    fn add_static_dir(&mut self, loc: &'static str, dir_name: &'static str) {
+        let loc_buf = StdPathBuf::from(loc);
+        let dir_buf = StdPathBuf::from(dir_name);
+        if let Some(paths) = self.settings.static_dir.get_mut(&loc_buf) {
+            paths.push(dir_buf)
+        } else {
+            self.settings.static_dir.insert(loc_buf, vec![dir_buf]);
+        }
+    }
+    fn set_404_file(&mut self, dir_name: &'static str) {
+        self.settings.file_404 = StdPathBuf::from(dir_name);
+    }
+    fn with_ssl_config(&mut self, ssl_conf: Ssl) {
+        self.settings.ssl.key = ssl_conf.key;
+        self.settings.ssl.cert = ssl_conf.cert;
+    }
+    fn ssl(&mut self, port: u16) -> &mut Ssl {
+        self.settings.ssl.port = port;
+        &mut self.settings.ssl
+    }
+}

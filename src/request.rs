@@ -8,7 +8,6 @@ use std::cfg;
 use std::collections::HashMap;
 #[cfg(not(feature = "raw_headers"))]
 use std::marker::PhantomData;
-
 use std::str;
 
 /// Holds the type of request method, like GET
@@ -258,8 +257,6 @@ impl<'a> Headers<'a> {
     }
 }
 
-deref!(Headers<'a>, HashMap<String, String>, parsed);
-
 pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
     let n = data.find("\r\n")?;
     let (line, rest) = data.split_at(n);
@@ -401,3 +398,4 @@ pub struct MatchedRequest<'a> {
 }
 
 deref!(MatchedRequest<'a>, Request<'a>, request);
+deref!(Headers<'a>, HashMap<String, String>, parsed);

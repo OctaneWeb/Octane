@@ -134,6 +134,7 @@ impl Octane {
     /// }
     /// ```
     pub fn listen(self, port: u16) -> Result<()> {
+        let ssl_enable = false;
         let mut builder = Builder::new();
         builder.threaded_scheduler().enable_io();
         if let Some(threads) = &self.settings.worker_threads {
@@ -144,16 +145,17 @@ impl Octane {
             let mut listener =
                 TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
             let server = Arc::new(self);
-            #[cfg(any(
-                all(not(feature = "rustls"), feature = "openSSL"),
-                all(feature = "rustls", not(feature = "openSSL"))
-            ))]
+            #[cfg(all(feature = "openSSL", feature = "rustls"))]
+            compile_error!("openSSL and rustls are both enabled, you may want to one of those");
+            #[cfg(any(feature = "openSSL", feature = "rustls"))]
             {
                 let mut ssl_listener = TcpListener::bind(SocketAddrV4::new(
                     Ipv4Addr::new(0, 0, 0, 0),
                     server.settings.ssl.port,
                 ))
                 .await?;
+                server.settings.ssl.validate();
+                ssl_enable = true;
                 #[cfg(feature = "openSSL")]
                 let acceptor = tls::openssl::acceptor(&server.settings)?;
                 #[cfg(feature = "rustls")]
@@ -173,7 +175,8 @@ impl Octane {
                                     match stream {
                                         Ok(stream_ssl) => {
                                             let _res =
-                                                Self::catch_request(stream_ssl, server_clone).await;
+                                                Self::catch_request(stream_ssl, server_clone, true)
+                                                    .await;
                                         }
                                         Err(e) => println!("{:#?}", e),
                                     }
@@ -184,13 +187,14 @@ impl Octane {
                     }
                 });
             }
+
             // http
             while let Some(stream) = StreamExt::next(&mut listener).await {
                 let server_clone = Arc::clone(&server);
                 tokio::spawn(async move {
                     match stream {
                         Ok(value) => {
-                            let _res = Self::catch_request(value, server_clone).await;
+                            let _res = Self::catch_request(value, server_clone, ssl_enable).await;
                         }
                         Err(_e) => (),
                     };
@@ -199,7 +203,7 @@ impl Octane {
             Ok(())
         })
     }
-    async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>) -> Result<()>
+    async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>, has_ssl: bool) -> Result<()>
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
@@ -268,7 +272,7 @@ impl Octane {
                     }
                 }
             }
-
+            println!("{:#?}", parsed_request.headers);
             let mut res = Response::new_from_slice(b"");
             let req = &parsed_request.request_line;
             let mut matches = vec![];
@@ -342,6 +346,26 @@ impl Octane {
                 }
                 if res.content_len.unwrap_or(0) == 0 {
                     declare_error!(stream_async, StatusCode::NotFound, settings);
+                }
+
+                if let Some(x) = parsed_request.headers.get("upgrade-insecure-requests") {
+                    match x.as_str() {
+                        "1" => {
+                            if has_ssl {
+                                res.redirect(
+                                    format!(
+                                        "https://{:?}/{:?}",
+                                        parsed_request.headers.get("Host"),
+                                        parsed_request.request_line.path
+                                    )
+                                    .as_str(),
+                                );
+                            } else {
+                                res.set("Vary", "Upgrade-Insecure-Requests");
+                            }
+                        }
+                        _ => (),
+                    }
                 }
 
                 Self::send_data(res.get_data(), stream_async).await?;

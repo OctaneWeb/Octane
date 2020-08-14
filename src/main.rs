@@ -1,19 +1,15 @@
 use octane::config::{Config, OctaneConfig};
+use octane::request::HttpVersion;
 use octane::server::Octane;
 use octane::{
     route,
     router::{Flow, Route, Router},
 };
 
-fn main() -> std::io::Result<()> {
+fn main() {
     let mut app = Octane::new();
     let mut config = OctaneConfig::new();
-    config
-        .ssl
-        .cert("templates/cert.pem")
-        .key("templates/key.pem");
     let mut router = Router::new();
-    let port = 80;
     config.add_static_dir("/", "templates");
     config.add_static_dir("/", "target");
     app.with_config(config);
@@ -37,7 +33,9 @@ fn main() -> std::io::Result<()> {
         .get(
             "/testing",
             route!(|req, res| {
-                res.cookies.set("Name", "Value");
+                let some_header = req.headers.get("HeaderName");
+                res.with_type("application/json")
+                    .send(r#"{"hotel": "trivago"}"#);
                 Flow::Stop
             }),
         )
@@ -51,5 +49,5 @@ fn main() -> std::io::Result<()> {
         }),
     )
     .unwrap();
-    app.listen(port)
+    app.listen(8000).expect("Cannot establish connection");
 }

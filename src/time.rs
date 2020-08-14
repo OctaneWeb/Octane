@@ -58,10 +58,10 @@ impl Time {
                 );
                 format!("{},{}{}{}{}{}GMT", week_day, SP, date, SP, time, SP)
             } else {
-                "".to_owned()
+                String::new()
             }
         } else {
-            "".to_owned()
+            String::new()
         }
     }
     pub fn with_stamp(self, stamp: i64) -> Option<Self> {

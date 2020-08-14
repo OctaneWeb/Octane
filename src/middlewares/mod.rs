@@ -10,6 +10,8 @@ pub struct Closures {
     pub index: usize,
 }
 
+pub fn run() {}
+
 #[macro_export]
 macro_rules! inject_method {
     ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {

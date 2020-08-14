@@ -86,7 +86,7 @@ impl Ssl {
         self
     }
     /// Validates the certs and keys by checking their extensions
-    pub fn is_good(&self) -> bool {
+    pub fn validate(&self) {
         let key_ext = self
             .key
             .as_path()
@@ -101,8 +101,6 @@ impl Ssl {
             .unwrap_or("");
         if key_ext != "pem" && cert_ext != "pem" {
             panic!("Invalid key/cert file, {:?}", "bad extension")
-        } else {
-            true
         }
     }
 }
@@ -144,6 +142,7 @@ pub struct OctaneConfig {
     pub keep_alive: Option<Duration>,
     pub static_dir: HashMap<PathBuf, Vec<PathBuf>>,
     pub ssl: Ssl,
+    pub has_ssl: bool,
     pub file_404: PathBuf,
     pub worker_threads: Option<usize>,
 }
@@ -291,6 +290,7 @@ impl OctaneConfig {
     pub fn new() -> Self {
         OctaneConfig {
             ssl: Ssl::new(),
+            has_ssl: false,
             keep_alive: None,
             worker_threads: None,
             static_dir: HashMap::new(),

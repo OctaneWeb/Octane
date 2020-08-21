@@ -271,7 +271,7 @@ impl Router {
 macro_rules! route {
     ( | $req : ident, $res : ident | $body : expr ) => {
         #[allow(unused_variables)]
-        Box::new(move |$req, $res| Box::pin(async move { $body }))
+        std::sync::Arc::new(move |$req, $res| Box::pin(async move { $body }))
     };
 }
 

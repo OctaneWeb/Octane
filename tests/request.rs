@@ -13,7 +13,8 @@ fn success_standard() {
         User-Agent: curl/7.58.0\r\n\
         Accept: */*\r\n\
         Content-Length: 20\r\n\
-        Content-Type: application/x-www-form-urlencoded",
+        Content-Type: application/x-www-form-urlencoded"
+            .to_string(),
     )
     .unwrap();
     assert_eq!(headers.get("host").unwrap(), "localhost:12345");
@@ -32,7 +33,8 @@ fn success_raw_headers() {
     // Parsing should work as expected.
     let headers = Headers::parse(
         "HOst: localhost:12345\r\n\
-        User-Agent: curl/7.58.0",
+        User-Agent: curl/7.58.0"
+            .to_string(),
     )
     .unwrap();
     assert_eq!(headers.raw[0].name, "HOst");

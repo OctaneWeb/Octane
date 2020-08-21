@@ -1,6 +1,7 @@
 use octane::config::{Config, OctaneConfig};
-use octane::request::HttpVersion;
 use octane::server::Octane;
+
+use octane::request::HttpVersion;
 use octane::{
     route,
     router::{Flow, Route, Router},
@@ -9,7 +10,7 @@ use octane::{
 fn main() {
     let mut app = Octane::new();
     let mut config = OctaneConfig::new();
-    let mut router = Router::ew();
+    let mut router = Router::new();
     config.add_static_dir("/", "templates");
     config.add_static_dir("/", "target");
     app.with_config(config);
@@ -45,6 +46,16 @@ fn main() {
         "/to_home",
         route!(|req, res| {
             res.redirect("/").send("redirecting");
+            Flow::Stop
+        }),
+    )
+    .unwrap();
+    app.get(
+        "/",
+        route!(|req, res| {
+            if req.request_line.version == HttpVersion::Http11 {
+                // do something
+            }
             Flow::Stop
         }),
     )

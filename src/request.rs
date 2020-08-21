@@ -284,7 +284,9 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 ///         // The req here is not actually a
 ///         // Request but a MatchedRequest which
 ///         // implements deref to Request.
-///         req.request; // <- the Request struct
+///         // req.request is the Request,
+///         // you can directly use Request methods
+///         // req
 ///         Flow::Stop
 ///     }),
 /// );
@@ -382,8 +384,7 @@ impl KeepAlive {
 ///         // The req here is not actually a
 ///         // Request but a MatchedRequest which
 ///         // implements deref to Request.
-///         req.request; // <- the Request struct
-///         // Or you just directly use Request
+///         // You can just directly use Request
 ///         // methods on it
 ///         let header = req.headers.get("Some-Header");
 ///         Flow::Stop

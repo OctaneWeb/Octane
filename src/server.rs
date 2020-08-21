@@ -1,16 +1,19 @@
 use crate::config::{Config, OctaneConfig, Ssl};
+use crate::constants::with_lock;
 use crate::constants::*;
 use crate::default;
 use crate::error::Error;
 use crate::inject_method;
-use crate::path::{MatchedPath, PathBuf};
+use crate::middlewares::Closures;
+use crate::path::OwnedMatchedPath;
+use crate::path::PathBuf;
+
 use crate::request::{
     parse_without_body, Headers, HttpVersion, KeepAlive, MatchedRequest, Request, RequestLine,
     RequestMethod,
 };
 use crate::responder::{BoxReader, Response};
 use crate::router::{Closure, Route, Router, RouterResult};
-use crate::tls;
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
 #[cfg(feature = "url_variables")]
@@ -272,40 +275,56 @@ impl Octane {
                     }
                 }
             }
-            println!("{:#?}", parsed_request.headers);
+
             let mut res = Response::new_from_slice(b"");
             let req = &parsed_request.request_line;
-            let mut matches = vec![];
             if req.method.is_some() {
-                if let Some(functions) = server.router.paths.get(&req.method) {
-                    let mut routes = functions.get(&req.path);
-                    routes.sort_by_key(|v| v.index);
-                    matches.push(routes);
-                }
-                // run RequestMethod::All regardless of the request method
-                if let Some(functions) = server.router.paths.get(&RequestMethod::All) {
-                    let mut routes = functions.get(&req.path);
-                    routes.sort_by_key(|v| v.index);
-                    matches.push(routes);
-                }
+                let mut matches: Vec<Vec<OwnedMatchedPath<Closures>>> = Vec::new();
+
+                with_lock(|map| {
+                    if let Some(functions) = map.get(&req.method) {
+                        let mut routes = functions.get(&req.path);
+                        routes.sort_by_key(|v| v.index);
+                        let owned_routes = routes
+                            .clone()
+                            .iter()
+                            .map(|e| crate::path::matched_path_to_owned(e))
+                            .collect();
+                        matches.push(owned_routes);
+                    };
+                    // run RequestMethod::All regardless of the request method
+                    if let Some(functions) = map.get(&RequestMethod::All) {
+                        let mut routes = functions.get(&req.path);
+                        routes.sort_by_key(|v| v.index);
+                        let owned_routes = routes
+                            .clone()
+                            .iter()
+                            .map(|e| crate::path::matched_path_to_owned(e))
+                            .collect();
+
+                        matches.push(owned_routes);
+                    }
+                });
                 matches.push(
                     server
                         .router
                         .middlewares
-                        .iter()
-                        .map(|c| MatchedPath {
+                        .clone()
+                        .into_iter()
+                        .map(|c| OwnedMatchedPath {
                             data: c,
                             #[cfg(feature = "url_variables")]
                             vars: HashMap::new(),
                         })
                         .collect(),
                 );
-                let mut indices = vec![0usize; matches.len()];
+
+                let mut indices = vec![0_usize; matches.len()];
                 let total: usize = matches.iter().map(Vec::len).sum();
                 #[cfg(feature = "url_variables")]
                 let mut matched = MatchedRequest {
-                    request: &parsed_request,
-                    vars: &HashMap::new(),
+                    request: parsed_request.clone(),
+                    vars: HashMap::new(),
                 };
                 #[cfg(not(feature = "url_variables"))]
                 let matched = MatchedRequest {
@@ -322,7 +341,7 @@ impl Octane {
                     }
                     #[cfg(feature = "url_variables")]
                     {
-                        matched.vars = &matches[minind][indices[minind]].vars;
+                        matched.vars = matches[minind][indices[minind]].vars.clone();
                     }
                     let flow = (matches[minind][indices[minind]].closure)(&matched, &mut res).await;
                     indices[minind] += 1;
@@ -330,6 +349,7 @@ impl Octane {
                         break;
                     }
                 }
+
                 // Run static file middleware
                 if res.content_len.unwrap_or(0) == 0 {
                     let mut parent_path = req.path.clone();
@@ -367,7 +387,6 @@ impl Octane {
                         _ => (),
                     }
                 }
-
                 Self::send_data(res.get_data(), stream_async).await?;
             } else {
                 declare_error!(stream_async, StatusCode::NotImplemented, settings);
@@ -386,7 +405,6 @@ impl Octane {
         Ok(())
     }
 }
-
 default!(Octane);
 
 impl Route for Octane {

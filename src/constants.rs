@@ -1,7 +1,11 @@
+use crate::middlewares::Closures;
+use crate::path::PathNode;
+use crate::request::RequestMethod;
 use octane_macros::status_codes;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::iter::FromIterator;
+use std::sync::Mutex;
 
 pub const SP: char = ' ';
 pub const HT: char = '\t';
@@ -19,11 +23,21 @@ pub const DAYS_PER_100Y: i64 = 365 * 100 + 24;
 pub const DAYS_PER_4Y: i64 = 365 * 4 + 1;
 pub static DAYS_IN_MONTH: [i64; 12] = [31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29];
 pub const BUF_SIZE: usize = 512;
+pub type Paths = HashMap<RequestMethod, PathNode<Closures>>;
 // TOKEN_CHARS needs to be defined somehow
 lazy_static! {
     pub static ref TOKEN_CHARS: HashSet<char> = HashSet::from_iter(
         "!#$%&'*+-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ^_`abcdefghijklmnopqrstuvwxyz|~".chars()
     );
+    pub static ref CLOSURES: Mutex<Paths> = Mutex::new(HashMap::new());
+}
+
+pub fn with_lock<F, T>(f: F) -> T
+where
+    F: FnOnce(&mut HashMap<RequestMethod, PathNode<Closures>>) -> T,
+{
+    let mut lock = CLOSURES.lock().unwrap();
+    f(&mut *lock)
 }
 
 pub fn is_ctl(c: char) -> bool {

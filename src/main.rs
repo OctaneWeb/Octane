@@ -9,7 +9,7 @@ use octane::{
 fn main() {
     let mut app = Octane::new();
     let mut config = OctaneConfig::new();
-    let mut router = Router::new();
+    let mut router = Router::ew();
     config.add_static_dir("/", "templates");
     config.add_static_dir("/", "target");
     app.with_config(config);

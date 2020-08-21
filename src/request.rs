@@ -171,15 +171,15 @@ impl RequestLine {
 /// get as a field in the `req` variable in
 /// closures
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Header<'a> {
-    pub name: &'a str,
-    pub value: &'a str,
+pub struct Header {
+    pub name: String,
+    pub value: String,
 }
 
-impl<'a> Header<'a> {
+impl Header {
     /// Parses the `key: value` header unit
     /// str and returns a Header struct
-    pub fn parse(header: &'a str) -> Option<Self> {
+    pub fn parse(header: String) -> Option<Self> {
         let mut toks = header.splitn(2, ':');
         let name = toks.next()?;
         if name.is_empty() {
@@ -194,7 +194,10 @@ impl<'a> Header<'a> {
         if cfg!(feature = "faithful") && value.chars().any(is_ctl) {
             return None;
         }
-        Some(Self { name, value })
+        Some(Self {
+            name: name.to_owned(),
+            value: value.to_owned(),
+        })
     }
 }
 
@@ -220,24 +223,24 @@ impl<'a> Header<'a> {
 /// );
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Headers<'a> {
+pub struct Headers {
     pub parsed: HashMap<String, String>,
     #[cfg(feature = "raw_headers")]
-    pub raw: Vec<Header<'a>>,
+    pub raw: Vec<Header>,
     #[cfg(not(feature = "raw_headers"))]
-    pub raw: PhantomData<&'a ()>,
+    pub raw: PhantomData<()>,
 }
 
-impl<'a> Headers<'a> {
+impl Headers {
     /// Parse all the headers on a request
-    pub fn parse(request: &'a str) -> Option<Self> {
+    pub fn parse(request: String) -> Option<Self> {
         let toks = Spliterator::new(request.as_bytes(), B_CRLF);
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
         for tok in toks {
             let parsed = Header::parse(match str::from_utf8(tok) {
-                Ok(s) => s,
+                Ok(s) => s.to_owned(),
                 Err(_) => return None,
             })?;
             headers
@@ -261,7 +264,7 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
     let n = data.find("\r\n")?;
     let (line, rest) = data.split_at(n);
     let request_line = RequestLine::parse(line)?;
-    let headers = Headers::parse(&rest[2..])?;
+    let headers = Headers::parse((&rest[2..]).to_owned())?;
     Some((request_line, headers))
 }
 
@@ -293,7 +296,7 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Request<'a> {
     pub request_line: RequestLine,
-    pub headers: Headers<'a>,
+    pub headers: Headers,
     pub body: &'a [u8],
     #[cfg(feature = "cookies")]
     pub cookies: Cookies,
@@ -302,7 +305,7 @@ pub struct Request<'a> {
 impl<'a> Request<'a> {
     /// Parse a Request with request_line, headers
     /// and body and return a Request struct
-    pub fn parse(request_line: RequestLine, headers: Headers<'a>, body: &'a [u8]) -> Option<Self> {
+    pub fn parse(request_line: RequestLine, headers: Headers, body: &'a [u8]) -> Option<Self> {
         #[cfg(feature = "cookies")]
         let cookies: Cookies;
         #[cfg(feature = "cookies")]
@@ -392,10 +395,10 @@ impl KeepAlive {
 /// TODO: Add a url variable example
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MatchedRequest<'a> {
-    pub request: &'a Request<'a>,
+    pub request: Request<'a>,
     #[cfg(feature = "url_variables")]
-    pub vars: &'a HashMap<&'a str, &'a str>,
+    pub vars: HashMap<String, String>,
 }
 
 deref!(MatchedRequest<'a>, Request<'a>, request);
-deref!(Headers<'a>, HashMap<String, String>, parsed);
+deref!(Headers, HashMap<String, String>, parsed);

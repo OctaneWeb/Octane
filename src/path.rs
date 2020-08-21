@@ -106,6 +106,25 @@ pub struct MatchedPath<'a, T> {
     pub data: &'a T,
 }
 
+#[derive(Clone)]
+pub struct OwnedMatchedPath<T> {
+    pub vars: HashMap<String, String>,
+    pub data: T,
+}
+
+deref!(OwnedMatchedPath<T>, T, data);
+
+pub fn matched_path_to_owned<T: Clone>(mp: &MatchedPath<T>) -> OwnedMatchedPath<T> {
+    OwnedMatchedPath {
+        vars: mp
+            .vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        data: mp.data.clone(),
+    }
+}
+
 deref!(PathData<T>, T, data);
 deref!(MatchedPath<'a, T>, T, data);
 

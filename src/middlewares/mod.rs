@@ -1,24 +1,25 @@
-use crate::path::PathNode;
-use crate::request::RequestMethod;
 use crate::router::Closure;
-use std::collections::HashMap;
 
-pub type Paths = HashMap<RequestMethod, PathNode<Closures>>;
-
+#[derive(Clone)]
 pub struct Closures {
     pub closure: Closure,
     pub index: usize,
 }
 
-pub fn run() {}
+impl Closures {
+    // shift all the closure exection here or in a function idk
+    pub fn run() {}
+}
 
 #[macro_export]
 macro_rules! inject_method {
     ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
+        use crate::constants::CLOSURES;
         use crate::middlewares::Closures;
         use crate::path::PathNode;
-        $instance
-            .paths
+        CLOSURES
+            .lock()
+            .unwrap()
             .entry($method)
             .or_insert(PathNode::new())
             .insert(

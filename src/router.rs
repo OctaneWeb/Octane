@@ -1,17 +1,18 @@
+use crate::constants::CLOSURES;
+use crate::default;
 use crate::inject_method;
-use crate::middlewares::{Closures, Paths};
+use crate::middlewares::Closures;
 use crate::path::{InvalidPathError, PathBuf};
 use crate::request::{MatchedRequest, RequestMethod};
 use crate::responder::Response;
-use crate::{default, deref};
 use core::future::Future;
 use core::pin::Pin;
-use std::collections::HashMap;
 use std::result::Result;
+use std::sync::Arc;
 
 /// The Closure type is a type alias for the type
 /// that the routes should return
-pub type Closure = Box<
+pub type Closure = Arc<
     dyn for<'a> Fn(
             &'a MatchedRequest,
             &'a mut Response,
@@ -204,7 +205,6 @@ pub trait Route {
 /// methods can be used with this struct also with
 /// the main server structure
 pub struct Router {
-    pub paths: Paths,
     pub route_counter: usize,
     pub middlewares: Vec<Closures>,
 }
@@ -216,7 +216,6 @@ impl Router {
     /// instance by doing `app.use_router(router)`.
     pub fn new() -> Self {
         Router {
-            paths: HashMap::new(),
             route_counter: 0,
             middlewares: Vec::new(),
         }
@@ -228,14 +227,15 @@ impl Router {
     pub fn append(&mut self, router: Self) {
         let self_count = self.route_counter;
         let other_count = router.route_counter;
-        for (methods, paths) in router.paths.into_iter() {
-            if let Some(x) = self.paths.get_mut(&methods) {
+        let mut closures = CLOSURES.lock().unwrap();
+        for (methods, paths) in closures.clone().into_iter() {
+            if let Some(x) = CLOSURES.lock().unwrap().get_mut(&methods) {
                 x.extend(paths.into_iter().map(|mut v| {
                     v.data.index += self_count;
                     v
                 }));
             } else {
-                self.paths.insert(methods, paths);
+                closures.insert(methods, paths.clone());
             }
         }
 
@@ -275,7 +275,6 @@ macro_rules! route {
     };
 }
 
-deref!(Router, Paths, paths);
 default!(Router);
 
 impl Route for Router {

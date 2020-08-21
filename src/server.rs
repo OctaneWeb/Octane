@@ -286,7 +286,6 @@ impl Octane {
                         let mut routes = functions.get(&req.path);
                         routes.sort_by_key(|v| v.index);
                         let owned_routes = routes
-                            .clone()
                             .iter()
                             .map(|e| crate::path::matched_path_to_owned(e))
                             .collect();
@@ -297,7 +296,6 @@ impl Octane {
                         let mut routes = functions.get(&req.path);
                         routes.sort_by_key(|v| v.index);
                         let owned_routes = routes
-                            .clone()
                             .iter()
                             .map(|e| crate::path::matched_path_to_owned(e))
                             .collect();

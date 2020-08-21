@@ -235,7 +235,7 @@ impl Router {
                     v
                 }));
             } else {
-                closures.insert(methods, paths.clone());
+                closures.insert(methods, paths);
             }
         }
 

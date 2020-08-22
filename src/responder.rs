@@ -282,7 +282,7 @@ impl Response {
     /// ```no_run
     /// use octane::server::Octane;
     /// use octane::{route, router::{Flow, Route}};
-    /// use octane::constants::StatusCode;
+    /// use octane::responder::StatusCode;
     ///
     /// fn main() {
     ///     let mut app = Octane::new();

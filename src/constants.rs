@@ -32,7 +32,7 @@ lazy_static! {
     pub static ref CLOSURES: Mutex<Paths> = Mutex::new(HashMap::new());
 }
 
-pub fn with_lock<F, T>(f: F) -> T
+pub fn closures_lock<F, T>(f: F) -> T
 where
     F: FnOnce(&mut HashMap<RequestMethod, PathNode<Closures>>) -> T,
 {

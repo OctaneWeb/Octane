@@ -1,12 +1,17 @@
+use crate::constants::closures_lock;
 use crate::constants::CLOSURES;
 use crate::default;
 use crate::inject_method;
 use crate::middlewares::Closures;
+use crate::path::matched_path_to_owned;
+use crate::path::OwnedMatchedPath;
 use crate::path::{InvalidPathError, PathBuf};
+use crate::request::Request;
 use crate::request::{MatchedRequest, RequestMethod};
 use crate::responder::Response;
 use core::future::Future;
 use core::pin::Pin;
+use std::collections::HashMap;
 use std::result::Result;
 use std::sync::Arc;
 
@@ -229,7 +234,7 @@ impl Router {
         let other_count = router.route_counter;
         let mut closures = CLOSURES.lock().unwrap();
         for (methods, paths) in closures.clone().into_iter() {
-            if let Some(x) = CLOSURES.lock().unwrap().get_mut(&methods) {
+            if let Some(x) = closures.get_mut(&methods) {
                 x.extend(paths.into_iter().map(|mut v| {
                     v.data.index += self_count;
                     v
@@ -245,6 +250,76 @@ impl Router {
                 v
             }));
         self.route_counter += other_count;
+    }
+    /// Runs all the closures
+    pub async fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
+        let req = &parsed_request.request_line;
+        let mut matches: Vec<Vec<OwnedMatchedPath<Closures>>> = Vec::new();
+
+        closures_lock(|map| {
+            if let Some(functions) = map.get(&req.method) {
+                let mut routes = functions.get(&req.path);
+                routes.sort_by_key(|v| v.index);
+                let owned_routes = routes
+                    .into_iter()
+                    .map(|e| matched_path_to_owned(&e))
+                    .collect();
+                matches.push(owned_routes);
+            };
+            // run RequestMethod::All regardless of the request method
+            if let Some(functions) = map.get(&RequestMethod::All) {
+                let mut routes = functions.get(&req.path);
+                routes.sort_by_key(|v| v.index);
+                let owned_routes = routes
+                    .into_iter()
+                    .map(|e| crate::path::matched_path_to_owned(&e))
+                    .collect();
+
+                matches.push(owned_routes);
+            }
+        });
+        matches.push(
+            self.middlewares
+                .clone()
+                .into_iter()
+                .map(|c| OwnedMatchedPath {
+                    data: c,
+                    #[cfg(feature = "url_variables")]
+                    vars: HashMap::new(),
+                })
+                .collect(),
+        );
+
+        let mut indices = vec![0_usize; matches.len()];
+        let total: usize = matches.iter().map(Vec::len).sum();
+        #[cfg(feature = "url_variables")]
+        let mut matched = MatchedRequest {
+            request: parsed_request.clone(),
+            vars: HashMap::new(),
+        };
+        #[cfg(not(feature = "url_variables"))]
+        let matched = MatchedRequest {
+            request: &parsed_request,
+        };
+        for _ in 0..total {
+            let mut minind = 0;
+            let mut minval = usize::MAX;
+            for (n, (v, i)) in matches.iter().zip(indices.iter()).enumerate() {
+                if *i < v.len() && v[*i].index < minval {
+                    minval = v[*i].index;
+                    minind = n;
+                }
+            }
+            #[cfg(feature = "url_variables")]
+            {
+                matched.vars = matches[minind][indices[minind]].vars.clone();
+            }
+            let flow = (matches[minind][indices[minind]].closure)(&matched, &mut res).await;
+            indices[minind] += 1;
+            if !flow.should_continue() {
+                break;
+            }
+        }
     }
 }
 /// The route macro makes it easy to pass anonymous

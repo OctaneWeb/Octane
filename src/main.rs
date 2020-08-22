@@ -13,7 +13,12 @@ fn main() {
     let mut router = Router::new();
     config.add_static_dir("/", "templates");
     config.add_static_dir("/", "target");
+    config
+        .ssl(8000)
+        .key("templates/key.pem")
+        .cert("templates/cert.pem");
     app.with_config(config);
+    println!("test");
     router
         .get(
             "/",
@@ -41,7 +46,9 @@ fn main() {
             }),
         )
         .unwrap();
+
     app.with_router(router);
+
     app.get(
         "/to_home",
         route!(|req, res| {
@@ -60,5 +67,5 @@ fn main() {
         }),
     )
     .unwrap();
-    app.listen(8000).expect("Cannot establish connection");
+    app.listen(8080).expect("Cannot establish connection");
 }

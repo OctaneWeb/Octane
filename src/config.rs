@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 #[cfg(feature = "rustls")]
 use tokio_rustls::rustls::{
-    internal::pemfile::{certs, pkcs8_private_keys},
+    internal::pemfile::{certs, rsa_private_keys},
     Certificate, PrivateKey,
 };
 
@@ -317,32 +317,19 @@ impl OctaneConfig {
     /// use this directly
     #[cfg(feature = "rustls")]
     pub fn get_cert(&self) -> std::io::Result<Vec<Certificate>> {
-        if self.ssl.is_good() {
-            let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.cert)?);
-            certs(&mut buf)
-                .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Certs"))
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid Certs",
-            ))
-        }
+        self.ssl.validate();
+        let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.cert)?);
+        certs(&mut buf)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Certs"))
     }
     /// Get the private key as a Vec<PrivateKey>, a user will not have to
     /// use this directly
     #[cfg(feature = "rustls")]
     pub fn get_key(&self) -> std::io::Result<Vec<PrivateKey>> {
-        use std::io::Read;
-        if self.ssl.is_good() {
-            let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.key)?);
-            pkcs8_private_keys(&mut buf)
-                .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid Key",
-            ))
-        }
+        self.ssl.validate();
+        let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.key)?);
+        rsa_private_keys(&mut buf)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))
     }
 }
 

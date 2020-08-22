@@ -1,23 +1,17 @@
 use crate::config::{Config, OctaneConfig, Ssl};
-use crate::constants::with_lock;
 use crate::constants::*;
 use crate::default;
 use crate::error::Error;
 use crate::inject_method;
-use crate::middlewares::Closures;
-use crate::path::OwnedMatchedPath;
 use crate::path::PathBuf;
-
 use crate::request::{
-    parse_without_body, Headers, HttpVersion, KeepAlive, MatchedRequest, Request, RequestLine,
-    RequestMethod,
+    parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
 };
 use crate::responder::{BoxReader, Response};
 use crate::router::{Closure, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
 #[cfg(feature = "url_variables")]
-use std::collections::HashMap;
 use std::io::Result;
 use std::marker::Unpin;
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -137,7 +131,6 @@ impl Octane {
     /// }
     /// ```
     pub fn listen(self, port: u16) -> Result<()> {
-        let ssl_enable = false;
         let mut builder = Builder::new();
         builder.threaded_scheduler().enable_io();
         if let Some(threads) = &self.settings.worker_threads {
@@ -148,8 +141,6 @@ impl Octane {
             let mut listener =
                 TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
             let server = Arc::new(self);
-            #[cfg(all(feature = "openSSL", feature = "rustls"))]
-            compile_error!("openSSL and rustls are both enabled, you may want to one of those");
             #[cfg(any(feature = "openSSL", feature = "rustls"))]
             {
                 let mut ssl_listener = TcpListener::bind(SocketAddrV4::new(
@@ -158,11 +149,10 @@ impl Octane {
                 ))
                 .await?;
                 server.settings.ssl.validate();
-                ssl_enable = true;
                 #[cfg(feature = "openSSL")]
-                let acceptor = tls::openssl::acceptor(&server.settings)?;
+                let acceptor = crate::tls::openssl::acceptor(&server.settings)?;
                 #[cfg(feature = "rustls")]
-                let acceptor = tls::rustls::acceptor(&server.settings)?;
+                let acceptor = crate::tls::rustls::acceptor(&server.settings)?;
                 let server_clone = Arc::clone(&server);
                 tokio::spawn(async move {
                     while let Some(stream) = StreamExt::next(&mut ssl_listener).await {
@@ -178,8 +168,7 @@ impl Octane {
                                     match stream {
                                         Ok(stream_ssl) => {
                                             let _res =
-                                                Self::catch_request(stream_ssl, server_clone, true)
-                                                    .await;
+                                                Self::catch_request(stream_ssl, server_clone).await;
                                         }
                                         Err(e) => println!("{:#?}", e),
                                     }
@@ -197,7 +186,7 @@ impl Octane {
                 tokio::spawn(async move {
                     match stream {
                         Ok(value) => {
-                            let _res = Self::catch_request(value, server_clone, ssl_enable).await;
+                            let _res = Self::catch_request(value, server_clone).await;
                         }
                         Err(_e) => (),
                     };
@@ -206,7 +195,7 @@ impl Octane {
             Ok(())
         })
     }
-    async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>, has_ssl: bool) -> Result<()>
+    async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>) -> Result<()>
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
@@ -279,75 +268,7 @@ impl Octane {
             let mut res = Response::new_from_slice(b"");
             let req = &parsed_request.request_line;
             if req.method.is_some() {
-                let mut matches: Vec<Vec<OwnedMatchedPath<Closures>>> = Vec::new();
-
-                with_lock(|map| {
-                    if let Some(functions) = map.get(&req.method) {
-                        let mut routes = functions.get(&req.path);
-                        routes.sort_by_key(|v| v.index);
-                        let owned_routes = routes
-                            .iter()
-                            .map(|e| crate::path::matched_path_to_owned(e))
-                            .collect();
-                        matches.push(owned_routes);
-                    };
-                    // run RequestMethod::All regardless of the request method
-                    if let Some(functions) = map.get(&RequestMethod::All) {
-                        let mut routes = functions.get(&req.path);
-                        routes.sort_by_key(|v| v.index);
-                        let owned_routes = routes
-                            .iter()
-                            .map(|e| crate::path::matched_path_to_owned(e))
-                            .collect();
-
-                        matches.push(owned_routes);
-                    }
-                });
-                matches.push(
-                    server
-                        .router
-                        .middlewares
-                        .clone()
-                        .into_iter()
-                        .map(|c| OwnedMatchedPath {
-                            data: c,
-                            #[cfg(feature = "url_variables")]
-                            vars: HashMap::new(),
-                        })
-                        .collect(),
-                );
-
-                let mut indices = vec![0_usize; matches.len()];
-                let total: usize = matches.iter().map(Vec::len).sum();
-                #[cfg(feature = "url_variables")]
-                let mut matched = MatchedRequest {
-                    request: parsed_request.clone(),
-                    vars: HashMap::new(),
-                };
-                #[cfg(not(feature = "url_variables"))]
-                let matched = MatchedRequest {
-                    request: &parsed_request,
-                };
-                for _ in 0..total {
-                    let mut minind = 0;
-                    let mut minval = usize::MAX;
-                    for (n, (v, i)) in matches.iter().zip(indices.iter()).enumerate() {
-                        if *i < v.len() && v[*i].index < minval {
-                            minval = v[*i].index;
-                            minind = n;
-                        }
-                    }
-                    #[cfg(feature = "url_variables")]
-                    {
-                        matched.vars = matches[minind][indices[minind]].vars.clone();
-                    }
-                    let flow = (matches[minind][indices[minind]].closure)(&matched, &mut res).await;
-                    indices[minind] += 1;
-                    if !flow.should_continue() {
-                        break;
-                    }
-                }
-
+                server.router.run(parsed_request.clone(), &mut res).await;
                 // Run static file middleware
                 if res.content_len.unwrap_or(0) == 0 {
                     let mut parent_path = req.path.clone();
@@ -366,25 +287,6 @@ impl Octane {
                     declare_error!(stream_async, StatusCode::NotFound, settings);
                 }
 
-                if let Some(x) = parsed_request.headers.get("upgrade-insecure-requests") {
-                    match x.as_str() {
-                        "1" => {
-                            if has_ssl {
-                                res.redirect(
-                                    format!(
-                                        "https://{:?}/{:?}",
-                                        parsed_request.headers.get("Host"),
-                                        parsed_request.request_line.path
-                                    )
-                                    .as_str(),
-                                );
-                            } else {
-                                res.set("Vary", "Upgrade-Insecure-Requests");
-                            }
-                        }
-                        _ => (),
-                    }
-                }
                 Self::send_data(res.get_data(), stream_async).await?;
             } else {
                 declare_error!(stream_async, StatusCode::NotImplemented, settings);

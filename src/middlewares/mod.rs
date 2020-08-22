@@ -6,11 +6,6 @@ pub struct Closures {
     pub index: usize,
 }
 
-impl Closures {
-    // shift all the closure exection here or in a function idk
-    pub fn run() {}
-}
-
 #[macro_export]
 macro_rules! inject_method {
     ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {

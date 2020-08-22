@@ -7,11 +7,10 @@ use crate::path::PathBuf;
 use crate::request::{
     parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
 };
-use crate::responder::{BoxReader, Response};
+use crate::responder::{BoxReader, Response, StatusCode};
 use crate::router::{Closure, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
-#[cfg(feature = "url_variables")]
 use std::io::Result;
 use std::marker::Unpin;
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -61,7 +60,7 @@ pub struct Octane {
 }
 
 impl Octane {
-    /// Creates a new server instance
+    /// Creates a new server instance with empty config and empty router
     pub fn new() -> Self {
         Octane {
             settings: OctaneConfig::new(),

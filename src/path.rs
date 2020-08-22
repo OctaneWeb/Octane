@@ -73,26 +73,6 @@ impl PathBuf {
     }
 }
 
-deref!(PathBuf, Vec<String>, chunks);
-
-impl TryFrom<String> for PathBuf {
-    type Error = InvalidPathError;
-
-    fn try_from(val: String) -> Result<Self, Self::Error> {
-        Self::parse(&val)
-    }
-}
-
-impl TryFrom<&str> for PathBuf {
-    type Error = InvalidPathError;
-
-    fn try_from(val: &str) -> Result<Self, Self::Error> {
-        Self::parse(val)
-    }
-}
-
-default!(PathBuf);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathData<T> {
     pub orig_path: PathBuf,
@@ -112,8 +92,6 @@ pub struct OwnedMatchedPath<T> {
     pub data: T,
 }
 
-deref!(OwnedMatchedPath<T>, T, data);
-
 pub fn matched_path_to_owned<T: Clone>(mp: &MatchedPath<T>) -> OwnedMatchedPath<T> {
     OwnedMatchedPath {
         vars: mp
@@ -124,9 +102,6 @@ pub fn matched_path_to_owned<T: Clone>(mp: &MatchedPath<T>) -> OwnedMatchedPath<
         data: mp.data.clone(),
     }
 }
-
-deref!(PathData<T>, T, data);
-deref!(MatchedPath<'a, T>, T, data);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathChunk {
@@ -246,16 +221,10 @@ impl<T> PathNode<T> {
     }
 }
 
-default!(PathNode<T>);
-
 pub struct PathNodeIterator<'a, T> {
     stack: Vec<hash_map::Values<'a, PathChunk, PathNode<T>>>,
     curvec: Option<&'a Vec<PathData<T>>>,
     curind: usize,
-}
-
-fn get_second<T>(tup: (PathChunk, PathNode<T>)) -> PathNode<T> {
-    tup.1
 }
 
 pub struct OwnedPathNodeIterator<T, F>
@@ -382,4 +351,35 @@ impl<T> Extend<PathData<T>> for PathNode<T> {
             self.insert(dat.orig_path, dat.data);
         }
     }
+}
+
+impl TryFrom<String> for PathBuf {
+    type Error = InvalidPathError;
+
+    fn try_from(val: String) -> Result<Self, Self::Error> {
+        Self::parse(&val)
+    }
+}
+
+impl TryFrom<&str> for PathBuf {
+    type Error = InvalidPathError;
+
+    fn try_from(val: &str) -> Result<Self, Self::Error> {
+        Self::parse(val)
+    }
+}
+
+default!(PathBuf);
+default!(PathNode<T>);
+deref!(OwnedMatchedPath<T>, T, data);
+deref!(PathData<T>, T, data);
+deref!(MatchedPath<'a, T>, T, data);
+deref!(PathBuf, Vec<String>, chunks);
+
+pub fn is_ctl(c: char) -> bool {
+    c < '\x1f' || c == '\x7f'
+}
+
+fn get_second<T>(tup: (PathChunk, PathNode<T>)) -> PathNode<T> {
+    tup.1
 }

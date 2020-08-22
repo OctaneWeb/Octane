@@ -1,6 +1,7 @@
 use crate::config::OctaneConfig;
-use crate::constants::*;
+
 use crate::file_handler::FileHandler;
+use crate::responder::StatusCode;
 use crate::responder::{BoxReader, Response};
 use crate::server::Octane;
 use std::io::Result;
@@ -12,6 +13,9 @@ pub struct Error {
     kind: StatusCode,
     file_404: PathBuf,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidPathError;
 
 impl Error {
     pub fn err(status_code: StatusCode, config: &OctaneConfig) -> Self {

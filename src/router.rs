@@ -1,13 +1,10 @@
-use crate::constants::closures_lock;
-use crate::constants::CLOSURES;
+use crate::constants::{closures_lock, CLOSURES};
 use crate::default;
 use crate::inject_method;
 use crate::middlewares::Closures;
-use crate::path::matched_path_to_owned;
-use crate::path::OwnedMatchedPath;
-use crate::path::{InvalidPathError, PathBuf};
-use crate::request::Request;
-use crate::request::{MatchedRequest, RequestMethod};
+use crate::path::PathNode;
+use crate::path::{matched_path_to_owned, InvalidPathError, OwnedMatchedPath, PathBuf};
+use crate::request::{MatchedRequest, Request, RequestMethod};
 use crate::responder::Response;
 use core::future::Future;
 use core::pin::Pin;
@@ -15,6 +12,8 @@ use std::collections::HashMap;
 use std::result::Result;
 use std::sync::Arc;
 
+/// The type of HashMap where we will be storing the all the closures
+pub type Paths = HashMap<RequestMethod, PathNode<Closures>>;
 /// The Closure type is a type alias for the type
 /// that the routes should return
 pub type Closure = Arc<
@@ -299,7 +298,7 @@ impl Router {
         };
         #[cfg(not(feature = "url_variables"))]
         let matched = MatchedRequest {
-            request: &parsed_request,
+            request: parsed_request,
         };
         for _ in 0..total {
             let mut minind = 0;

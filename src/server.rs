@@ -244,40 +244,42 @@ impl Octane {
         } else {
             body = &[];
         }
-        if let Some(parsed_request) = Request::parse(request_line, headers, body) {
+        if let Some(request) = Request::parse(request_line, headers, body) {
+            let request_line = &request.request_line;
+            let mut res = Response::new_from_slice(b"");
             // Detect http version and validate
-            let checker = Validator::validate(&parsed_request);
+            let checker = Validator::validate(&request);
             if checker.is_malformed() {
                 declare_error!(stream_async, checker.err_code.unwrap(), settings);
             }
-            if checker.keep_alive() {
-                match checker.keep_alive {
-                    KeepAliveState::UserDefined => (),
-                    KeepAliveState::Particular(x) => {
-                        stream_async.stream_mut().set_keepalive(Some(x))?;
-                    }
-                    _ => (),
+            match checker.keep_alive {
+                KeepAliveState::UserDefined => stream_async
+                    .stream_mut()
+                    .set_keepalive(server.settings.keep_alive)?,
+                KeepAliveState::Particular(x) => {
+                    stream_async.stream_mut().set_keepalive(Some(x))?
+                }
+                KeepAliveState::Close => {
+                    res.set("Connection", "Close");
                 }
             }
             // Check for http2 connection header here, if found then call a http2 parse
             // function that will parse http2 frames and parse the request from that
-            if let Some(x) = parsed_request.headers.get("connection") {
+            if let Some(x) = request.headers.get("connection") {
                 if x == "upgrade" {
                     // upgrade here
                 }
             }
-
-            let mut res = Response::new_from_slice(b"");
-            let req = &parsed_request.request_line;
-            if req.method.is_some() {
-                server.router.run(parsed_request.clone(), &mut res).await;
+            if request_line.method.is_some() {
+                // run closures
+                server.router.run(request.clone(), &mut res).await;
                 // Run static file middleware
                 if res.content_len.unwrap_or(0) == 0 {
-                    let mut parent_path = req.path.clone();
+                    let mut parent_path = request_line.path.clone();
                     parent_path.chunks.pop();
                     for loc in server.settings.static_dir.iter() {
                         for dirs in loc.1.into_iter() {
-                            if req.method == RequestMethod::Get {
+                            if request_line.method == RequestMethod::Get {
                                 let mut dir_final = dirs.clone();
                                 dir_final.extend(parent_path.clone().chunks);
                                 res.send_file(dir_final).await.ok(); // ignore result

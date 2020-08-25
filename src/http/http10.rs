@@ -12,6 +12,8 @@ pub fn http10_check(validator: &mut Validator) {
                     header_details.timeout.unwrap_or(0),
                 )));
             }
+        } else if connection_type == "close" {
+            validator.set_keepalive(KeepAliveState::Close)
         }
     }
 }

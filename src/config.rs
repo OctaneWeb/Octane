@@ -314,7 +314,7 @@ impl OctaneConfig {
     }
 
     /// Get the certs as a Vec<Certificate>, a user will not have to
-    /// use this directly
+    /// use this directly, this is used and done for them
     #[cfg(feature = "rustls")]
     pub fn get_cert(&self) -> std::io::Result<Vec<Certificate>> {
         self.ssl.validate();

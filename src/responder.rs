@@ -557,6 +557,7 @@ impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Response")
             .field("status_code", &self.status_code)
+            .field("headers", &self.headers)
             .field("http_version", &self.http_version)
             .finish()
     }

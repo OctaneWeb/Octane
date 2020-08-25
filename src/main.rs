@@ -1,54 +1,16 @@
-use octane::config::{Config, OctaneConfig};
+use octane::config::Config;
 use octane::server::Octane;
-
-use octane::request::HttpVersion;
 use octane::{
     route,
-    router::{Flow, Route, Router},
+    router::{Flow, Route},
 };
 
 fn main() {
     let mut app = Octane::new();
-    let mut config = OctaneConfig::new();
-    let mut router = Router::new();
-    config.add_static_dir("/", "templates");
-    config.add_static_dir("/", "target");
-    config
-        .ssl(8000)
+    app.ssl(8000)
         .key("templates/key.pem")
         .cert("templates/cert.pem");
-    app.with_config(config);
-    println!("test");
-    router
-        .get(
-            "/",
-            route!(|req, res| {
-                res.with_type("application/json")
-                    .send(r#"{"server": "Octane"}"#);
-                Flow::Stop
-            }),
-        )
-        .unwrap();
-    router
-        .add(route!(|req, res| {
-            println!("This is a middleware!");
-            Flow::Next
-        }))
-        .unwrap();
-    router
-        .get(
-            "/testing",
-            route!(|req, res| {
-                let some_header = req.headers.get("HeaderName");
-                res.with_type("application/json")
-                    .send(r#"{"hotel": "trivago"}"#);
-                Flow::Stop
-            }),
-        )
-        .unwrap();
-
-    app.with_router(router);
-
+    app.set_keepalive(std::time::Duration::new(7, 0));
     app.get(
         "/to_home",
         route!(|req, res| {
@@ -60,12 +22,20 @@ fn main() {
     app.get(
         "/",
         route!(|req, res| {
-            if req.request_line.version == HttpVersion::Http11 {
-                // do something
-            }
+            res.send("test");
             Flow::Stop
         }),
     )
     .unwrap();
+    // app.get(
+    //     "/test",
+    //     route!(|req, res| {
+    //         //res.send_file(std::path::PathBuf::from("templates/favicon.ico"))
+    //             .await
+    //             .expect("oof");
+    //         Flow::Next
+    //     }),
+    // )
+    // .unwrap();
     app.listen(8080).expect("Cannot establish connection");
 }

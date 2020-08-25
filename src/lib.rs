@@ -66,6 +66,7 @@ pub mod constants;
 pub mod cookies;
 pub mod error;
 pub mod file_handler;
+pub mod http;
 pub mod middlewares;
 pub mod path;
 pub mod query;
@@ -76,7 +77,6 @@ pub mod server;
 pub mod time;
 pub mod tls;
 pub mod util;
-
 // convenient aliasing for octane_json
 pub use octane_json as json;
 

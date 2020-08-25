@@ -17,6 +17,7 @@ pub fn acceptor(settings: &OctaneConfig) -> Result<TlsAcceptor> {
     config
         .set_single_cert(settings.get_cert()?, settings.get_key()?.remove(0))
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+    config.set_protocols(&["h2".as_bytes().to_vec()]);
     let acceptor = TlsAcceptor::from(Arc::new(config));
     Ok(acceptor)
 }

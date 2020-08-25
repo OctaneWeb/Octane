@@ -2,6 +2,7 @@ use crate::constants::*;
 #[cfg(feature = "cookies")]
 use crate::cookies::Cookies;
 use crate::deref;
+use crate::path::is_ctl;
 use crate::path::PathBuf;
 use crate::util::Spliterator;
 use std::cfg;

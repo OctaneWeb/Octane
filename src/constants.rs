@@ -43,10 +43,6 @@ where
     f(&mut *lock)
 }
 
-pub fn is_ctl(c: char) -> bool {
-    c < '\x1f' || c == '\x7f'
-}
-
 #[macro_export]
 macro_rules! deref {
     ( $struct : ident<$($gen: tt),+>, $target : ty, $body : ident ) => {

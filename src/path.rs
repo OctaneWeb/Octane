@@ -1,3 +1,4 @@
+use crate::error::InvalidPathError;
 use crate::{default, deref};
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
@@ -7,9 +8,6 @@ use std::iter::{Iterator, Map};
 pub struct PathBuf {
     pub chunks: Vec<String>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InvalidPathError;
 
 impl PathBuf {
     pub fn new() -> Self {

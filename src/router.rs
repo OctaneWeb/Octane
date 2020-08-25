@@ -1,9 +1,10 @@
 use crate::constants::{closures_lock, CLOSURES};
 use crate::default;
+use crate::error::InvalidPathError;
 use crate::inject_method;
 use crate::middlewares::Closures;
 use crate::path::PathNode;
-use crate::path::{matched_path_to_owned, InvalidPathError, OwnedMatchedPath, PathBuf};
+use crate::path::{matched_path_to_owned, OwnedMatchedPath, PathBuf};
 use crate::request::{MatchedRequest, Request, RequestMethod};
 use crate::responder::Response;
 use core::future::Future;

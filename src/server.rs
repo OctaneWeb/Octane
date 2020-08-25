@@ -2,11 +2,10 @@ use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::default;
 use crate::error::Error;
+use crate::http::{KeepAliveState, Validator};
 use crate::inject_method;
 use crate::path::PathBuf;
-use crate::request::{
-    parse_without_body, Headers, HttpVersion, KeepAlive, Request, RequestLine, RequestMethod,
-};
+use crate::request::{parse_without_body, Headers, Request, RequestLine, RequestMethod};
 use crate::responder::{BoxReader, Response, StatusCode};
 use crate::router::{Closure, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
@@ -24,7 +23,7 @@ use tokio::prelude::*;
 use tokio::runtime::Builder;
 use tokio::stream::StreamExt;
 
-#[macro_use]
+#[macro_export]
 macro_rules! declare_error {
     ($stream : expr, $error_type : expr, $settings : expr) => {
         Error::err($error_type, $settings).send($stream).await?;
@@ -205,12 +204,14 @@ impl Octane {
         let request_line: RequestLine;
         let headers: Headers;
         let body_remainder: &[u8];
+
         loop {
             let read = stream_async.read(&mut buf).await?;
             if read == 0 {
                 declare_error!(stream_async, StatusCode::BadRequest, settings);
             }
             let cur = &buf[..read];
+
             data.extend_from_slice(cur);
             if let Some(i) = find_in_slice(&data[..], b"\r\n\r\n") {
                 let first = &data[..i];
@@ -244,23 +245,25 @@ impl Octane {
             body = &[];
         }
         if let Some(parsed_request) = Request::parse(request_line, headers, body) {
-            if let Some(connection_type) = parsed_request.headers.get("connection") {
-                if connection_type.to_lowercase() == "keep-alive" {
-                    if parsed_request.request_line.version == HttpVersion::Http10 {
-                        if let Some(keep_alive_header) = parsed_request.headers.get("keep-alive") {
-                            let header_details = KeepAlive::parse(keep_alive_header);
-
-                            stream_async
-                                .stream_mut()
-                                .set_keepalive(Some(Duration::from_secs(
-                                    header_details.timeout.unwrap_or(0),
-                                )))?;
-                        }
-                    } else if parsed_request.request_line.version == HttpVersion::Http11 {
-                        stream_async
-                            .stream_mut()
-                            .set_keepalive(server.settings.keep_alive)?;
+            // Detect http version and validate
+            let checker = Validator::validate(&parsed_request);
+            if checker.is_malformed() {
+                declare_error!(stream_async, checker.err_code.unwrap(), settings);
+            }
+            if checker.keep_alive() {
+                match checker.keep_alive {
+                    KeepAliveState::UserDefined => (),
+                    KeepAliveState::Particular(x) => {
+                        stream_async.stream_mut().set_keepalive(Some(x))?;
                     }
+                    _ => (),
+                }
+            }
+            // Check for http2 connection header here, if found then call a http2 parse
+            // function that will parse http2 frames and parse the request from that
+            if let Some(x) = parsed_request.headers.get("connection") {
+                if x == "upgrade" {
+                    // upgrade here
                 }
             }
 
@@ -285,7 +288,6 @@ impl Octane {
                 if res.content_len.unwrap_or(0) == 0 {
                     declare_error!(stream_async, StatusCode::NotFound, settings);
                 }
-
                 Self::send_data(res.get_data(), stream_async).await?;
             } else {
                 declare_error!(stream_async, StatusCode::NotImplemented, settings);

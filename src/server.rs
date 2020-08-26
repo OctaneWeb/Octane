@@ -1,16 +1,16 @@
 use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
-use crate::default;
 use crate::error::Error;
 use crate::http::{KeepAliveState, Validator};
 use crate::inject_method;
 use crate::path::PathBuf;
 use crate::request::{parse_without_body, Headers, Request, RequestLine, RequestMethod};
 use crate::responder::{BoxReader, Response, StatusCode};
-use crate::router::{Closure, Route, Router, RouterResult};
+use crate::router::{Closure, Flow, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
-use std::io::Result;
+use crate::{default, route};
+use std::error::Error as StdError;
 use std::marker::Unpin;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf as StdPathBuf;
@@ -115,6 +115,24 @@ impl Octane {
     pub fn with_config(&mut self, config: OctaneConfig) {
         self.settings.append(config);
     }
+    pub fn static_dir(dir: &'static str) -> Closure {
+        route!(|req, res| {
+            let static_dir_name = std::path::PathBuf::from(dir);
+            let final_url = static_dir_name.join(req.request_line.path.to_std_pathbuf());
+            println!("{:?}", req.request_line.path);
+            let final_string = final_url.to_str().unwrap();
+            if &final_string[final_string.len() - 1..] == "/" {
+                let stripped = &final_string[..final_string.len() - 1];
+                println!("{:?}", stripped);
+                res.send_file(stripped).await.expect("File not found!!");
+            } else {
+                println!("{:?}", final_string);
+                res.send_file(final_string).await.expect("File not found!!");
+            };
+
+            Flow::Next
+        })
+    }
     /// Start listening on the port specified, the listen
     /// function also starts the Ssl server if the features
     /// are enabled and the key/certs are provided
@@ -128,7 +146,7 @@ impl Octane {
     ///     app.listen(80).expect("Cannot establish connection");
     /// }
     /// ```
-    pub fn listen(self, port: u16) -> Result<()> {
+    pub fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
         let mut builder = Builder::new();
         builder.threaded_scheduler().enable_io();
         if let Some(threads) = &self.settings.worker_threads {
@@ -168,10 +186,10 @@ impl Octane {
                                             let _res =
                                                 Self::catch_request(stream_ssl, server_clone).await;
                                         }
-                                        Err(e) => println!("{:#?}", e),
+                                        Err(e) => panic!("{:#?}", e),
                                     }
                                 }
-                                Err(e) => println!("{:#?}", e),
+                                Err(e) => panic!("{:#?}", e),
                             };
                         });
                     }
@@ -193,7 +211,10 @@ impl Octane {
             Ok(())
         })
     }
-    async fn catch_request<S>(mut stream_async: S, server: Arc<Octane>) -> Result<()>
+    async fn catch_request<S>(
+        mut stream_async: S,
+        server: Arc<Octane>,
+    ) -> Result<(), Box<dyn StdError>>
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
@@ -273,20 +294,6 @@ impl Octane {
             if request_line.method.is_some() {
                 // run closures
                 server.router.run(request.clone(), &mut res).await;
-                // Run static file middleware
-                if res.content_len.unwrap_or(0) == 0 {
-                    let mut parent_path = request_line.path.clone();
-                    parent_path.chunks.pop();
-                    for loc in server.settings.static_dir.iter() {
-                        for dirs in loc.1.into_iter() {
-                            if request_line.method == RequestMethod::Get {
-                                let mut dir_final = dirs.clone();
-                                dir_final.extend(parent_path.clone().chunks);
-                                res.send_file(dir_final).await.ok(); // ignore result
-                            }
-                        }
-                    }
-                }
                 if res.content_len.unwrap_or(0) == 0 {
                     declare_error!(stream_async, StatusCode::NotFound, settings);
                 }
@@ -299,7 +306,10 @@ impl Octane {
         }
         Ok(())
     }
-    pub async fn send_data<S>(mut response: (String, BoxReader), mut stream_async: S) -> Result<()>
+    pub async fn send_data<S>(
+        mut response: (String, BoxReader),
+        mut stream_async: S,
+    ) -> Result<(), Box<dyn StdError>>
     where
         S: AsyncWrite + Unpin,
     {
@@ -349,7 +359,7 @@ impl Config for Octane {
         }
     }
     fn set_404_file(&mut self, dir_name: &'static str) {
-        self.settings.file_404 = StdPathBuf::from(dir_name);
+        self.settings.file_404 = Some(StdPathBuf::from(dir_name));
     }
     fn with_ssl_config(&mut self, ssl_conf: Ssl) {
         self.settings.ssl.key = ssl_conf.key;

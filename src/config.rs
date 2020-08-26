@@ -143,7 +143,7 @@ pub struct OctaneConfig {
     pub static_dir: HashMap<PathBuf, Vec<PathBuf>>,
     pub ssl: Ssl,
     pub has_ssl: bool,
-    pub file_404: PathBuf,
+    pub file_404: Option<PathBuf>,
     pub worker_threads: Option<usize>,
 }
 
@@ -173,8 +173,8 @@ pub trait Config {
     /// app.add_static_dir("/", "templates");
     /// ```
     fn add_static_dir(&mut self, loc: &'static str, dir_name: &'static str);
-    /// Sets the keepalive duration for a keepalive request
-    ///
+    /// Sets the keepalive duration for a keepalive request,
+    /// by default, a 5 second keep alive is set
     /// # Example
     ///
     /// ```no_run
@@ -291,10 +291,10 @@ impl OctaneConfig {
         OctaneConfig {
             ssl: Ssl::new(),
             has_ssl: false,
-            keep_alive: None,
+            keep_alive: Some(Duration::from_secs(5)),
             worker_threads: None,
             static_dir: HashMap::new(),
-            file_404: PathBuf::new(),
+            file_404: None,
         }
     }
     /// Appends a settings instance to self
@@ -350,7 +350,7 @@ impl Config for OctaneConfig {
         }
     }
     fn set_404_file(&mut self, dir_name: &'static str) {
-        self.file_404 = PathBuf::from(dir_name);
+        self.file_404 = Some(PathBuf::from(dir_name));
     }
     fn with_ssl_config(&mut self, ssl_conf: Ssl) {
         self.ssl.key = ssl_conf.key;

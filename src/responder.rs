@@ -7,8 +7,9 @@ use crate::time::Time;
 use octane_json::convert::ToJSON;
 use octane_macros::status_codes;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fmt;
-use std::io::{Cursor, Result};
+use std::io::Cursor;
 use std::path::PathBuf;
 use tokio::io::AsyncRead;
 
@@ -193,6 +194,7 @@ impl Response {
         self.set("Content-Type", _type);
         self
     }
+
     /// Consume the response and get the final formed http
     /// response that the server will send in bytes
     pub fn get_data(self) -> (String, BoxReader) {
@@ -224,19 +226,17 @@ impl Response {
     /// );
     ///
     /// ```
-    pub async fn send_file(&mut self, file: PathBuf) -> Result<Option<()>> {
-        if let Some(file) = FileHandler::handle_file(&file)? {
-            self.headers.insert(
-                "Content-Type".to_string(),
-                FileHandler::mime_type(file.extension),
-            );
-            self.content_len = Some(file.meta.len() as usize);
-            self.body = Box::new(file.file) as BoxReader;
-            Ok(Some(()))
-        } else {
-            Ok(None)
-        }
+    pub async fn send_file(&mut self, file: &str) -> Result<Option<()>, Box<dyn Error>> {
+        let file = FileHandler::handle_file(&PathBuf::from(file))?;
+        self.headers.insert(
+            "Content-Type".to_string(),
+            FileHandler::mime_type(file.extension),
+        );
+        self.content_len = Some(file.meta.len() as usize);
+        self.body = Box::new(file.file) as BoxReader;
+        Ok(Some(()))
     }
+
     /// Converts the structure to a json string and sends
     /// it as the response with the mime type `application/json`.
     /// The structure which will be passed, should implement

@@ -1,9 +1,11 @@
+use crate::display;
 use crate::util::AsyncReader;
+use std::error::Error;
 use std::ffi::OsStr;
+use std::fmt;
+use std::fmt::Display;
 use std::fs::{File, Metadata};
-use std::io::Result;
 use std::path::PathBuf;
-
 /// The FileHandler structure is a helper struct
 /// to manage files, contents and extensions also
 /// to decide their mime types accordingly
@@ -14,25 +16,52 @@ pub struct FileHandler {
     pub meta: Metadata,
 }
 
+#[derive(Debug, Copy, Clone)]
+struct FileHandlerError {
+    err_type: u8,
+}
+
+impl FileHandlerError {
+    pub fn err(err_type: u8) -> Self {
+        FileHandlerError { err_type }
+    }
+}
+
+impl Display for FileHandlerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let err_string = match self.err_type {
+            0 => "File not found",
+            1 => "Not a file",
+            _ => "Unknown error",
+        };
+        write!(f, "File Handling error, {}", err_string)
+    }
+}
+
+impl Error for FileHandlerError {}
+
 impl FileHandler {
     /// Takes a Pathbuf and returns a FileHandler struct
-    pub fn handle_file(path: &PathBuf) -> Result<Option<Self>> {
-        let file = File::open(path)?;
-        if file.metadata()?.file_type().is_file() {
-            let extension = path
-                .as_path()
-                .extension()
-                .and_then(OsStr::to_str)
-                .unwrap_or("");
-            let meta = file.metadata()?;
-            Ok(Some(FileHandler {
-                file_name: path.file_name().and_then(OsStr::to_str).unwrap().to_owned(),
-                file: AsyncReader::new(file),
-                extension: extension.to_owned(),
-                meta,
-            }))
+    pub fn handle_file(path: &PathBuf) -> Result<Self, Box<dyn Error>> {
+        if let Ok(file) = File::open(path) {
+            if file.metadata()?.file_type().is_file() {
+                let extension = path
+                    .as_path()
+                    .extension()
+                    .and_then(OsStr::to_str)
+                    .unwrap_or("");
+                let meta = file.metadata()?;
+                Ok(FileHandler {
+                    file_name: path.file_name().and_then(OsStr::to_str).unwrap().to_owned(),
+                    file: AsyncReader::new(file),
+                    extension: extension.to_owned(),
+                    meta,
+                })
+            } else {
+                Err(Box::new(FileHandlerError::err(1)))
+            }
         } else {
-            Ok(None)
+            Err(Box::new(FileHandlerError::err(0)))
         }
     }
     /// A helper method to get extension from a

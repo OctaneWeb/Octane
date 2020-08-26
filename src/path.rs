@@ -15,6 +15,14 @@ impl PathBuf {
         PathBuf { chunks: Vec::new() }
     }
 
+    pub fn to_std_pathbuf(&self) -> std::path::PathBuf {
+        let mut path_string = String::new();
+        for chunks in &self.chunks {
+            path_string.push_str(format!("{}/", chunks).as_str());
+        }
+        std::path::PathBuf::from(path_string)
+    }
+
     pub fn parse(path: &str) -> Result<Self, InvalidPathError> {
         let mut chunks = Vec::new();
         for chunk in path.split('/') {

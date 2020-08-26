@@ -218,7 +218,7 @@ impl Response {
     ///     "/",
     ///     route!(
     ///         |req, res| {
-    ///             res.send_file(PathBuf::from("templates/index.html"));
+    ///             res.send_file("templates/index.html").await.expect("file not found");
     ///             assert_eq!(res.get("Content-Type"),  Some(&"text/html".to_owned()));
     ///             Flow::Stop
     ///         }

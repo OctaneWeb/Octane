@@ -26,7 +26,7 @@ use tokio::stream::StreamExt;
 #[macro_export]
 macro_rules! declare_error {
     ($stream : expr, $error_type : expr, $settings : expr) => {
-        Error::err($error_type, $settings).send($stream).await?;
+        Error::err($error_type, $settings, $stream).await?;
         return Ok(());
     };
 }
@@ -115,6 +115,22 @@ impl Octane {
     pub fn with_config(&mut self, config: OctaneConfig) {
         self.settings.append(config);
     }
+    /// Returns a closure which can be used with the add or add_route method
+    /// to serve a static directory.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::router::Route;
+    ///
+    /// let mut app = Octane::new();
+    ///
+    /// app.add(Octane::static_dir(concat!(
+    ///    env!("CARGO_MANIFEST_DIR"),
+    ///    "/pub_dir_name"
+    /// )));
+    /// ```
     pub fn static_dir(dir: &'static str) -> Closure {
         route!(|req, res| {
             let static_dir_name = std::path::PathBuf::from(dir);

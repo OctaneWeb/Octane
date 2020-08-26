@@ -1,9 +1,8 @@
-use crate::display;
 use crate::util::AsyncReader;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 use std::fs::{File, Metadata};
 use std::path::PathBuf;
 /// The FileHandler structure is a helper struct
@@ -17,28 +16,16 @@ pub struct FileHandler {
 }
 
 #[derive(Debug, Copy, Clone)]
+/// Custom error type for file handling errors
 struct FileHandlerError {
     err_type: u8,
 }
 
 impl FileHandlerError {
-    pub fn err(err_type: u8) -> Self {
+    pub fn new(err_type: u8) -> Self {
         FileHandlerError { err_type }
     }
 }
-
-impl Display for FileHandlerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let err_string = match self.err_type {
-            0 => "File not found",
-            1 => "Not a file",
-            _ => "Unknown error",
-        };
-        write!(f, "File Handling error, {}", err_string)
-    }
-}
-
-impl Error for FileHandlerError {}
 
 impl FileHandler {
     /// Takes a Pathbuf and returns a FileHandler struct
@@ -58,10 +45,10 @@ impl FileHandler {
                     meta,
                 })
             } else {
-                Err(Box::new(FileHandlerError::err(1)))
+                Err(Box::new(FileHandlerError::new(1)))
             }
         } else {
-            Err(Box::new(FileHandlerError::err(0)))
+            Err(Box::new(FileHandlerError::new(0)))
         }
     }
     /// A helper method to get extension from a
@@ -159,3 +146,16 @@ impl FileHandler {
         .to_owned()
     }
 }
+
+impl Display for FileHandlerError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        let err_string = match self.err_type {
+            0 => "File not found",
+            1 => "Not a file",
+            _ => "Unknown error",
+        };
+        write!(f, "File Handling error, {}", err_string)
+    }
+}
+
+impl Error for FileHandlerError {}

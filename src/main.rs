@@ -33,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Flow::Next
         }),
     )?;
+
     app.add(Octane::static_dir("templates/"))?;
     app.listen(8080)
 }

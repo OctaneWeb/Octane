@@ -3,6 +3,7 @@ use crate::{default, deref};
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use std::iter::{Iterator, Map};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
@@ -71,6 +72,14 @@ impl PathBuf {
     }
 }
 
+impl FromStr for PathBuf {
+    type Err = InvalidPathError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathData<T> {
     pub orig_path: PathBuf,
@@ -86,12 +95,14 @@ pub struct MatchedPath<'a, T> {
 
 #[derive(Clone)]
 pub struct OwnedMatchedPath<T> {
+    #[cfg(feature = "url_variables")]
     pub vars: HashMap<String, String>,
     pub data: T,
 }
 
 pub fn matched_path_to_owned<T: Clone>(mp: &MatchedPath<T>) -> OwnedMatchedPath<T> {
     OwnedMatchedPath {
+        #[cfg(feature = "url_variables")]
         vars: mp
             .vars
             .iter()

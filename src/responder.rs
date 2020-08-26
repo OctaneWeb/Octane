@@ -230,6 +230,7 @@ impl Response {
                 "Content-Type".to_string(),
                 FileHandler::mime_type(file.extension),
             );
+            self.content_len = Some(file.meta.len() as usize);
             self.body = Box::new(file.file) as BoxReader;
             Ok(Some(()))
         } else {

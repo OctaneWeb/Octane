@@ -22,7 +22,7 @@ fn main() {
     app.get(
         "/",
         route!(|req, res| {
-            res.send("test");
+            res.send_file("templates/cert.pem".parse().unwrap()).await.unwrap();
             Flow::Stop
         }),
     )

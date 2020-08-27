@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     app.get(
         "/favicon.ico",
         route!(|req, res| {
-            res.send_file("templates/favicon.ico").await.expect("oof");
+            res.send_file("templates/favicon.ico").expect("oof");
             Flow::Next
         }),
     )?;

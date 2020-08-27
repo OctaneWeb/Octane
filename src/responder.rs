@@ -218,7 +218,7 @@ impl Response {
     ///     "/",
     ///     route!(
     ///         |req, res| {
-    ///             res.send_file("templates/index.html").await.expect("file not found");
+    ///             res.send_file("templates/index.html").expect("file not found");
     ///             assert_eq!(res.get("Content-Type"),  Some(&"text/html".to_owned()));
     ///             Flow::Stop
     ///         }
@@ -226,7 +226,7 @@ impl Response {
     /// );
     ///
     /// ```
-    pub async fn send_file(&mut self, file: &str) -> Result<Option<()>, Box<dyn Error>> {
+    pub fn send_file(&mut self, file: &str) -> Result<Option<()>, Box<dyn Error>> {
         let file = FileHandler::handle_file(&PathBuf::from(file))?;
         self.headers.insert(
             "Content-Type".to_string(),

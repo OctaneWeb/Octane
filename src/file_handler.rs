@@ -31,13 +31,13 @@ impl FileHandler {
     /// Takes a Pathbuf and returns a FileHandler struct
     pub fn handle_file(path: &PathBuf) -> Result<Self, Box<dyn Error>> {
         if let Ok(file) = File::open(path) {
-            if file.metadata()?.file_type().is_file() {
+            let meta = file.metadata()?;
+            if meta.is_file() {
                 let extension = path
                     .as_path()
                     .extension()
                     .and_then(OsStr::to_str)
                     .unwrap_or("");
-                let meta = file.metadata()?;
                 Ok(FileHandler {
                     file_name: path.file_name().and_then(OsStr::to_str).unwrap().to_owned(),
                     file: AsyncReader::new(file),

@@ -136,9 +136,9 @@ impl Octane {
             let final_string = final_url.to_str().unwrap();
             if &final_string[final_string.len() - 1..] == "/" {
                 let stripped = &final_string[..final_string.len() - 1];
-                res.send_file(stripped).await.expect("File not found!!");
+                res.send_file(stripped).expect("File not found!!");
             } else {
-                res.send_file(final_string).await.expect("File not found!!");
+                res.send_file(final_string).expect("File not found!!");
             };
 
             Flow::Next

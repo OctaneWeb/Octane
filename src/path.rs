@@ -4,6 +4,7 @@ use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use std::iter::{Iterator, Map};
 use std::str::FromStr;
+use std::path::PathBuf as StdPathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
@@ -38,6 +39,15 @@ impl PathBuf {
             chunks.push(chunk.to_owned());
         }
         Ok(PathBuf { chunks })
+    }
+
+    pub fn check_starts_with(&self, other: &PathBuf) -> bool {
+        for (a, b) in self.iter().zip(other.iter()) {
+            if a != b {
+                return false;
+            }
+        }
+        true
     }
 
     #[cfg(feature = "url_variables")]
@@ -77,6 +87,23 @@ impl PathBuf {
         Some(PathBuf {
             chunks: self.chunks[other.len()..].to_vec(),
         })
+    }
+
+    pub fn concat_owned(&self, other: PathBuf) -> PathBuf {
+        PathBuf {
+            chunks: self.chunks.iter().cloned().chain(other.chunks.into_iter()).collect()
+        }
+    }
+    pub fn concat(&self, other: &PathBuf) -> PathBuf {
+        PathBuf {
+            chunks: self.chunks.iter().cloned().chain(other.chunks.iter().cloned()).collect()
+        }
+    }
+}
+
+impl From<PathBuf> for StdPathBuf {
+    fn from(p: PathBuf) -> StdPathBuf {
+        p.chunks.into_iter().collect()
     }
 }
 

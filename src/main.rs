@@ -5,8 +5,9 @@ use octane::{
     route,
     router::{Flow, Route},
 };
+use std::error::Error;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let mut app = Octane::new();
     app.ssl(8001)
         .key("templates/key.pem")
@@ -19,13 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Flow::Stop
         }),
     )?;
-    app.get(
-        "/",
-        route!(|req, res| {
-            res.send_file("templates/test.html").await.unwrap();
-            Flow::Stop
-        }),
-    )?;
+
     app.get(
         "/favicon.ico",
         route!(|req, res| {
@@ -34,6 +29,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )?;
 
-    app.add(Octane::static_dir("templates/"))?;
+    app.add(Octane::static_dir("templates"))?;
     app.listen(8080)
 }

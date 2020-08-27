@@ -2,13 +2,12 @@ use crate::config::OctaneConfig;
 use crate::file_handler::FileHandler;
 use crate::responder::StatusCode;
 use crate::responder::{BoxReader, Response};
-use crate::server::Octane;
 use std::error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::marker::Unpin;
 use std::path::PathBuf;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 
 /// The Error structure holds the kind of error code and
 /// the location of the custom 404 file, if given by the user
@@ -47,7 +46,7 @@ impl Error {
         .send(stream)
         .await
     }
-    async fn send<S>(self, stream: S) -> Result<(), Box<dyn error::Error>>
+    async fn send<S>(self, mut stream: S) -> Result<(), Box<dyn error::Error>>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
@@ -66,7 +65,10 @@ impl Error {
                 res.status(self.kind);
             }
         }
-        Octane::send_data(res.get_data(), stream).await
+        let mut response = res.get_data();
+        stream.write_all(response.0.as_bytes()).await?;
+        copy(&mut response.1, &mut stream).await?;
+        Ok(())
     }
 }
 

@@ -55,8 +55,7 @@
 //! url_variables, raw_headers.
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
-//! Ssl will not work but http will keep on running. Make sure you have
-//! only one of them on.
+//! octane will throw a `compile_error!`
 
 #[macro_use]
 extern crate lazy_static;

@@ -2,9 +2,7 @@ use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::error::Error;
 use crate::http::{KeepAliveState, Validator};
-use crate::inject_method;
-use crate::path::PathBuf;
-use crate::request::{parse_without_body, Headers, Request, RequestLine, RequestMethod};
+use crate::request::{parse_without_body, Headers, Request, RequestLine};
 use crate::responder::{BoxReader, Response, StatusCode};
 use crate::router::{Closure, Flow, Route, Router, RouterResult};
 use crate::tls::AsMutStream;
@@ -135,14 +133,11 @@ impl Octane {
         route!(|req, res| {
             let static_dir_name = std::path::PathBuf::from(dir);
             let final_url = static_dir_name.join(req.request_line.path.to_std_pathbuf());
-            println!("{:?}", req.request_line.path);
             let final_string = final_url.to_str().unwrap();
             if &final_string[final_string.len() - 1..] == "/" {
                 let stripped = &final_string[..final_string.len() - 1];
-                println!("{:?}", stripped);
                 res.send_file(stripped).await.expect("File not found!!");
             } else {
-                println!("{:?}", final_string);
                 res.send_file(final_string).await.expect("File not found!!");
             };
 
@@ -164,11 +159,16 @@ impl Octane {
     /// ```
     pub fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
         let mut builder = Builder::new();
-        builder.threaded_scheduler().enable_io();
+        builder
+            .threaded_scheduler()
+            .enable_io()
+            .thread_stack_size(32 * 10000000)
+            .thread_name("Octane-main");
         if let Some(threads) = &self.settings.worker_threads {
             builder.core_threads(*threads);
         }
         let mut runtime = builder.build()?;
+        let mut ssl = false;
         runtime.block_on(async {
             let mut listener =
                 TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
@@ -181,6 +181,7 @@ impl Octane {
                 ))
                 .await?;
                 server.settings.ssl.validate();
+                ssl = true;
                 #[cfg(feature = "openSSL")]
                 let acceptor = crate::tls::openssl::acceptor(&server.settings)?;
                 #[cfg(feature = "rustls")]
@@ -199,38 +200,37 @@ impl Octane {
                                     let stream = tokio_openssl::accept(&acceptor, value).await;
                                     match stream {
                                         Ok(stream_ssl) => {
-                                            let _res =
-                                                Self::catch_request(stream_ssl, server_clone).await;
+                                            match Octane::serve(stream_ssl, server_clone).await {
+                                                Err(e) => panic!("{}", e),
+                                                _ => (),
+                                            }
                                         }
-                                        Err(e) => panic!("{:#?}", e),
+                                        Err(e) => panic!(e),
                                     }
                                 }
-                                Err(e) => panic!("{:#?}", e),
+                                Err(e) => panic!(e),
                             };
                         });
                     }
                 });
             }
-
-            // http
+            println!("{}", server.settings.startup_string(ssl, port));
             while let Some(stream) = StreamExt::next(&mut listener).await {
                 let server_clone = Arc::clone(&server);
                 tokio::spawn(async move {
                     match stream {
-                        Ok(value) => {
-                            let _res = Self::catch_request(value, server_clone).await;
-                        }
-                        Err(_e) => (),
+                        Ok(value) => match Octane::serve(value, server_clone).await {
+                            Err(e) => panic!("{}", e),
+                            _ => (),
+                        },
+                        Err(e) => panic!(e),
                     };
                 });
             }
             Ok(())
         })
     }
-    async fn catch_request<S>(
-        mut stream_async: S,
-        server: Arc<Octane>,
-    ) -> Result<(), Box<dyn StdError>>
+    async fn serve<S>(mut stream_async: S, server: Arc<Octane>) -> Result<(), Box<dyn StdError>>
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
@@ -281,6 +281,7 @@ impl Octane {
         } else {
             body = &[];
         }
+
         if let Some(request) = Request::parse(request_line, headers, body) {
             let request_line = &request.request_line;
             let mut res = Response::new_from_slice(b"");
@@ -313,7 +314,7 @@ impl Octane {
                 if res.content_len.unwrap_or(0) == 0 {
                     declare_error!(stream_async, StatusCode::NotFound, settings);
                 }
-                Self::send_data(res.get_data(), stream_async).await?;
+                Octane::send_data(res.get_data(), stream_async).await?;
             } else {
                 declare_error!(stream_async, StatusCode::NotImplemented, settings);
             }
@@ -322,7 +323,7 @@ impl Octane {
         }
         Ok(())
     }
-    pub async fn send_data<S>(
+    async fn send_data<S>(
         mut response: (String, BoxReader),
         mut stream_async: S,
     ) -> Result<(), Box<dyn StdError>>
@@ -334,6 +335,7 @@ impl Octane {
         Ok(())
     }
 }
+
 default!(Octane);
 
 impl Route for Octane {
@@ -356,23 +358,13 @@ impl Route for Octane {
         self.router.add(closure)
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::All);
-        Ok(())
+        self.router.add_route(path, closure)
     }
 }
 
 impl Config for Octane {
     fn set_keepalive(&mut self, duration: Duration) {
         self.settings.keep_alive = Some(duration);
-    }
-    fn add_static_dir(&mut self, loc: &'static str, dir_name: &'static str) {
-        let loc_buf = StdPathBuf::from(loc);
-        let dir_buf = StdPathBuf::from(dir_name);
-        if let Some(paths) = self.settings.static_dir.get_mut(&loc_buf) {
-            paths.push(dir_buf)
-        } else {
-            self.settings.static_dir.insert(loc_buf, vec![dir_buf]);
-        }
     }
     fn set_404_file(&mut self, dir_name: &'static str) {
         self.settings.file_404 = Some(StdPathBuf::from(dir_name));

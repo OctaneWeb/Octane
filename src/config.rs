@@ -1,9 +1,9 @@
+use crate::constants::closures_lock;
 use crate::default;
+use colored::*;
 use core::time::Duration;
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::PathBuf;
-
 #[cfg(feature = "rustls")]
 use tokio_rustls::rustls::{
     internal::pemfile::{certs, rsa_private_keys},
@@ -128,8 +128,6 @@ impl Ssl {
 /// # Config parameters
 ///
 /// - `keep_alive`: The duration for keep alive requests.
-/// - `static_dir`: Holds the static directory names and
-/// locations which are to be served.
 /// - `ssl`: An instance of the `Ssl` struct to store the
 /// values of key and certificates.
 /// - `worker_threads`: The number of worker threads to use
@@ -140,9 +138,7 @@ impl Ssl {
 /// method
 pub struct OctaneConfig {
     pub keep_alive: Option<Duration>,
-    pub static_dir: HashMap<PathBuf, Vec<PathBuf>>,
     pub ssl: Ssl,
-    pub has_ssl: bool,
     pub file_404: Option<PathBuf>,
     pub worker_threads: Option<usize>,
 }
@@ -151,28 +147,6 @@ pub struct OctaneConfig {
 /// methods on the Octane server struct too as it has a
 /// config field by default
 pub trait Config {
-    /// Add a directory to server as a static folder
-    /// to server files from
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use octane::config::{Config, OctaneConfig};
-    ///
-    /// let mut config = OctaneConfig::new();
-    /// config.add_static_dir("/", "templates");
-    /// ```
-    ///
-    /// Or with Octane struct
-    ///
-    /// ```no_run
-    /// use octane::server::Octane;
-    /// use octane::config::Config;
-    ///
-    /// let mut app = Octane::new();
-    /// app.add_static_dir("/", "templates");
-    /// ```
-    fn add_static_dir(&mut self, loc: &'static str, dir_name: &'static str);
     /// Sets the keepalive duration for a keepalive request,
     /// by default, a 5 second keep alive is set
     /// # Example
@@ -290,10 +264,8 @@ impl OctaneConfig {
     pub fn new() -> Self {
         OctaneConfig {
             ssl: Ssl::new(),
-            has_ssl: false,
             keep_alive: Some(Duration::from_secs(5)),
             worker_threads: None,
-            static_dir: HashMap::new(),
             file_404: None,
         }
     }
@@ -301,7 +273,6 @@ impl OctaneConfig {
     pub fn append(&mut self, settings: Self) {
         self.ssl = settings.ssl;
         self.keep_alive = settings.keep_alive;
-        self.static_dir.extend(settings.static_dir);
     }
 
     /// Sets the number of worker threads, this is settings
@@ -331,6 +302,86 @@ impl OctaneConfig {
         rsa_private_keys(&mut buf)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))
     }
+
+    pub fn startup_string(&self, ssl: bool, port: u16) -> String {
+        let mut final_string = String::new();
+        final_string.push_str(
+            format!(
+                "\n\r{} {}\n\r\n{}\n\n",
+                "Starting".bold().blue(),
+                "Octane".green().bold(),
+                "Configurations".red().bold()
+            )
+            .as_str(),
+        );
+        if let Some(x) = self.keep_alive {
+            final_string.push_str(
+                format!(
+                    "{}: {}s\n",
+                    "-> Keep-alive".blue(),
+                    x.as_secs_f64().to_string().green(),
+                )
+                .as_str(),
+            );
+        } else {
+            final_string.push_str(
+                format!("{}: {}\n", "-> Keep-alive".blue(), "Disabled".green(),).as_str(),
+            );
+        }
+        if let Some(x) = self.worker_threads {
+            final_string.push_str(
+                format!(
+                    "{}: {}\n",
+                    "-> Worker-threads".blue(),
+                    x.to_string().green(),
+                )
+                .as_str(),
+            );
+        } else {
+            final_string.push_str(
+                format!(
+                    "{}: {}\n",
+                    "-> Worker-threads".blue(),
+                    "Number of cores available in the CPU".green(),
+                )
+                .as_str(),
+            );
+        }
+        if ssl {
+            final_string.push_str(
+                format!(
+                    "{}: {} {}\n",
+                    "-> TLS".blue(),
+                    "enabled at".green(),
+                    self.ssl.port.to_string().red().bold()
+                )
+                .as_str(),
+            );
+        } else {
+            final_string.push_str(format!("{}: {} \n", "TLS".red(), "disabled".green()).as_str());
+        }
+        closures_lock(|map| {
+            final_string.push_str(
+                format!(
+                    "{}: {} paths\n",
+                    "-> Serving".blue(),
+                    map.len().to_string().red().bold()
+                )
+                .as_str(),
+            );
+        });
+        final_string.push_str(
+            format!(
+                "\n{} at {}:{}\n",
+                "Listening".red(),
+                "localhost".blue(),
+                port.to_string().red().bold()
+            )
+            .as_str(),
+        );
+
+        final_string
+    }
 }
 
 default!(OctaneConfig);
@@ -339,15 +390,6 @@ default!(Ssl);
 impl Config for OctaneConfig {
     fn set_keepalive(&mut self, duration: Duration) {
         self.keep_alive = Some(duration);
-    }
-    fn add_static_dir(&mut self, loc: &'static str, dir_name: &'static str) {
-        let loc_buf = PathBuf::from(loc);
-        let dir_buf = PathBuf::from(dir_name);
-        if let Some(paths) = self.static_dir.get_mut(&loc_buf) {
-            paths.push(dir_buf)
-        } else {
-            self.static_dir.insert(loc_buf, vec![dir_buf]);
-        }
     }
     fn set_404_file(&mut self, dir_name: &'static str) {
         self.file_404 = Some(PathBuf::from(dir_name));

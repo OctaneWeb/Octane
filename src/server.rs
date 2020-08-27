@@ -102,7 +102,6 @@ impl Octane {
     /// let mut app = Octane::new();
     /// let mut config = OctaneConfig::new();
     /// config.ssl.key("key.pem").cert("cert.pem"); // we supply some ssl certs and key in the config
-    /// app.add_static_dir("/", "templates");
     /// app.with_config(config);
     /// ```
     ///

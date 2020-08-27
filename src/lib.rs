@@ -23,7 +23,7 @@
 //!
 //! fn main() {
 //!     let mut app = Octane::new();
-//!     app.add_static_dir("/", "dir_name"); // serve a static directory
+//!     app.add(Octane::static_dir("dir_name")); // serve a static directory
 //!     app.get(
 //!         "/",
 //!         route!(

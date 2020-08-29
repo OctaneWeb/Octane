@@ -29,6 +29,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         }),
     )?;
 
-    app.add(Octane::static_dir("templates"))?;
+    app.add(octane::middlewares::static_files::serve_static(
+        "/somelocation",
+        "templates/",
+    ))?;
     app.listen(8080)
 }

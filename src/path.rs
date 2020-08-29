@@ -2,13 +2,24 @@ use crate::error::InvalidPathError;
 use crate::{default, deref};
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
+use std::fmt;
 use std::iter::{Iterator, Map};
-use std::str::FromStr;
 use std::path::PathBuf as StdPathBuf;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
     pub chunks: Vec<String>,
+}
+
+impl fmt::Display for PathBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        let mut path_string = String::new();
+        for chunks in self.chunks.iter() {
+            path_string.push_str(format!("{}/", chunks).as_str());
+        }
+        write!(f, "{}", path_string)
+    }
 }
 
 impl PathBuf {
@@ -91,12 +102,22 @@ impl PathBuf {
 
     pub fn concat_owned(&self, other: PathBuf) -> PathBuf {
         PathBuf {
-            chunks: self.chunks.iter().cloned().chain(other.chunks.into_iter()).collect()
+            chunks: self
+                .chunks
+                .iter()
+                .cloned()
+                .chain(other.chunks.into_iter())
+                .collect(),
         }
     }
     pub fn concat(&self, other: &PathBuf) -> PathBuf {
         PathBuf {
-            chunks: self.chunks.iter().cloned().chain(other.chunks.iter().cloned()).collect()
+            chunks: self
+                .chunks
+                .iter()
+                .cloned()
+                .chain(other.chunks.iter().cloned())
+                .collect(),
         }
     }
 }

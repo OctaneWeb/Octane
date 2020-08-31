@@ -22,10 +22,39 @@ A high-powered web server aimed at minimizing dependencies while maintaining spe
 Create an octane instance, and then you can register your methods on it using `app.METHOD()`
 
 ```rust
-let mut app = Octane::new();
-app.get("/", route!(|_req, res| {
-    res.send_file("templates/test.html").await.expect("File not found");
-});
+use octane::config::Config;
+use octane::responder::StatusCode;
+use octane::server::Octane;
+use octane::{
+    route,
+    router::{Flow, Route},
+};
+use std::error::Error;
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let mut app = Octane::new();
+    app.ssl(8001)
+        .key("templates/key.pem")
+        .cert("templates/cert.pem");
+    app.get(
+        "/to_home",
+        route!(|req, res| {
+            res.redirect("/").send("redirecting");
+            Flow::Stop
+        }),
+    )?;
+
+    app.get(
+        "/",
+        route!(|req, res| {
+            res.send_file("templates/test.html").expect("File not found!");
+            Flow::Next
+        }),
+    )?;
+
+    app.add(Octane::static_dir("templates/"))?;
+    app.listen(8000)
+}
 ```
 
 # Docs

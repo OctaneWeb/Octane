@@ -1,4 +1,3 @@
-extern crate octane;
 use octane::time::Time;
 
 #[test]

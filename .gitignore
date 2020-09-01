@@ -62,6 +62,9 @@ Cargo.lock
 # Workspace files are user-specific
 *.sublime-workspace
 
+# Rust workspace json file????
+workspace-rust.json
+
 # Project files should be checked into the repository, unless a significant
 # proportion of contributors will probably not be using Sublime Text
 # *.sublime-project
@@ -95,3 +98,6 @@ GitHub.sublime-settings
 ### VisualStudioCode Patch ###
 # Ignore all local history of files
 .history
+
+# Local testing scripts
+/*.script

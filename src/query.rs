@@ -99,8 +99,9 @@ pub fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
                                 Err(_) => continue,
                             };
                         if inside.is_empty() {
-                            ret.entry(outside.clone())
-                                .or_insert_with(|| QueryValue::Arr(Vec::new()));
+                            if let None = ret.get(&outside) {
+                                ret.insert(outside.clone(), QueryValue::Arr(Vec::new()));
+                            }
                             match ret.get_mut(&outside) {
                                 Some(QueryValue::Arr(v)) => {
                                     v.push(unescaped_val);
@@ -109,8 +110,9 @@ pub fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
                                 _ => continue,
                             }
                         } else {
-                            ret.entry(outside.clone())
-                                .or_insert_with(|| QueryValue::Obj(HashMap::new()));
+                            if let None = ret.get(&outside) {
+                                ret.insert(outside.clone(), QueryValue::Obj(HashMap::new()));
+                            }
                             match ret.get_mut(&outside) {
                                 Some(QueryValue::Obj(v)) => {
                                     v.insert(inside, unescaped_val);

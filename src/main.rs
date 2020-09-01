@@ -1,47 +1,37 @@
-#[macro_use]
-extern crate lazy_static;
-pub mod config;
-pub mod constants;
-pub mod error;
-pub mod file_handler;
-pub mod path;
-pub mod query;
-pub mod request;
-pub mod responder;
-pub mod router;
-pub mod server;
-pub mod time;
-pub mod util;
+use octane::config::Config;
+use octane::responder::StatusCode;
+use octane::server::Octane;
+use octane::{
+    route,
+    router::{Flow, Route},
+};
+use std::error::Error;
 
-use crate::router::Route;
-use crate::server::Octane;
-
-#[tokio::main]
-async fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let mut app = Octane::new();
+    app.ssl(8001)
+        .key("templates/key.pem")
+        .cert("templates/cert.pem");
+    //  app.set_404_file("templates/eerror.html");
     app.get(
-        "/",
-        route!(|_req, res| {
-            res.send_file("templates/test.html")
-                .await
-                .expect("cannot find file");
+        "/to_home",
+        route!(|req, res| {
+            res.redirect("/").send("redirecting");
+            Flow::Stop
         }),
-    );
+    )?;
+
     app.get(
-        "/test.js",
-        route!(|_req, res| {
-            res.send_file("templates/test.js")
-                .await
-                .expect("cannot find file");
+        "/favicon.ico",
+        route!(|req, res| {
+            res.send_file("templates/favicon.ico").expect("oof");
+            Flow::Next
         }),
-    );
-    app.get(
-        "/test.css",
-        route!(|_req, res| {
-            res.send_file("templates/test.css")
-                .await
-                .expect("cannot find file");
-        }),
-    );
-    app.listen(8080).await.expect("Cannot establish connection");
+    )?;
+
+    app.add(octane::middlewares::static_files::serve_static(
+        "/somelocation",
+        "templates/",
+    ))?;
+    app.listen(8080)
 }

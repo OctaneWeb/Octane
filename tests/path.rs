@@ -1,5 +1,4 @@
-extern crate octane;
-use octane::path::PathBuf;
+use octane::path::*;
 
 #[test]
 fn success_standard() {
@@ -55,4 +54,41 @@ fn success_subtraction() {
 fn fail_traversal() {
     // Too many ..s should error.
     PathBuf::parse("/asdf/../..").unwrap();
+}
+
+#[test]
+#[cfg(feature = "url_variables")]
+fn success_tree() {
+    let mut temp_node: PathNode<i32> = PathNode::new();
+    let path1 = PathBuf::parse("/asdf/:var/foo/").unwrap();
+    let path2 = PathBuf::parse("asdf/test/foo/").unwrap();
+    let path3 = PathBuf::parse("/asdf/test/foo").unwrap();
+    let path4 = PathBuf::parse("/asdf/test/bad").unwrap();
+    let path5 = PathBuf::parse("/asdf/test/nope").unwrap();
+    temp_node.insert(path1.clone(), 1);
+    temp_node.insert(path4.clone(), 4);
+    let mut node: PathNode<i32> = PathNode::new();
+    node.extend(temp_node);
+    assert!(node.get(&path5).is_empty());
+    let matched = node.get(&path2).remove(0);
+    assert_eq!(*matched.data, 1);
+    assert_eq!(matched.vars.get("var").unwrap(), &"test");
+    let matched = node.get(&path3).remove(0);
+    assert_eq!(*matched.data, 1);
+    assert_eq!(matched.vars.get("var").unwrap(), &"test");
+    let matched = node.get(&path4).remove(0);
+    assert_eq!(*matched.data, 4);
+    assert!(matched.vars.is_empty());
+}
+
+#[test]
+#[cfg(not(feature = "url_variables"))]
+fn success_tree() {
+    let mut node: PathNode<i32> = PathNode::new();
+    let path1 = PathBuf::parse("asdf/test/foo/").unwrap();
+    let path2 = PathBuf::parse("/asdf/test/bad").unwrap();
+    node.insert(path1.clone(), 1);
+    assert!(node.get(&path2).is_empty());
+    let matched = node.get(&path1).remove(0);
+    assert_eq!(*matched.data, 1);
 }

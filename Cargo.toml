@@ -1,6 +1,6 @@
 [package]
 name = "octane"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
 description = "A web server built from the ground up."
 license-file = "LICENSE"
@@ -10,25 +10,33 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "1.4.0"
-rustls = { version = "0.17.0", optional = true }
-tokio = { version = "0.2.21", features = ["tcp", "fs", "stream", "macros", "io-util"] }
-futures = "0.3"
+tokio-rustls = { version = "0.14.0", optional = true }
+colored = "2"
+openssl = { version = "0.10.30", optional = true }
+tokio-openssl = { version = "0.4", optional = true }
+tokio = { version = "0.2.22", features = ["tcp", "io-util", "stream", "rt-threaded"] }
 
 [dependencies.octane_macros]
 path = "octane_macros"
-version = "0.1.0"
+version = "0.1.2"
+
+[dependencies.octane_json]
+path = "octane_json"
+version = "0.1.2"
 
 [features]
-default = ["faithful", "query_strings", "cookies", "url_variables"]
+default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers", "rustls"]
 faithful = []
 raw_headers = []
 query_strings = []
 extended_queries = []
 cookies = []
 url_variables = []
-https = ["rustls"]
+rustls = ["tokio-rustls"]
+openSSL = ["openssl", "tokio-openssl"]
 
 [workspace]
 members = [
-    "octane_macros"
+    "octane_macros",
+    "octane_json"
 ]

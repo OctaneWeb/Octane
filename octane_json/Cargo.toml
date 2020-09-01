@@ -1,14 +1,14 @@
 [package]
-name = "octane_macros"
+name = "octane_json"
 version = "0.1.2"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
-description = "Procedural macros for Octane."
+description = "JSON manipulation for Octane."
 license-file = "LICENSE"
 homepage = "https://github.com/OctaneWeb/Octane"
 readme = "README.md"
 edition = "2018"
 
 [dependencies]
-
-[lib]
-proc-macro = true
+[dependencies.octane_macros]
+path = "../octane_macros"
+version = "0.1.2"

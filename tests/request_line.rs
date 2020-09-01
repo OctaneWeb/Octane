@@ -1,4 +1,4 @@
-extern crate octane;
+use octane::path::PathBuf;
 use octane::request::{HttpVersion, RequestLine, RequestMethod};
 
 #[test]
@@ -6,7 +6,7 @@ fn success_standard() {
     // Parsing should work as expected.
     let req = RequestLine::parse("POST /abc/def HTTP/1.1").unwrap();
     assert_eq!(req.method, RequestMethod::Post);
-    assert_eq!(req.path, "/abc/def");
+    assert_eq!(req.path, PathBuf::parse("/abc/def").ok().unwrap());
     assert_eq!(req.version, HttpVersion::Http11);
 }
 
@@ -14,8 +14,8 @@ fn success_standard() {
 fn success_other_method() {
     // Non-documented methods should also work.
     let req = RequestLine::parse("PATCH /abc/def HTTP/1.1").unwrap();
-    assert_eq!(req.method, RequestMethod::Other("PATCH"));
-    assert_eq!(req.path, "/abc/def");
+    assert_eq!(req.method, RequestMethod::None);
+    assert_eq!(req.path, PathBuf::parse("/abc/def").ok().unwrap());
     assert_eq!(req.version, HttpVersion::Http11);
 }
 

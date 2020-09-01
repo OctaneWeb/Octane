@@ -1,5 +1,10 @@
+use std::io::Read;
 use std::iter::FusedIterator;
 use std::mem;
+use std::ops::Deref;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, Result};
 
 pub fn from_hex(chr: char) -> Option<u8> {
     if chr > 'f' {
@@ -81,37 +86,43 @@ where
     }
 }
 
-pub struct Spliterator<'a> {
-    pub string: &'a [u8],
-    pub finished: bool,
-    pub seq: &'a [u8],
-    pub seqlen: usize,
+pub fn find_in_slice<T: Eq>(haystack: &[T], needle: &[T]) -> Option<usize> {
+    // naive algorithm only meant for small needles
+    if needle.len() > haystack.len() {
+        return None;
+    }
+    for i in 0..=haystack.len() - needle.len() {
+        let mut matching = true;
+        for j in 0..needle.len() {
+            if haystack[i + j] != needle[j] {
+                matching = false;
+                break;
+            }
+        }
+        if matching {
+            return Some(i);
+        }
+    }
+    None
 }
 
-impl<'a> Spliterator<'a> {
-    pub fn new(string: &'a [u8], seq: &'a [u8]) -> Self {
+pub struct Spliterator<'a, T: Eq> {
+    pub string: &'a [T],
+    pub finished: bool,
+    pub seq: &'a [T],
+}
+
+impl<'a, T: Eq> Spliterator<'a, T> {
+    pub fn new(string: &'a [T], seq: &'a [T]) -> Self {
         Self {
             string,
             finished: false,
             seq,
-            seqlen: seq.len(),
         }
     }
 
     pub fn find_seq(&self) -> Option<usize> {
-        for i in 0..self.string.len() {
-            let mut matching = true;
-            for j in 0..self.seqlen {
-                if self.string[i + j] != self.seq[j] {
-                    matching = false;
-                    break;
-                }
-            }
-            if matching {
-                return Some(i);
-            }
-        }
-        None
+        find_in_slice(self.string, self.seq)
     }
 
     pub fn skip_empty(&mut self) {
@@ -121,8 +132,9 @@ impl<'a> Spliterator<'a> {
     }
 }
 
-impl<'a> Iterator for Spliterator<'a> {
-    type Item = &'a [u8];
+impl<'a, T: Eq> Iterator for Spliterator<'a, T> {
+    type Item = &'a [T];
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {
             return None;
@@ -130,7 +142,7 @@ impl<'a> Iterator for Spliterator<'a> {
         match self.find_seq() {
             Some(v) => {
                 let (ret, rest) = self.string.split_at(v);
-                self.string = &rest[self.seqlen..];
+                self.string = &rest[self.seq.len()..];
                 Some(ret)
             }
             None => {
@@ -141,4 +153,29 @@ impl<'a> Iterator for Spliterator<'a> {
     }
 }
 
-impl<'a> FusedIterator for Spliterator<'a> {}
+impl<'a, T: Eq> FusedIterator for Spliterator<'a, T> {}
+
+#[derive(Debug, Clone, Default)]
+pub struct AsyncReader<T: Read> {
+    pub reader: T,
+}
+
+impl<T: Read + Unpin> Deref for AsyncReader<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.reader
+    }
+}
+
+impl<T: Read + Unpin> AsyncRead for AsyncReader<T> {
+    fn poll_read(mut self: Pin<&mut Self>, _: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
+        Poll::Ready(self.reader.read(buf))
+    }
+}
+
+impl<T: Read + Unpin> AsyncReader<T> {
+    pub fn new(reader: T) -> Self {
+        Self { reader }
+    }
+}

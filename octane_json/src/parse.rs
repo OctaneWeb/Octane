@@ -1,101 +1,6 @@
+use crate::value::Value;
 use std::char;
 use std::collections::HashMap;
-
-#[derive(Debug, Clone)]
-pub enum Value {
-    Number(f64),
-    String(String),
-    Array(Vec<Value>),
-    Object(HashMap<String, Value>),
-    Boolean(bool),
-    Null,
-}
-
-impl Value {
-    pub fn as_number(&self) -> Option<&f64> {
-        match self {
-            Value::Number(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_boolean(&self) -> Option<&bool> {
-        match self {
-            Value::Boolean(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_string(&self) -> Option<&String> {
-        match self {
-            Value::String(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_array(&self) -> Option<&Vec<Value>> {
-        match self {
-            Value::Array(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_object(&self) -> Option<&HashMap<String, Value>> {
-        match self {
-            Value::Object(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_null(&self) -> Option<()> {
-        match self {
-            Value::Null => Some(()),
-            _ => None,
-        }
-    }
-
-    pub fn is_number(&self) -> bool {
-        match self {
-            Value::Number(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_boolean(&self) -> bool {
-        match self {
-            Value::Boolean(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_string(&self) -> bool {
-        match self {
-            Value::String(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_array(&self) -> bool {
-        match self {
-            Value::Array(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_object(&self) -> bool {
-        match self {
-            Value::Object(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_null(&self) -> bool {
-        match self {
-            Value::Null => true,
-            _ => false,
-        }
-    }
-}
 
 pub fn consume_ws(dat: &str) -> &str {
     dat.trim_start()
@@ -206,6 +111,9 @@ pub fn parse_array(dat: &str) -> Option<(Vec<Value>, &str)> {
     // This function assumes that the first character is [.
     let mut cur = consume_ws(&dat[1..]);
     let mut ret = Vec::<Value>::new();
+    if *cur.as_bytes().get(0)? == b']' {
+        return Some((ret, &cur[1..]));
+    }
     while !cur.is_empty() {
         let (val, rest) = parse_element(cur)?;
         ret.push(val);

@@ -65,19 +65,29 @@ pub fn parse_null(dat: &str) -> Option<((), &str)> {
     None
 }
 
-pub fn parse_number(dat: &str) -> Option<(f64, &str)> {
+pub fn parse_int_or_float(dat: &str) -> Option<(Value, &str)> {
     let mut end = dat.len();
     let dat_bytes = dat.as_bytes();
+    let mut is_float = false;
     for (i, v) in dat_bytes.iter().enumerate() {
         match v {
-            b'0'..=b'9' | b'e' | b'.' | b'-' | b'+' => {}
+            b'0'..=b'9' | b'-' | b'+' => {}
+            b'e' | b'.' => {
+                is_float = true;
+            }
             _ => {
                 end = i;
                 break;
             }
         };
     }
-    dat[..end].parse::<f64>().ok().map(|v| (v, &dat[end..]))
+    return Some((
+        if is_float {
+            Value::Float(dat[..end].parse().ok()?)
+        } else {
+            Value::Integer(dat[..end].parse().ok()?)
+        }, &dat[end..]
+    ));
 }
 
 pub fn parse_object(dat: &str) -> Option<(HashMap<String, Value>, &str)> {
@@ -143,7 +153,7 @@ macro_rules! do_fst {
 pub fn parse_value(dat: &str) -> Option<(Value, &str)> {
     match dat.as_bytes()[0] {
         b'{' => parse_object(dat).map(do_fst!(Value::Object)),
-        b'-' | b'0'..=b'9' => parse_number(dat).map(do_fst!(Value::Number)),
+        b'-' | b'0'..=b'9' => parse_int_or_float(dat),
         b'"' => parse_string(dat).map(do_fst!(Value::String)),
         b't' | b'f' => parse_bool(dat).map(do_fst!(Value::Boolean)),
         b'n' => parse_null(dat).map(do_fst!(|_| Value::Null)),

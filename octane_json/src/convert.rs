@@ -60,8 +60,57 @@ macro_rules! make_tryfrom {
 }
 
 make_tryfrom!(bool, Boolean);
-make_tryfrom!(f64, Number);
+make_tryfrom!(i64, Integer);
 make_tryfrom!(String, String);
+
+macro_rules! make_from_integer {
+    ($type: ty) => {
+        impl TryFrom<Value> for $type {
+            type Error = InvalidTypeError;
+
+            fn try_from(v: Value) -> Result<Self, Self::Error> {
+                if let Value::Integer(x) = v {
+                    if let Ok(n) = x.try_into() {
+                        return Ok(n);
+                    }
+                }
+                Err(InvalidTypeError)
+            }
+        }
+    }
+}
+
+make_from_integer!(u8);
+make_from_integer!(u16);
+make_from_integer!(u32);
+make_from_integer!(u64);
+make_from_integer!(i8);
+make_from_integer!(i16);
+make_from_integer!(i32);
+
+impl TryFrom<Value> for f32 {
+    type Error = InvalidTypeError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        match v {
+            Value::Float(x) => Ok(x as f32),
+            Value::Integer(x) => Ok(x as f32),
+            _ => Err(InvalidTypeError)
+        }
+    }
+}
+
+impl TryFrom<Value> for f64 {
+    type Error = InvalidTypeError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        match v {
+            Value::Float(x) => Ok(x),
+            Value::Integer(x) => Ok(x as f64),
+            _ => Err(InvalidTypeError)
+        }
+    }
+}
 
 impl<T> TryFrom<Value> for Vec<T>
 where
@@ -110,86 +159,59 @@ impl TryFrom<Value> for () {
     }
 }
 
-macro_rules! make_numeric_tryfrom {
-    ($type: ty) => {
-        impl TryFrom<Value> for $type {
-            type Error = InvalidTypeError;
-
-            #[allow(clippy::float_cmp)]
-            fn try_from(v: Value) -> Result<Self, Self::Error> {
-                let num: f64 = v.try_into()?;
-                let conved = num as $type;
-                if num == conved as f64 {
-                    Ok(conved)
-                } else {
-                    Err(InvalidTypeError)
-                }
-            }
-        }
-    };
-}
-
-macro_rules! make_numeric_tojson {
-    ($type: ty) => {
-        impl ToJSON for $type {
-            fn to_json(self) -> Option<Value> {
-                (self as f64).to_json()
-            }
-        }
-    };
-}
-
-make_numeric_tryfrom!(u128);
-make_numeric_tryfrom!(u64);
-make_numeric_tryfrom!(u32);
-make_numeric_tryfrom!(u16);
-make_numeric_tryfrom!(u8);
-make_numeric_tryfrom!(i128);
-make_numeric_tryfrom!(i64);
-make_numeric_tryfrom!(i32);
-make_numeric_tryfrom!(i16);
-make_numeric_tryfrom!(i8);
-make_numeric_tryfrom!(f32);
-
-make_numeric_tojson!(u128);
-make_numeric_tojson!(u64);
-make_numeric_tojson!(u32);
-make_numeric_tojson!(u16);
-make_numeric_tojson!(u8);
-make_numeric_tojson!(i128);
-make_numeric_tojson!(i64);
-make_numeric_tojson!(i32);
-make_numeric_tojson!(i16);
-make_numeric_tojson!(i8);
-make_numeric_tojson!(f32);
-
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", stringify(self))
     }
 }
 
-impl ToJSON for f64 {
+macro_rules! make_to_json {
+    ($type: ty, $variant: ident) => {
+        impl ToJSON for $type {
+            fn to_json(self) -> Option<Value> {
+                Some(Value::$variant(self))
+            }
+        }
+    }
+}
+
+make_to_json!(i64, Integer);
+make_to_json!(f64, Float);
+make_to_json!(bool, Boolean);
+make_to_json!(String, String);
+
+macro_rules! make_to_integer {
+    ($type: ty) => {
+        impl ToJSON for $type {
+            fn to_json(self) -> Option<Value> {
+                Some(Value::Integer(self as i64))
+            }
+        }
+    }
+}
+
+make_to_integer!(u8);
+make_to_integer!(u16);
+make_to_integer!(u32);
+make_to_integer!(i8);
+make_to_integer!(i16);
+make_to_integer!(i32);
+
+impl ToJSON for u64 {
     fn to_json(self) -> Option<Value> {
-        Some(Value::Number(self))
+        Some(Value::Integer(self.try_into().ok()?))
+    }
+}
+
+impl ToJSON for f32 {
+    fn to_json(self) -> Option<Value> {
+        Some(Value::Float(self as f64))
     }
 }
 
 impl ToJSON for () {
     fn to_json(self) -> Option<Value> {
         Some(Value::Null)
-    }
-}
-
-impl ToJSON for bool {
-    fn to_json(self) -> Option<Value> {
-        Some(Value::Boolean(self))
-    }
-}
-
-impl ToJSON for String {
-    fn to_json(self) -> Option<Value> {
-        Some(Value::String(self))
     }
 }
 
@@ -220,7 +242,8 @@ impl ToJSON for Value {
 fn stringify(val: &Value) -> String {
     match val {
         Value::Null => "null".to_string(),
-        Value::Number(x) => x.to_string(),
+        Value::Float(x) => format!("{:?}", x),
+        Value::Integer(x) => x.to_string(),
         Value::String(x) => format!("{:?}", x),
         Value::Boolean(x) => format!("{}", x),
         Value::Array(x) => {

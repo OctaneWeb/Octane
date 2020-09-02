@@ -3,7 +3,8 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     String(String),
     Array(Vec<Value>),
     Object(HashMap<String, Value>),
@@ -50,7 +51,8 @@ macro_rules! make_pe {
 }
 
 impl Value {
-    make_as_func!(as_number, f64, Number);
+    make_as_func!(as_float, f64, Float);
+    make_as_func!(as_integer, i64, Integer);
     make_as_func!(as_boolean, bool, Boolean);
     make_as_func!(as_string, String, String);
     make_as_func!(as_array, Vec<Value>, Array);
@@ -64,7 +66,8 @@ impl Value {
         }
     }
 
-    make_is_func!(is_number, Number);
+    make_is_func!(is_float, Float);
+    make_is_func!(is_integer, Integer);
     make_is_func!(is_boolean, Boolean);
     make_is_func!(is_string, String);
     make_is_func!(is_array, Array);
@@ -89,7 +92,8 @@ impl Value {
 
 impl Eq for Value {}
 
-make_pe!(f64, Number);
+make_pe!(i64, Integer);
+make_pe!(f64, Float);
 make_pe!(String, String);
 make_pe!(bool, Boolean);
 
@@ -138,7 +142,8 @@ impl PartialEq<()> for Value {
 impl PartialEq for Value {
     fn eq(&self, other: &Value) -> bool {
         match (self, other) {
-            (Value::Number(x), Value::Number(y)) => x.eq(y),
+            (Value::Integer(x), Value::Integer(y)) => x.eq(y),
+            (Value::Float(x), Value::Float(y)) => x.eq(y),
             (Value::String(x), Value::String(y)) => x.eq(y),
             (Value::Boolean(x), Value::Boolean(y)) => x.eq(y),
             (Value::Array(x), Value::Array(y)) => x.eq(y),

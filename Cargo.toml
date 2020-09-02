@@ -14,7 +14,7 @@ tokio-rustls = { version = "0.14.0", optional = true }
 colored = "2"
 openssl = { version = "0.10.30", optional = true }
 tokio-openssl = { version = "0.4", optional = true }
-tokio = { version = "0.2.22", features = ["tcp", "io-util", "stream", "rt-threaded"] }
+tokio = { version = "0.2.22", features = ["tcp", "io-util", "stream", "rt-threaded", "macros"] }
 
 [dependencies.octane_macros]
 path = "octane_macros"
@@ -25,7 +25,7 @@ path = "octane_json"
 version = "0.2.0"
 
 [features]
-default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers", "openSSL"]
+default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers"]
 faithful = []
 raw_headers = []
 query_strings = []

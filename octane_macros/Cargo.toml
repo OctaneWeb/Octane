@@ -9,6 +9,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
+num_cpus = "1.13.0"
 
 [lib]
 proc-macro = true

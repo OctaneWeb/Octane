@@ -81,6 +81,7 @@ mod util;
 
 // convenient aliasing for octane_json
 pub use octane_json as json;
+pub use octane_macros as macros;
 
 #[cfg(all(feature = "openSSL", feature = "rustls"))]
 compile_error!("openSSL and rustls are both enabled, you may want to one of those");

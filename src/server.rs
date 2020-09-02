@@ -154,39 +154,28 @@ impl Octane {
     ///     app.listen(80).expect("Cannot establish connection");
     /// }
     /// ```
-    pub fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
-        let mut builder = Builder::new();
-        builder
-            .threaded_scheduler()
-            .enable_io()
-            .thread_stack_size(32 * 10000000)
-            .thread_name("Octane-main");
-        if let Some(threads) = &self.settings.worker_threads {
-            builder.core_threads(*threads);
-        }
-        let mut runtime = builder.build()?;
+    pub async fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
         let mut ssl = false;
-        runtime.block_on(async {
-            let server = Arc::new(self);
-            #[cfg(any(feature = "openSSL", feature = "rustls"))]
-            {
-                let clone = Arc::clone(&server);
-                tokio::spawn(async move { Octane::listen_ssl(clone) });
-                ssl = true
-            }
-            // echo server string
-            println!("{}", server.settings.startup_string(ssl, port));
-            let mut server_builder = ServerBuilder::new();
-            server_builder
-                .port(port)
-                .listen(
-                    |stream, server| async { Octane::serve(stream, server).await },
-                    server,
-                )
-                .await?;
 
-            Ok(())
-        })
+        let server = Arc::new(self);
+        #[cfg(any(feature = "openSSL", feature = "rustls"))]
+        {
+            let clone = Arc::clone(&server);
+            tokio::spawn(async move { Octane::listen_ssl(clone) });
+            ssl = true
+        }
+        // echo server string
+        println!("{}", server.settings.startup_string(ssl, port));
+        let mut server_builder = ServerBuilder::new();
+        server_builder
+            .port(port)
+            .listen(
+                |stream, server| async { Octane::serve(stream, server).await },
+                server,
+            )
+            .await?;
+
+        Ok(())
     }
 
     #[cfg(any(feature = "openSSL", feature = "rustls"))]
@@ -201,6 +190,7 @@ impl Octane {
             .await?;
         Ok(())
     }
+
     async fn serve<S>(mut stream_async: S, server: Arc<Octane>) -> Result<(), Box<dyn StdError>>
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,

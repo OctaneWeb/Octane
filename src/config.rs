@@ -342,7 +342,7 @@ impl OctaneConfig {
                 format!(
                     "{}: {}\n",
                     "-> Worker-threads".blue(),
-                    "Number of cores available in the CPU".green(),
+                    "2 * Number of cores available in the CPU".green(),
                 )
                 .as_str(),
             );

@@ -1,4 +1,4 @@
-use proc_macro::{Delimiter, Ident, TokenStream, TokenTree};
+use proc_macro::{Delimiter, TokenStream, TokenTree};
 #[derive(Debug, Clone)]
 pub struct StreamParser {
     items: TokenStream,

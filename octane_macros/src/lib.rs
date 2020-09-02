@@ -45,13 +45,41 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 .thread_name("octane-main")
                 .core_threads({});
 
-            let mut runtime = builder.build()?;
+            let mut runtime = builder.build().expect("Unable to build tokio runtime");
             runtime.block_on(async {{
                 {}
             }})
         }}"#,
         properties.signature, compiler_error, num_cpus, properties.rest,
     );
+    final_stream.parse().unwrap()
+}
 
+#[proc_macro_attribute]
+pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let stream = StreamParser::new(item);
+    let properties = stream.parse();
+    let mut compiler_error = String::new();
+    if !properties.is_async {
+        compiler_error.push_str(
+            r#"compile_error!("the async keyword is missing from function declaration");"#,
+        )
+    }
+    let final_stream = format!(
+        r#"{}{{
+            {}
+            let mut builder = tokio::runtime::Builder::new();
+            builder
+                .basic_scheduler()
+                .enable_io()
+                .thread_name("octane-test");
+
+            let mut runtime = builder.build().expect("Unable to build tokio runtime");
+            runtime.block_on(async {{
+                {}
+            }})
+        }}"#,
+        properties.signature, compiler_error, properties.rest,
+    );
     final_stream.parse().unwrap()
 }

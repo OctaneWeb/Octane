@@ -21,7 +21,8 @@
 //! use octane::config::Config;
 //! use octane::{route, router::{Flow, Route}};
 //!
-//! fn main() {
+//! #[octane_macros::main]
+//! async fn main() {
 //!     let mut app = Octane::new();
 //!     app.add(Octane::static_dir("dir_name")); // serve a static directory
 //!     app.get(
@@ -34,7 +35,7 @@
 //!         ),
 //!     );
 //!
-//!     app.listen(8080).expect("Cannot establish connection");
+//!     app.listen(8080).await.expect("Cannot establish connection");
 //! }
 //! ```
 //! and now you can see the page at http://0.0.0.0:8080.

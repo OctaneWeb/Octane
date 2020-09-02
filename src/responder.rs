@@ -25,7 +25,8 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// use octane::server::Octane;
 /// use octane::{route, router::{Flow, Route}};
 ///
-/// fn main() {
+/// #[octane_macros::main]
+/// async fn main() {
 ///     let mut app = Octane::new();
 ///     app.get(
 ///         "/",
@@ -37,7 +38,7 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 ///         ),
 ///     );
 ///
-///     app.listen(8080).expect("Cannot establish connection");
+///     app.listen(8080).await.expect("Cannot establish connection");
 /// }
 /// ```
 pub struct Response {
@@ -285,7 +286,8 @@ impl Response {
     /// use octane::{route, router::{Flow, Route}};
     /// use octane::responder::StatusCode;
     ///
-    /// fn main() {
+    /// #[octane_macros::main]
+    /// async fn main() {
     ///     let mut app = Octane::new();
     ///     app.get(
     ///         "/",
@@ -297,7 +299,7 @@ impl Response {
     ///         ),
     ///     );
     ///
-    ///     app.listen(8080).expect("Cannot establish connection");
+    ///     app.listen(8080).await.expect("Cannot establish connection");
     /// }
     /// ```
     pub fn status(&mut self, code: StatusCode) -> &mut Self {

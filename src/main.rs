@@ -1,5 +1,3 @@
-use octane::config::Config;
-
 use octane::server::Octane;
 use octane::{
     route,

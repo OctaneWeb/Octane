@@ -34,7 +34,8 @@ macro_rules! declare_error {
 /// use octane::server::Octane;
 /// use octane::{route, router::{Flow, Route}};
 ///
-/// fn main() {
+/// #[octane_macros::main]
+/// async fn main() {
 ///     let mut app = Octane::new();
 ///     app.get(
 ///         "/",
@@ -46,7 +47,7 @@ macro_rules! declare_error {
 ///         ),
 ///     );
 ///
-///     app.listen(8080).expect("Cannot establish connection");
+///     app.listen(8080).await.expect("Cannot establish connection");
 /// }
 /// ```
 pub struct Octane {
@@ -149,20 +150,20 @@ impl Octane {
     /// ```no_run
     /// use octane::server::Octane;
     ///
-    /// fn main() {
+    /// #[octane_macros::main]
+    /// async fn main() {
     ///     let mut app = Octane::new();
-    ///     app.listen(80).expect("Cannot establish connection");
+    ///     app.listen(80).await.expect("Cannot establish connection");
     /// }
     /// ```
     pub async fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
-        let mut ssl = false;
-
         let server = Arc::new(self);
+        let ssl = false;
         #[cfg(any(feature = "openSSL", feature = "rustls"))]
         {
             let clone = Arc::clone(&server);
             tokio::spawn(async move { Octane::listen_ssl(clone) });
-            ssl = true
+            let ssl = true;
         }
         // echo server string
         println!("{}", server.settings.startup_string(ssl, port));

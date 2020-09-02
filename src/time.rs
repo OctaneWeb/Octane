@@ -152,6 +152,7 @@ impl Time {
 }
 
 mod tests {
+    #![cfg(test)]
     use crate::time::Time;
 
     #[test]

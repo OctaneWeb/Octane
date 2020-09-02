@@ -77,7 +77,7 @@ macro_rules! make_from_integer {
                 Err(InvalidTypeError)
             }
         }
-    }
+    };
 }
 
 make_from_integer!(u8);
@@ -95,7 +95,7 @@ impl TryFrom<Value> for f32 {
         match v {
             Value::Float(x) => Ok(x as f32),
             Value::Integer(x) => Ok(x as f32),
-            _ => Err(InvalidTypeError)
+            _ => Err(InvalidTypeError),
         }
     }
 }
@@ -107,7 +107,7 @@ impl TryFrom<Value> for f64 {
         match v {
             Value::Float(x) => Ok(x),
             Value::Integer(x) => Ok(x as f64),
-            _ => Err(InvalidTypeError)
+            _ => Err(InvalidTypeError),
         }
     }
 }
@@ -172,7 +172,7 @@ macro_rules! make_to_json {
                 Some(Value::$variant(self))
             }
         }
-    }
+    };
 }
 
 make_to_json!(i64, Integer);
@@ -187,7 +187,7 @@ macro_rules! make_to_integer {
                 Some(Value::Integer(self as i64))
             }
         }
-    }
+    };
 }
 
 make_to_integer!(u8);

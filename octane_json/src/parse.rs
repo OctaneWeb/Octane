@@ -86,7 +86,8 @@ pub fn parse_int_or_float(dat: &str) -> Option<(Value, &str)> {
             Value::Float(dat[..end].parse().ok()?)
         } else {
             Value::Integer(dat[..end].parse().ok()?)
-        }, &dat[end..]
+        },
+        &dat[end..],
     ));
 }
 

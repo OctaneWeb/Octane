@@ -60,10 +60,7 @@ fn success_object() {
     let (obj, rest) = parse::parse_object(r#"{"a" : 1.0 , "b": "two", "c": {"x": 3}, "d": true, "e": false, "f": null, "g": [true, false]}asdf"#).unwrap();
     assert_eq!(*obj["a"].as_float().unwrap(), 1.0);
     assert_eq!(*obj["b"].as_string().unwrap(), "two".to_string());
-    assert_eq!(
-        *obj["c"].as_object().unwrap()["x"].as_integer().unwrap(),
-        3
-    );
+    assert_eq!(*obj["c"].as_object().unwrap()["x"].as_integer().unwrap(), 3);
     assert_eq!(*obj["d"].as_boolean().unwrap(), true);
     assert_eq!(*obj["e"].as_boolean().unwrap(), false);
     assert_eq!(obj["f"].as_null().unwrap(), ());

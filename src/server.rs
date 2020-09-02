@@ -188,7 +188,7 @@ impl Octane {
             Ok(())
         })
     }
-    
+
     #[cfg(any(feature = "openSSL", feature = "rustls"))]
     async fn listen_ssl(server: Arc<Octane>) -> Result<(), Box<dyn StdError>> {
         let mut server_builder = ServerBuilder::new();

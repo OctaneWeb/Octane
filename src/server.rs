@@ -5,21 +5,19 @@ use crate::http::{KeepAliveState, Validator};
 use crate::request::{parse_without_body, Headers, Request, RequestLine};
 use crate::responder::{BoxReader, Response, StatusCode};
 use crate::router::{Closure, Flow, Route, Router, RouterResult};
+use crate::server_builder::ServerBuilder;
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
 use crate::{default, route};
 use std::error::Error as StdError;
 use std::marker::Unpin;
-use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf as StdPathBuf;
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
-use tokio::net::TcpListener;
 use tokio::prelude::*;
 use tokio::runtime::Builder;
-use tokio::stream::StreamExt;
 
 #[macro_export]
 macro_rules! declare_error {
@@ -169,65 +167,37 @@ impl Octane {
         let mut runtime = builder.build()?;
         let mut ssl = false;
         runtime.block_on(async {
-            let mut listener =
-                TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port)).await?;
             let server = Arc::new(self);
             #[cfg(any(feature = "openSSL", feature = "rustls"))]
             {
-                let mut ssl_listener = TcpListener::bind(SocketAddrV4::new(
-                    Ipv4Addr::new(0, 0, 0, 0),
-                    server.settings.ssl.port,
-                ))
-                .await?;
-                server.settings.ssl.validate();
-                ssl = true;
-                #[cfg(feature = "openSSL")]
-                let acceptor = crate::tls::openssl::acceptor(&server.settings)?;
-                #[cfg(feature = "rustls")]
-                let acceptor = crate::tls::rustls::acceptor(&server.settings)?;
-                let server_clone = Arc::clone(&server);
-                tokio::spawn(async move {
-                    while let Some(stream) = StreamExt::next(&mut ssl_listener).await {
-                        let server_clone = Arc::clone(&server_clone);
-                        let acceptor = acceptor.clone();
-                        tokio::spawn(async move {
-                            match stream {
-                                Ok(value) => {
-                                    #[cfg(feature = "rustls")]
-                                    let stream = acceptor.accept(value).await;
-                                    #[cfg(feature = "openSSL")]
-                                    let stream = tokio_openssl::accept(&acceptor, value).await;
-                                    match stream {
-                                        Ok(stream_ssl) => {
-                                            match Octane::serve(stream_ssl, server_clone).await {
-                                                Err(e) => panic!("{}", e),
-                                                _ => (),
-                                            }
-                                        }
-                                        Err(e) => panic!(e),
-                                    }
-                                }
-                                Err(e) => panic!(e),
-                            };
-                        });
-                    }
-                });
+                let clone = Arc::clone(&server);
+                tokio::spawn(async move { Octane::listen_ssl(clone) });
+                ssl = true
             }
+            // echo server string
             println!("{}", server.settings.startup_string(ssl, port));
-            while let Some(stream) = StreamExt::next(&mut listener).await {
-                let server_clone = Arc::clone(&server);
-                tokio::spawn(async move {
-                    match stream {
-                        Ok(value) => match Octane::serve(value, server_clone).await {
-                            Err(e) => panic!("{}", e),
-                            _ => (),
-                        },
-                        Err(e) => panic!(e),
-                    };
-                });
-            }
+            let mut server_builder = ServerBuilder::new();
+            server_builder
+                .port(port)
+                .listen(
+                    |stream, server| async { Octane::serve(stream, server).await },
+                    server,
+                )
+                .await?;
+
             Ok(())
         })
+    }
+    async fn listen_ssl(server: Arc<Octane>) -> Result<(), Box<dyn StdError>> {
+        let mut server_builder = ServerBuilder::new();
+        server_builder
+            .port(server.settings.ssl.port)
+            .listen_ssl(
+                |stream, server| async { Octane::serve(stream, server).await },
+                server,
+            )
+            .await?;
+        Ok(())
     }
     async fn serve<S>(mut stream_async: S, server: Arc<Octane>) -> Result<(), Box<dyn StdError>>
     where

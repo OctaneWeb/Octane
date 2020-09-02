@@ -21,7 +21,7 @@
 //! use octane::config::Config;
 //! use octane::{route, router::{Flow, Route}};
 //!
-//! #[octane_macros::main]
+//! #[octane::main]
 //! async fn main() {
 //!     let mut app = Octane::new();
 //!     app.add(Octane::static_dir("dir_name")); // serve a static directory
@@ -82,7 +82,8 @@ mod util;
 
 // convenient aliasing for octane_json
 pub use octane_json as json;
-pub use octane_macros as macros;
+pub use octane_macros::main;
+pub use octane_macros::test;
 
 #[cfg(all(feature = "openSSL", feature = "rustls"))]
 compile_error!("openSSL and rustls are both enabled, you may want to one of those");

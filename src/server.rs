@@ -34,7 +34,7 @@ macro_rules! declare_error {
 /// use octane::server::Octane;
 /// use octane::{route, router::{Flow, Route}};
 ///
-/// #[octane_macros::main]
+/// #[octane::main]
 /// async fn main() {
 ///     let mut app = Octane::new();
 ///     app.get(
@@ -150,7 +150,7 @@ impl Octane {
     /// ```no_run
     /// use octane::server::Octane;
     ///
-    /// #[octane_macros::main]
+    /// #[octane::main]
     /// async fn main() {
     ///     let mut app = Octane::new();
     ///     app.listen(80).await.expect("Cannot establish connection");

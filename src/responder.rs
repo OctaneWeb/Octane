@@ -25,7 +25,7 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// use octane::server::Octane;
 /// use octane::{route, router::{Flow, Route}};
 ///
-/// #[octane_macros::main]
+/// #[octane::main]
 /// async fn main() {
 ///     let mut app = Octane::new();
 ///     app.get(
@@ -286,7 +286,7 @@ impl Response {
     /// use octane::{route, router::{Flow, Route}};
     /// use octane::responder::StatusCode;
     ///
-    /// #[octane_macros::main]
+    /// #[octane::main]
     /// async fn main() {
     ///     let mut app = Octane::new();
     ///     app.get(

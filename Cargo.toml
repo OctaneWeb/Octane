@@ -22,7 +22,7 @@ version = "0.1.2"
 
 [dependencies.octane_json]
 path = "octane_json"
-version = "0.1.2"
+version = "0.2.0"
 
 [features]
 default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers", "openSSL"]

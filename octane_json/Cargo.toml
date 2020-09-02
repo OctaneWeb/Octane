@@ -1,6 +1,6 @@
 [package]
 name = "octane_json"
-version = "0.1.3"
+version = "0.2.0"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
 description = "JSON manipulation for Octane."
 license-file = "LICENSE"

@@ -56,16 +56,17 @@
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
 //! octane will throw a `compile_error!`
-
+#[warn(missing_docs)]
 #[macro_use]
 extern crate lazy_static;
+
 pub mod config;
-pub mod constants;
+mod constants;
 #[cfg(feature = "cookies")]
 pub mod cookies;
-pub mod error;
-pub mod file_handler;
-pub mod http;
+mod error;
+mod file_handler;
+mod http;
 pub mod middlewares;
 pub mod path;
 pub mod query;
@@ -73,9 +74,11 @@ pub mod request;
 pub mod responder;
 pub mod router;
 pub mod server;
-pub mod time;
+mod server_builder;
+mod time;
 pub mod tls;
-pub mod util;
+mod util;
+
 // convenient aliasing for octane_json
 pub use octane_json as json;
 

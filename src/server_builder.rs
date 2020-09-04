@@ -1,4 +1,5 @@
 use crate::server::Octane;
+use crate::task;
 use std::future::Future;
 use std::io::Error;
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -20,13 +21,16 @@ impl ServerBuilder {
     pub fn new() -> Self {
         ServerBuilder { port: 80 }
     }
+
     pub fn port(&mut self, port: u16) -> &mut Self {
         self.port = port;
         self
     }
+
     async fn get_tcp_listener(&mut self) -> Result<TcpListener, Error> {
         TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), self.port)).await
     }
+
     pub async fn listen<C, T>(&mut self, exec: C, server: Arc<Octane>) -> Result<(), Error>
     where
         T: Future + Send,
@@ -36,13 +40,14 @@ impl ServerBuilder {
         while let Some(stream) = listener.next().await {
             stream.map(|stream| {
                 let server = Arc::clone(&server);
-                tokio::spawn(async move {
+                task!({
                     exec(stream, server).await;
                 })
             })?;
         }
         Ok(())
     }
+
     #[cfg(feature = "openSSL")]
     pub async fn listen_ssl<C, T>(&mut self, exec: C, server: Arc<Octane>) -> Result<(), Error>
     where
@@ -55,7 +60,7 @@ impl ServerBuilder {
             let acceptor = acceptor.clone();
             stream.map(|stream| {
                 let server = Arc::clone(&server);
-                tokio::spawn(async move {
+                task!({
                     tokio_openssl::accept(&acceptor, stream)
                         .await
                         .map(move |stream_ssl| async move {

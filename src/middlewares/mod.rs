@@ -1,6 +1,5 @@
 use crate::router::Closure;
 
-#[derive(Clone)]
 pub struct Closures {
     pub closure: Closure,
     pub index: usize,

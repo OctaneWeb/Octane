@@ -1,8 +1,7 @@
-use octane::main;
 use octane::server::Octane;
 use octane::{
     route,
-    router::{Flow, Route},
+    router::{Closure, Flow, Route},
 };
 use std::error::Error;
 
@@ -16,6 +15,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Flow::Next
         }),
     )?;
-    app.listen(8000).await?;
-    Ok(())
+    app.add(Octane::static_dir("templates/"))?;
+    let logger: Closure = route!(|req, res| {
+        println!("{:#?}", req);
+        Flow::Next
+    });
+    app.add(logger)?;
+    app.listen(8000).await
 }

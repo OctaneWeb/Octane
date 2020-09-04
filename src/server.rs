@@ -17,7 +17,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::prelude::*;
-use tokio::runtime::Builder;
 
 #[macro_export]
 macro_rules! declare_error {
@@ -62,30 +61,6 @@ impl Octane {
             settings: OctaneConfig::new(),
             router: Router::new(),
         }
-    }
-    /// **Appends** the router routes to the routes that
-    /// the server instance holds, this allows you to
-    /// independently add routes to a route Router structure
-    /// and then use it with the server struct
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use octane::server::Octane;
-    /// use octane::{route, router::{Flow, Route, Router}};
-    ///
-    /// let mut app = Octane::new();
-    /// let mut router = Router::new();
-    /// router.get("/", route!(|req, res| { res.send("It's a get request!!"); Flow::Stop }));
-    /// router.post("/", route!(|req, res| { res.send("It's a post request!!"); Flow::Stop }));
-    /// app.with_router(router);
-    /// ```
-    ///
-    /// Note that it appends, meaning if you have 3 routes in
-    /// Router struct and 3 routes in the Octane struct,
-    /// you'll have total 3 + 3 routes in the Octane struct.
-    pub fn with_router(&mut self, router: Router) {
-        self.router.append(router);
     }
     /// Appends the config of the Octane struct with a custom
     /// generated one. The Octane struct contains an OctaneConfig
@@ -134,9 +109,9 @@ impl Octane {
             let final_string = final_url.to_str().unwrap();
             if &final_string[final_string.len() - 1..] == "/" {
                 let stripped = &final_string[..final_string.len() - 1];
-                res.send_file(stripped).expect("File not found!!");
+                res.send_file(stripped).ok();
             } else {
-                res.send_file(final_string).expect("File not found!!");
+                res.send_file(final_string).ok();
             };
 
             Flow::Next
@@ -162,7 +137,7 @@ impl Octane {
         #[cfg(any(feature = "openSSL", feature = "rustls"))]
         {
             let clone = Arc::clone(&server);
-            tokio::spawn(async move { Octane::listen_ssl(clone) });
+            task!({ Octane::listen_ssl(clone) });
             let ssl = true;
         }
         // echo server string
@@ -261,13 +236,6 @@ impl Octane {
                 }
                 KeepAliveState::Close => {
                     res.set("Connection", "Close");
-                }
-            }
-            // Check for http2 connection header here, if found then call a http2 parse
-            // function that will parse http2 frames and parse the request from that
-            if let Some(x) = request.headers.get("connection") {
-                if x == "upgrade" {
-                    // upgrade here
                 }
             }
             if request_line.method.is_some() {

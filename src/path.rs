@@ -149,25 +149,6 @@ pub struct MatchedPath<'a, T> {
     pub data: &'a T,
 }
 
-#[derive(Clone)]
-pub struct OwnedMatchedPath<T> {
-    #[cfg(feature = "url_variables")]
-    pub vars: HashMap<String, String>,
-    pub data: T,
-}
-
-pub fn matched_path_to_owned<T: Clone>(mp: &MatchedPath<T>) -> OwnedMatchedPath<T> {
-    OwnedMatchedPath {
-        #[cfg(feature = "url_variables")]
-        vars: mp
-            .vars
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect(),
-        data: mp.data.clone(),
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathChunk {
     Chunk(String),
@@ -436,7 +417,6 @@ impl TryFrom<&str> for PathBuf {
 
 default!(PathBuf);
 default!(PathNode<T>);
-deref!(OwnedMatchedPath<T>, T, data);
 deref!(PathData<T>, T, data);
 deref!(MatchedPath<'a, T>, T, data);
 deref!(PathBuf, Vec<String>, chunks);

@@ -2,7 +2,6 @@ use crate::constants::closures_lock;
 use crate::default;
 use colored::*;
 use core::time::Duration;
-use std::ffi::OsStr;
 use std::path::PathBuf;
 #[cfg(feature = "rustls")]
 use tokio_rustls::rustls::{
@@ -85,24 +84,6 @@ impl Ssl {
         self.cert = PathBuf::from(path);
         self
     }
-    /// Validates the certs and keys by checking their extensions
-    pub fn validate(&self) {
-        let key_ext = self
-            .key
-            .as_path()
-            .extension()
-            .and_then(OsStr::to_str)
-            .unwrap_or("");
-        let cert_ext = self
-            .cert
-            .as_path()
-            .extension()
-            .and_then(OsStr::to_str)
-            .unwrap_or("");
-        if key_ext != "pem" && cert_ext != "pem" {
-            panic!("Invalid key/cert file, {:?}", "bad extension")
-        }
-    }
 }
 
 /// An independent OctaneConfig struct that can be used
@@ -141,8 +122,12 @@ pub struct OctaneConfig {
     pub ssl: Ssl,
     pub file_404: Option<PathBuf>,
     pub worker_threads: Option<usize>,
+    pub extensions: Vec<Extensions>,
 }
 
+pub enum Extensions {
+    WebSockets,
+}
 /// Shared config trait which allows us to use the config
 /// methods on the Octane server struct too as it has a
 /// config field by default
@@ -267,6 +252,7 @@ impl OctaneConfig {
             keep_alive: Some(Duration::from_secs(5)),
             worker_threads: None,
             file_404: None,
+            extensions: Vec::new(),
         }
     }
     /// Appends a settings instance to self
@@ -301,6 +287,11 @@ impl OctaneConfig {
         let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.key)?);
         rsa_private_keys(&mut buf)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))
+    }
+
+    pub fn add_extension(&mut self, ext: Extensions) -> &mut Self {
+        self.extensions.push(ext);
+        self
     }
 
     pub fn startup_string(&self, ssl: bool, port: u16) -> String {

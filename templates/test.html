@@ -6,6 +6,10 @@
     <link rel="stylesheet" type="text/css" href="test.css">
     <!-- A text.js file to check if javascript request works -->
     <script type="text/javascript" src="test.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+    <script>
+        let socket = new WebSocket("ws://localhost:8000");
+    </script>
 </head>
 <body>
     <h1>Hello, World</h1>

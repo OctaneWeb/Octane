@@ -399,7 +399,7 @@ impl KeepAlive {
 pub struct MatchedRequest<'a> {
     pub request: Request<'a>,
     #[cfg(feature = "url_variables")]
-    pub vars: HashMap<String, String>,
+    pub vars: HashMap<&'a str, &'a str>,
 }
 
 deref!(MatchedRequest<'a>, Request<'a>, request);

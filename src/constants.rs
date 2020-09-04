@@ -67,6 +67,13 @@ macro_rules! deref {
 }
 
 #[macro_export]
+macro_rules! task {
+    ($body : expr ) => {{
+        tokio::spawn(async move { $body })
+    }};
+}
+
+#[macro_export]
 macro_rules! default {
     ( $struct : ident<$($gen: tt),+> ) => {
         impl<$($gen),+> Default for $struct <$($gen),+> {

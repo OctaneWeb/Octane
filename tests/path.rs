@@ -4,7 +4,7 @@ use octane::path::*;
 fn success_standard() {
     // Parsing should work as expected.
     let chunks = PathBuf::parse("/asdf//foo/a/b/c/../d").unwrap();
-    assert_eq!(chunks.chunks, vec!["asdf", "foo", "a", "b", "d"]);
+    assert_eq!(*chunks.chunks(), vec!["asdf", "foo", "a", "b", "d"]);
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn success_subtraction() {
     let path2 = PathBuf::parse("/a/b/").unwrap();
     let path3 = PathBuf::parse("/c/d").unwrap();
     let path4 = PathBuf::parse("a/:x/c").unwrap();
-    assert_eq!(path1.subtract(&path2).unwrap().chunks, vec!["c", "d"]);
+    assert_eq!(*path1.subtract(&path2).unwrap().chunks(), vec!["c", "d"]);
     assert!(path1.subtract(&path3).is_none());
     assert!(path1.subtract(&path4).is_none());
 }

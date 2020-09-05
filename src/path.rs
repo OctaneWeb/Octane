@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
-    pub chunks: Vec<String>,
+    chunks: Vec<String>,
 }
 
 impl fmt::Display for PathBuf {
@@ -25,6 +25,9 @@ impl fmt::Display for PathBuf {
 impl PathBuf {
     pub fn new() -> Self {
         PathBuf { chunks: Vec::new() }
+    }
+    pub fn chunks(&self) -> &Vec<String> {
+        self.chunks.as_ref()
     }
 
     pub fn to_std_pathbuf(&self) -> std::path::PathBuf {

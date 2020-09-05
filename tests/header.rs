@@ -44,16 +44,16 @@ fn fail_malformed_name() {
 fn success_keepalive() {
     // Parsing should work as expected.
     let req = KeepAlive::parse("timeout=5, max=1000");
-    assert_eq!(req.timeout, Some(5));
-    assert_eq!(req.max, Some(1000));
+    assert_eq!(req.timeout(), Some(5));
+    assert_eq!(req.max(), Some(1000));
 }
 
 #[test]
 fn success_keepalive_edge() {
     // Edge cases should work as expected.
     let req = KeepAlive::parse("timeout=,test,max=a, timeout=5");
-    assert_eq!(req.timeout, Some(5));
-    assert_eq!(req.max, None);
+    assert_eq!(req.timeout(), Some(5));
+    assert_eq!(req.max(), None);
 }
 
 #[cfg(feature = "cookies")]

@@ -37,8 +37,8 @@ fn success_raw_headers() {
             .to_string(),
     )
     .unwrap();
-    assert_eq!(headers.raw[0].name, "HOst");
-    assert_eq!(headers.raw[0].value, "localhost:12345");
-    assert_eq!(headers.raw[1].name, "User-Agent");
-    assert_eq!(headers.raw[1].value, "curl/7.58.0");
+    assert_eq!(headers.raw[0].name(), "HOst");
+    assert_eq!(headers.raw[0].value(), "localhost:12345");
+    assert_eq!(headers.raw[1].name(), "User-Agent");
+    assert_eq!(headers.raw[1].value(), "curl/7.58.0");
 }

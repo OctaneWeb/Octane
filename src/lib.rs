@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //! Octane is a web server that's modelled after express (a very
 //! popular and easy to use web framework) for rust.
 //!
@@ -45,38 +46,54 @@
 //! Octane divides most of the things that one might _leave_ out for
 //! any reason into features. These include,
 //!
-//! - `faithful`:
-//! - `query_strings`:
+//! - `faithful`: This feature, when enabled, makes octane conforms to http spec
+//! with some added overhead because of it
+//! - `query_strings`: To enable query string parsing, eg. `?foo=bar&bar=foo`
 //! - `cookies`: Basic cookie parsing and value handling.
 //! - `url_variables`: To support variables in url.
-//! - `raw_headers`:
+//! - `raw_headers`: To have access to original, un-normalized headers.
 //! - `rustls`: To use rustls for ssl.
 //! - `openSSL`: To use openssl for ssl.
-//! - 'default`: The default set includes faithful, query_strings, cookies,
+//! - `default`: The default set includes faithful, query_strings, cookies,
 //! url_variables, raw_headers.
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
 //! octane will throw a `compile_error!`
-// #![warn(missing_docs)]
 #[macro_use]
 extern crate lazy_static;
+/// Configurations for Octane web server
 pub mod config;
+#[doc(hidden)]
 mod constants;
 #[cfg(feature = "cookies")]
+/// Module for cookie parsing and handling
 pub mod cookies;
+#[doc(hidden)]
 mod error;
+#[doc(hidden)]
 mod file_handler;
+#[doc(hidden)]
 mod http;
-pub mod middlewares;
+mod middlewares;
+/// Module to manipulate and work with paths
 pub mod path;
+/// Module to handle query string parsing
+#[cfg(feature = "query_strings")]
 pub mod query;
+/// Request module contains the ongoing request and methods to read from it
 pub mod request;
+/// Responder module contains the response which will be sent
 pub mod responder;
+/// The router module has utils to create routes and custom routers
 pub mod router;
+/// Server struct that manages request/response and allows the routes to enter in
 pub mod server;
+#[doc(hidden)]
 mod server_builder;
+#[doc(hidden)]
 mod time;
-pub mod tls;
+mod tls;
+#[doc(hidden)]
 mod util;
 
 // convenient aliasing for octane_json

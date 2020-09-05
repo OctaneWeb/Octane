@@ -10,28 +10,6 @@ pub mod static_files;
 #[macro_export]
 macro_rules! inject_method {
     ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
-        use crate::constants::CLOSURES;
-        use crate::middlewares::Closures;
-        use crate::path::{PathBuf, PathNode};
-        CLOSURES
-            .lock()
-            .unwrap()
-            .entry($method)
-            .or_insert(PathNode::new())
-            .insert(
-                PathBuf::parse($path)?,
-                Closures {
-                    closure: $closure,
-                    index: $instance.route_counter,
-                },
-            );
-        $instance.route_counter += 1;
-    };
-}
-
-#[macro_export]
-macro_rules! inject_method_on_instance {
-    ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
         use crate::middlewares::Closures;
         use crate::path::{PathBuf, PathNode};
         $instance

@@ -24,6 +24,11 @@ pub fn derive_to_json(toks: TokenStream) -> TokenStream {
     json::derive_to_json(toks)
 }
 
+/// The main attribute is just like #[tokio::main] but it defines
+/// some parameters which are specific to octane
+///
+/// octane::main attribute sets the thread stack to 10 megabytes, coroe threads
+/// to the number of cpus available * 2
 #[proc_macro_attribute]
 pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let stream = StreamParser::new(item.clone().into());
@@ -46,7 +51,7 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
             builder
                 .threaded_scheduler()
                 .enable_io()
-                .thread_stack_size(32 * 10000000)
+                .thread_stack_size(10485760)
                 .thread_name("octane-main")
                 .core_threads(#num_cpus);
 
@@ -60,6 +65,11 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     token_stream
 }
 
+/// The test attribute is just like #[tokio::test] but it defines
+/// some parameters which are specific to octane
+///
+/// octane::test attribute sets the scheduler to a basic scheduler, everything else
+/// is default from tokio
 #[proc_macro_attribute]
 pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let stream = StreamParser::new(item.clone().into());
@@ -79,7 +89,7 @@ pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             #compile_error
             let mut builder = tokio::runtime::Builder::new();
             builder
-                .threaded_scheduler()
+                .basic_scheduler()
                 .enable_io()
                 .thread_name("octane-test");
 

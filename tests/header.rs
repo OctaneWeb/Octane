@@ -6,16 +6,16 @@ use octane::request::{Header, KeepAlive};
 fn success_standard() {
     // Parsing should work as expected.
     let req = Header::parse("Referer: \t\t request://www.example.com/".to_string()).unwrap();
-    assert_eq!(req.name, "Referer");
-    assert_eq!(req.value, "request://www.example.com/");
+    assert_eq!(req.name(), "Referer");
+    assert_eq!(req.value(), "request://www.example.com/");
 }
 
 #[test]
 fn success_empty_value() {
     // Empty values are allowed.
     let req = Header::parse("Referer: \t\t ".to_string()).unwrap();
-    assert_eq!(req.name, "Referer");
-    assert_eq!(req.value, "");
+    assert_eq!(req.name(), "Referer");
+    assert_eq!(req.value(), "");
 }
 
 #[test]

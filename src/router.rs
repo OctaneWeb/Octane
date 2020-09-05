@@ -1,7 +1,6 @@
-use crate::constants::closures_lock;
 use crate::default;
 use crate::error::InvalidPathError;
-use crate::inject_method_on_instance;
+use crate::inject_method;
 use crate::middlewares::Closures;
 use crate::path::MatchedPath;
 use crate::path::PathNode;
@@ -12,11 +11,13 @@ use std::result::Result;
 
 /// The type of HashMap where we will be storing the all the closures
 pub type Paths = HashMap<RequestMethod, PathNode<Closures>>;
+
 /// The Closure type is a type alias for the type
 /// that the routes should return
 pub type Closure =
     Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> Flow + Send + Send + Sync>;
-/// RouterResult is the type with the app.METHOD methods
+
+/// RouterResult is the type which the app.METHOD methods
 /// return
 pub type RouterResult = Result<(), InvalidPathError>;
 /// The flow enum works just like the next() callback
@@ -200,12 +201,14 @@ pub trait Route {
 /// their indexes. Router methods can be used with this struct also with
 /// the main server structure. Even though the routes you register on Octane
 /// are stored in a global mutable singleton, router specifically holds a
-/// clone of the golbal singleton and only pushes the routes when you call
+/// similar type of the gobal singleton and only pushes the routes when you call
 /// `Octane::with_routes(&self, router)` on it
 pub struct Router {
+    /// Holds a counter and increments on new additions of routes
     pub route_counter: usize,
+    /// A vector of middleware closures
     pub middlewares: Vec<Closures>,
-    paths: Paths,
+    pub paths: Paths,
 }
 
 impl Router {
@@ -225,87 +228,83 @@ impl Router {
     pub fn append(&mut self, router: Self) {
         let self_count = self.route_counter;
         let other_count = router.route_counter;
-        closures_lock(|map| {
-            for (methods, paths) in router.paths.into_iter() {
-                if let Some(x) = self.paths.get_mut(&methods) {
-                    x.extend(paths.into_iter().map(|mut v| {
-                        v.data.index += self_count;
-                        v
-                    }));
-                } else {
-                    map.insert(methods, paths);
-                }
-            }
-
-            self.middlewares
-                .extend(router.middlewares.into_iter().map(|mut v| {
-                    v.index += self_count;
+        for (methods, paths) in router.paths.into_iter() {
+            if let Some(x) = self.paths.get_mut(&methods) {
+                x.extend(paths.into_iter().map(|mut v| {
+                    v.data.index += self_count;
                     v
                 }));
-            self.route_counter += other_count;
-        });
+            } else {
+                self.paths.insert(methods, paths);
+            }
+        }
+
+        self.middlewares
+            .extend(router.middlewares.into_iter().map(|mut v| {
+                v.index += self_count;
+                v
+            }));
+        self.route_counter += other_count;
     }
 
     /// Runs all the closures
     pub fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
         let req = &parsed_request.request_line;
 
-        closures_lock(|map| {
-            let mut matches: Vec<Vec<MatchedPath<Closures>>> = Vec::new();
-            if let Some(functions) = map.get(&req.method) {
-                let mut routes = functions.get(&req.path);
-                routes.sort_by_key(|v| v.index);
-                matches.push(routes);
-            };
-            // run RequestMethod::All regardless of the request method
-            if let Some(functions) = map.get(&RequestMethod::All) {
-                let mut routes = functions.get(&req.path);
-                routes.sort_by_key(|v| v.index);
-                matches.push(routes);
+        let mut matches: Vec<Vec<MatchedPath<Closures>>> = Vec::new();
+        if let Some(functions) = self.paths.get(&req.method) {
+            let mut routes = functions.get(&req.path);
+            routes.sort_by_key(|v| v.index);
+            matches.push(routes);
+        };
+        // run RequestMethod::All regardless of the request method
+        if let Some(functions) = self.paths.get(&RequestMethod::All) {
+            let mut routes = functions.get(&req.path);
+            routes.sort_by_key(|v| v.index);
+            matches.push(routes);
+        }
+
+        matches.push(
+            self.middlewares
+                .iter()
+                .map(|c| MatchedPath {
+                    data: c,
+                    #[cfg(feature = "url_variables")]
+                    vars: HashMap::new(),
+                })
+                .collect(),
+        );
+
+        let mut indices = vec![0_usize; matches.len()];
+        let total: usize = matches.iter().map(Vec::len).sum();
+        #[cfg(feature = "url_variables")]
+        let mut matched = MatchedRequest {
+            request: parsed_request.clone(),
+            vars: HashMap::new(),
+        };
+        #[cfg(not(feature = "url_variables"))]
+        let matched = MatchedRequest {
+            request: parsed_request,
+        };
+        for _ in 0..total {
+            let mut minind = 0;
+            let mut minval = usize::MAX;
+            for (n, (v, i)) in matches.iter().zip(indices.iter()).enumerate() {
+                if *i < v.len() && v[*i].index < minval {
+                    minval = v[*i].index;
+                    minind = n;
+                }
             }
-
-            matches.push(
-                self.middlewares
-                    .iter()
-                    .map(|c| MatchedPath {
-                        data: c,
-                        #[cfg(feature = "url_variables")]
-                        vars: HashMap::new(),
-                    })
-                    .collect(),
-            );
-
-            let mut indices = vec![0_usize; matches.len()];
-            let total: usize = matches.iter().map(Vec::len).sum();
             #[cfg(feature = "url_variables")]
-            let mut matched = MatchedRequest {
-                request: parsed_request.clone(),
-                vars: HashMap::new(),
-            };
-            #[cfg(not(feature = "url_variables"))]
-            let matched = MatchedRequest {
-                request: parsed_request,
-            };
-            for _ in 0..total {
-                let mut minind = 0;
-                let mut minval = usize::MAX;
-                for (n, (v, i)) in matches.iter().zip(indices.iter()).enumerate() {
-                    if *i < v.len() && v[*i].index < minval {
-                        minval = v[*i].index;
-                        minind = n;
-                    }
-                }
-                #[cfg(feature = "url_variables")]
-                {
-                    matched.vars = matches[minind][indices[minind]].vars.clone();
-                }
-                let flow = (matches[minind][indices[minind]].closure)(&matched, &mut res);
-                indices[minind] += 1;
-                if !flow.should_continue() {
-                    break;
-                }
+            {
+                matched.vars = matches[minind][indices[minind]].vars.clone();
             }
-        });
+            let flow = (matches[minind][indices[minind]].closure)(&matched, &mut res);
+            indices[minind] += 1;
+            if !flow.should_continue() {
+                break;
+            }
+        }
     }
 }
 /// The route macro makes it easy to pass anonymous
@@ -340,24 +339,24 @@ default!(Router);
 
 impl Route for Router {
     fn option(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method_on_instance!(self, path, closure, RequestMethod::Options);
+        inject_method!(self, path, closure, RequestMethod::Options);
         Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method_on_instance!(self, path, closure, RequestMethod::Head);
+        inject_method!(self, path, closure, RequestMethod::Head);
         Ok(())
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method_on_instance!(self, path, closure, RequestMethod::Put);
+        inject_method!(self, path, closure, RequestMethod::Put);
         Ok(())
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method_on_instance!(self, path, closure, RequestMethod::Get);
+        inject_method!(self, path, closure, RequestMethod::Get);
         Ok(())
     }
 
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method_on_instance!(self, path, closure, RequestMethod::Post);
+        inject_method!(self, path, closure, RequestMethod::Post);
         Ok(())
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
@@ -369,7 +368,7 @@ impl Route for Router {
         Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method_on_instance!(self, path, closure, RequestMethod::All);
+        inject_method!(self, path, closure, RequestMethod::All);
         Ok(())
     }
 }

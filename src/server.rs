@@ -3,13 +3,13 @@ use crate::constants::*;
 use crate::error::Error;
 use crate::http::{KeepAliveState, Validator};
 use crate::middlewares::Closures;
-use crate::request::{parse_without_body, Headers, Request, RequestLine, RequestMethod};
+use crate::request::{parse_without_body, Headers, Request, RequestLine};
 use crate::responder::{BoxReader, Response, StatusCode};
 use crate::router::{Closure, Flow, Route, Router, RouterResult};
 use crate::server_builder::ServerBuilder;
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
-use crate::{declare_error, default, inject_method, route};
+use crate::{declare_error, default, route};
 use std::error::Error as StdError;
 use std::marker::Unpin;
 use std::str;
@@ -158,7 +158,12 @@ impl Octane {
             let ssl = true;
         }
         // echo server string
-        println!("{}", server.settings.startup_string(ssl, port));
+        println!(
+            "{}",
+            server
+                .settings
+                .startup_string(ssl, port, server.router.paths.len())
+        );
         let mut server_builder = ServerBuilder::new();
         server_builder
             .port(port)
@@ -286,24 +291,24 @@ default!(Octane);
 
 impl Route for Octane {
     fn option(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Options);
+        self.router.option(path, closure);
         Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Head);
+        self.router.head(path, closure);
         Ok(())
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Put);
+        self.router.put(path, closure);
         Ok(())
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Get);
+        self.router.get(path, closure);
         Ok(())
     }
 
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::Post);
+        self.router.post(path, closure);
         Ok(())
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
@@ -315,7 +320,7 @@ impl Route for Octane {
         Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self.router, path, closure, RequestMethod::All);
+        self.router.add_route(path, closure);
         Ok(())
     }
 }

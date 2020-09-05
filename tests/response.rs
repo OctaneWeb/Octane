@@ -13,6 +13,7 @@ async fn data_to_string(mut data: (String, BoxReader)) -> String {
 }
 
 #[octane::test]
+#[test]
 async fn success_standard() {
     // default response should provide OK 200 Code
     let req = data_to_string(Response::new_from_slice(b"").get_data()).await;
@@ -20,6 +21,7 @@ async fn success_standard() {
 }
 
 #[octane::test]
+#[test]
 async fn response_with_status_code_different() {
     // Reponse with different status codes should work
     let mut req = Response::new_from_slice(b"");
@@ -32,6 +34,7 @@ async fn response_with_status_code_different() {
 }
 
 #[octane::test]
+#[test]
 async fn response_with_different_http_version() {
     // Reponse with different status codes should work
     let mut req = Response::new_from_slice(b"");

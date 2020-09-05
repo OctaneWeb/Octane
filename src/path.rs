@@ -3,7 +3,7 @@ use crate::{default, deref};
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use std::fmt;
-use std::iter::{Iterator, Map};
+use std::iter::{Iterator, Map, FromIterator};
 use std::path::PathBuf as StdPathBuf;
 use std::str::FromStr;
 
@@ -399,6 +399,16 @@ impl<T> Extend<PathData<T>> for PathNode<T> {
         for dat in iter {
             self.insert(dat.orig_path, dat.data);
         }
+    }
+}
+
+impl<T> FromIterator<PathData<T>> for PathNode<T> {
+    fn from_iter<I: IntoIterator<Item = PathData<T>>>(iter: I) -> Self {
+        let mut ret = Self::new();
+        for dat in iter {
+            ret.insert(dat.orig_path, dat.data);
+        }
+        ret
     }
 }
 

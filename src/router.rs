@@ -226,14 +226,17 @@ impl Router {
         let self_count = self.route_counter;
         let other_count = router.route_counter;
         closures_lock(|map| {
-            for (methods, paths) in router.paths.into_iter() {
-                if let Some(x) = self.paths.get_mut(&methods) {
+            for (method, paths) in router.paths.into_iter() {
+                if let Some(x) = self.paths.get_mut(&method) {
                     x.extend(paths.into_iter().map(|mut v| {
                         v.data.index += self_count;
                         v
                     }));
                 } else {
-                    map.insert(methods, paths);
+                    map.insert(method, paths.into_iter().map(|mut v| {
+                        v.data.index += self_count;
+                        v
+                    }).collect());
                 }
             }
 

@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathBuf {
-    chunks: Vec<String>,
+    pub chunks: Vec<String>,
 }
 
 impl fmt::Display for PathBuf {

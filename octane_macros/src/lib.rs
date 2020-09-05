@@ -81,7 +81,7 @@ pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             builder
                 .threaded_scheduler()
                 .enable_io()
-                .thread_name("octane-test")
+                .thread_name("octane-test");
 
             let mut runtime = builder.build().expect("Unable to build tokio runtime");
             runtime.block_on(async {

@@ -166,7 +166,6 @@ pub trait Config {
     /// let mut config = OctaneConfig::new();
     /// let mut ssl_config = Ssl::new();
     /// ssl_config.key("templates/key.pem");
-    /// config.set_404_file("templates/error.html");
     /// ```
     ///
     /// Or with Octane struct

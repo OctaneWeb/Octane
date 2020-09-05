@@ -3,7 +3,7 @@ use crate::{default, deref};
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use std::fmt;
-use std::iter::{Iterator, Map, FromIterator};
+use std::iter::{FromIterator, Iterator, Map};
 use std::path::PathBuf as StdPathBuf;
 use std::str::FromStr;
 

@@ -9,7 +9,7 @@ pub fn http10_check(validator: &mut Validator) {
                 let header_details = KeepAlive::parse(keep_alive_header);
 
                 validator.set_keepalive(KeepAliveState::Particular(Duration::from_secs(
-                    header_details.timeout.unwrap_or(0),
+                    header_details.timeout().unwrap_or(0),
                 )));
             }
         } else if connection_type == "close" {

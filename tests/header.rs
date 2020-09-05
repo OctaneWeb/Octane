@@ -6,16 +6,16 @@ use octane::request::{Header, KeepAlive};
 fn success_standard() {
     // Parsing should work as expected.
     let req = Header::parse("Referer: \t\t request://www.example.com/".to_string()).unwrap();
-    assert_eq!(req.name, "Referer");
-    assert_eq!(req.value, "request://www.example.com/");
+    assert_eq!(req.name(), "Referer");
+    assert_eq!(req.value(), "request://www.example.com/");
 }
 
 #[test]
 fn success_empty_value() {
     // Empty values are allowed.
     let req = Header::parse("Referer: \t\t ".to_string()).unwrap();
-    assert_eq!(req.name, "Referer");
-    assert_eq!(req.value, "");
+    assert_eq!(req.name(), "Referer");
+    assert_eq!(req.value(), "");
 }
 
 #[test]
@@ -44,16 +44,16 @@ fn fail_malformed_name() {
 fn success_keepalive() {
     // Parsing should work as expected.
     let req = KeepAlive::parse("timeout=5, max=1000");
-    assert_eq!(req.timeout, Some(5));
-    assert_eq!(req.max, Some(1000));
+    assert_eq!(req.timeout(), Some(5));
+    assert_eq!(req.max(), Some(1000));
 }
 
 #[test]
 fn success_keepalive_edge() {
     // Edge cases should work as expected.
     let req = KeepAlive::parse("timeout=,test,max=a, timeout=5");
-    assert_eq!(req.timeout, Some(5));
-    assert_eq!(req.max, None);
+    assert_eq!(req.timeout(), Some(5));
+    assert_eq!(req.max(), None);
 }
 
 #[cfg(feature = "cookies")]

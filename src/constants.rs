@@ -1,10 +1,5 @@
-use crate::middlewares::Closures;
-use crate::path::PathNode;
-use crate::request::RequestMethod;
-use crate::router::Paths;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::iter::FromIterator;
-use std::sync::Mutex;
 
 pub const SP: char = ' ';
 pub const HT: char = '\t';
@@ -31,16 +26,6 @@ lazy_static! {
     pub static ref TOKEN_CHARS: HashSet<char> = HashSet::from_iter(
         "!#$%&'*+-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ^_`abcdefghijklmnopqrstuvwxyz|~".chars()
     );
-    // HashMap for storing closures
-    pub static ref CLOSURES: Mutex<Paths> = Mutex::new(HashMap::new());
-}
-
-pub fn closures_lock<F, T>(f: F) -> T
-where
-    F: FnOnce(&mut HashMap<RequestMethod, PathNode<Closures>>) -> T,
-{
-    let mut lock = CLOSURES.lock().unwrap();
-    f(&mut lock)
 }
 
 #[macro_export]

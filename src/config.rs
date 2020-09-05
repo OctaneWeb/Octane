@@ -1,4 +1,3 @@
-use crate::constants::closures_lock;
 use crate::default;
 use colored::*;
 use core::time::Duration;
@@ -28,17 +27,13 @@ use tokio_rustls::rustls::{
 /// ssl_config.key("templates/key.pem");
 /// app.with_ssl_config(ssl_config);
 /// ```
-/// The ssl struct has three fields
-///
-/// - `key`: Location of the private key file, should have the
-/// extension as .pem
-/// - `cert`: Location of the certificate file, should have the
-/// extension as .pem
-/// - `port`: The port where TLS should listen, is 443 by defaults
 #[derive(Clone)]
 pub struct Ssl {
+    /// Location of the private key file, should be an `RSA_PRIVATE_KEY`.
     pub key: PathBuf,
+    /// Location of the certificate file.
     pub cert: PathBuf,
+    /// The port where TLS should listen, is 443 by default.
     pub port: u16,
 }
 
@@ -106,27 +101,14 @@ impl Ssl {
 /// The config holds the values for various configurable
 /// item. If no config is specfied then defaults are used.
 ///
-/// # Config parameters
-///
-/// - `keep_alive`: The duration for keep alive requests.
-/// - `ssl`: An instance of the `Ssl` struct to store the
-/// values of key and certificates.
-/// - `worker_threads`: The number of worker threads to use
-/// while handling requests, by default this value is equal
-/// to the number of cores available to the system, this is
-/// later on used for setting number for the
-/// [`core_threads`](https://docs.rs/tokio/0.2.13/tokio/runtime/struct.Builder.html#method.core_threads)
-/// method
 pub struct OctaneConfig {
+    /// The duration for keep alive requests. Is 5 seconds by default
     pub keep_alive: Option<Duration>,
+    /// An instance of the `Ssl` struct to store the values of key and certificates.
     pub ssl: Ssl,
     worker_threads: Option<usize>,
-    pub extensions: Vec<Extensions>,
 }
 
-pub enum Extensions {
-    WebSockets,
-}
 /// Shared config trait which allows us to use the config
 /// methods on the Octane server struct too as it has a
 /// config field by default
@@ -225,7 +207,6 @@ impl OctaneConfig {
             ssl: Ssl::new(),
             keep_alive: Some(Duration::from_secs(5)),
             worker_threads: None,
-            extensions: Vec::new(),
         }
     }
     /// Appends a settings instance to self
@@ -261,13 +242,8 @@ impl OctaneConfig {
         rsa_private_keys(&mut buf)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))
     }
-
-    pub fn add_extension(&mut self, ext: Extensions) -> &mut Self {
-        self.extensions.push(ext);
-        self
-    }
-
-    pub fn startup_string(&self, ssl: bool, port: u16) -> String {
+    /// Generates a string which prints the configurations when the server runs
+    pub fn startup_string(&self, ssl: bool, port: u16, len: usize) -> String {
         let mut final_string = String::new();
         final_string.push_str(
             format!(
@@ -324,16 +300,16 @@ impl OctaneConfig {
         } else {
             final_string.push_str(format!("{}: {} \n", "TLS".red(), "disabled".green()).as_str());
         }
-        closures_lock(|map| {
-            final_string.push_str(
-                format!(
-                    "{}: {} paths\n",
-                    "-> Serving".blue(),
-                    map.len().to_string().red().bold()
-                )
-                .as_str(),
-            );
-        });
+
+        final_string.push_str(
+            format!(
+                "{}: {} paths\n",
+                "-> Serving".blue(),
+                len.to_string().red().bold()
+            )
+            .as_str(),
+        );
+
         final_string.push_str(
             format!(
                 "\n{} at {}:{}\n",

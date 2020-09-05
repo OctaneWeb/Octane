@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 use std::str;
 
 /// Holds the type of request method, like GET
-/// POST etc. You don't need to use it directly
+/// POST etc.
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
 pub enum RequestMethod {
     Options,
@@ -105,8 +105,7 @@ impl HttpVersion {
 /// use octane::request::RequestMethod;
 ///
 /// let mut app = Octane::new();
-/// app
-/// .get("/",
+/// app.get("/",
 ///     route!(|req, res| {
 ///         assert_eq!(RequestMethod::Get, req.request_line.method);
 ///         Flow::Stop
@@ -115,15 +114,17 @@ impl HttpVersion {
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestLine {
+    /// The HTTP method which the request was made in
     pub method: RequestMethod,
+    /// The path of the request
     pub path: PathBuf,
+    /// Http version of the request
     pub version: HttpVersion,
 }
 
 impl RequestLine {
     /// Parses a request line str and returns a
-    /// request line struct. You don't have to
-    /// ever use this directly.
+    /// request line struct.
     pub fn parse(request_line: &str) -> Option<Self> {
         let mut toks = request_line.split(SP);
         let method = toks.next()?;
@@ -173,8 +174,8 @@ impl RequestLine {
 /// closures
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Header {
-    pub name: String,
-    pub value: String,
+    name: String,
+    value: String,
 }
 
 impl Header {
@@ -199,6 +200,14 @@ impl Header {
             name: name.to_owned(),
             value: value.to_owned(),
         })
+    }
+    /// Return the name of the header
+    pub fn name(&self) -> String {
+        self.name.to_string()
+    }
+    /// Return the value of the header
+    pub fn value(&self) -> String {
+        self.value.to_string()
     }
 }
 
@@ -227,9 +236,10 @@ impl Header {
 pub struct Headers {
     pub parsed: HashMap<String, String>,
     #[cfg(feature = "raw_headers")]
+    /// Contains headers in raw form
     pub raw: Vec<Header>,
     #[cfg(not(feature = "raw_headers"))]
-    pub raw: PhantomData<()>,
+    raw: PhantomData<()>,
 }
 
 impl Headers {
@@ -261,6 +271,7 @@ impl Headers {
     }
 }
 
+/// Helper function for extracting some headers
 pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
     let n = data.find("\r\n")?;
     let (line, rest) = data.split_at(n);
@@ -279,8 +290,7 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 /// use octane::request::RequestMethod;
 ///
 /// let mut app = Octane::new();
-/// app
-/// .get("/",
+/// app.get("/",
 ///     route!(|req, res| {
 ///         // The req here is not actually a
 ///         // Request but a MatchedRequest which
@@ -298,10 +308,15 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 /// request_line
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Request<'a> {
+    /// The requestline is the first line of the http request, it has the version,
+    /// request method, request_uri.
     pub request_line: RequestLine,
+    /// Headers in a request
     pub headers: Headers,
+    /// The body of the request
     pub body: &'a [u8],
     #[cfg(feature = "cookies")]
+    /// Cookies in a request
     pub cookies: Cookies,
 }
 
@@ -329,11 +344,11 @@ impl<'a> Request<'a> {
 
 /// The KeepAlive struct represents the value
 /// parsed in the KeepAlive header. It holds the
-/// timeout and max duration as a u64
+/// timeout and max duration as a u64, only http 1.0 and below
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeepAlive {
-    pub timeout: Option<u64>,
-    pub max: Option<u64>,
+    timeout: Option<u64>,
+    max: Option<u64>,
 }
 
 impl KeepAlive {
@@ -364,12 +379,20 @@ impl KeepAlive {
         }
         ret
     }
+    /// Returns the ammount of timeout specified in the keep alive header
+    pub fn timeout(&self) -> Option<u64> {
+        self.timeout
+    }
+    /// Returns the ammount of max requests specified in the keep alive header
+    pub fn max(&self) -> Option<u64> {
+        self.max
+    }
 }
 
 /// The MatchedRequest is the struct which you see
 /// when you have the `req` variable in the closure
 /// It implements Deref to Request so you can use
-/// Requet methods/properties directly on it
+/// Request methods/properties directly on it
 ///
 /// # Example
 ///
@@ -397,8 +420,10 @@ impl KeepAlive {
 /// TODO: Add a url variable example
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MatchedRequest<'a> {
+    /// The request comming from a client
     pub request: Request<'a>,
     #[cfg(feature = "url_variables")]
+    /// A Hashmap containing the variables specified in the url with their respective keys
     pub vars: HashMap<&'a str, &'a str>,
 }
 

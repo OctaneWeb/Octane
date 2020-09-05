@@ -43,7 +43,7 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// ```
 pub struct Response {
     pub status_code: StatusCode,
-    pub body: BoxReader,
+    body: BoxReader,
     pub content_len: Option<usize>,
     pub http_version: String,
     pub headers: HashMap<String, String>,

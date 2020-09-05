@@ -2,29 +2,22 @@ use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::error::Error;
 use crate::http::{KeepAliveState, Validator};
-use crate::request::{parse_without_body, Headers, Request, RequestLine};
+use crate::middlewares::Closures;
+use crate::request::{parse_without_body, Headers, Request, RequestLine, RequestMethod};
 use crate::responder::{BoxReader, Response, StatusCode};
 use crate::router::{Closure, Flow, Route, Router, RouterResult};
 use crate::server_builder::ServerBuilder;
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
-use crate::{default, route};
+use crate::{declare_error, default, inject_method, route};
 use std::error::Error as StdError;
 use std::marker::Unpin;
-use std::path::PathBuf as StdPathBuf;
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::prelude::*;
 
-#[macro_export]
-macro_rules! declare_error {
-    ($stream : expr, $error_type : expr, $settings : expr) => {
-        Error::err($error_type, $settings, $stream).await?;
-        return Ok(());
-    };
-}
 /// The octane server
 ///
 /// # Example
@@ -50,8 +43,8 @@ macro_rules! declare_error {
 /// }
 /// ```
 pub struct Octane {
-    pub settings: OctaneConfig,
-    pub router: Router,
+    settings: OctaneConfig,
+    router: Router,
 }
 
 impl Octane {
@@ -85,6 +78,30 @@ impl Octane {
     /// with the settings that Octane struct already has
     pub fn with_config(&mut self, config: OctaneConfig) {
         self.settings.append(config);
+    }
+    /// **Appends** the router routes to the routes that
+    /// the server instance holds, this allows you to
+    /// independently add routes to a route Router structure
+    /// and then use it with the server struct
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::server::Octane;
+    /// use octane::{route, router::{Flow, Route, Router}};
+    ///
+    /// let mut app = Octane::new();
+    /// let mut router = Router::new();
+    /// router.get("/", route!(|req, res| { res.send("It's a get request!!"); Flow::Stop }));
+    /// router.post("/", route!(|req, res| { res.send("It's a post request!!"); Flow::Stop }));
+    /// app.with_router(router);
+    /// ```
+    ///
+    /// Note that it appends, meaning if you have 3 routes in
+    /// Router struct and 3 routes in the Octane struct,
+    /// you'll have total 3 + 3 routes in the Octane struct.
+    pub fn with_router(&mut self, router: Router) {
+        self.router.append(router);
     }
     /// Returns a closure which can be used with the add or add_route method
     /// to serve a static directory.
@@ -171,7 +188,6 @@ impl Octane {
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
-        let settings = &server.settings;
         let mut data = Vec::<u8>::new();
         let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
         let body: &[u8];
@@ -240,7 +256,7 @@ impl Octane {
             }
             if request_line.method.is_some() {
                 // run closures
-                server.router.run(request.clone(), &mut res).await;
+                server.router.run(request.clone(), &mut res);
                 if res.content_len.unwrap_or(0) == 0 {
                     declare_error!(stream_async, StatusCode::NotFound, settings);
                 }
@@ -270,34 +286,43 @@ default!(Octane);
 
 impl Route for Octane {
     fn option(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.option(path, closure)
+        inject_method!(self.router, path, closure, RequestMethod::Options);
+        Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.head(path, closure)
+        inject_method!(self.router, path, closure, RequestMethod::Head);
+        Ok(())
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.put(path, closure)
+        inject_method!(self.router, path, closure, RequestMethod::Put);
+        Ok(())
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.get(path, closure)
+        inject_method!(self.router, path, closure, RequestMethod::Get);
+        Ok(())
     }
+
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.post(path, closure)
+        inject_method!(self.router, path, closure, RequestMethod::Post);
+        Ok(())
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
-        self.router.add(closure)
+        self.router.middlewares.push(Closures {
+            closure,
+            index: self.router.route_counter,
+        });
+        self.router.route_counter += 1;
+        Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.add_route(path, closure)
+        inject_method!(self.router, path, closure, RequestMethod::All);
+        Ok(())
     }
 }
 
 impl Config for Octane {
     fn set_keepalive(&mut self, duration: Duration) {
         self.settings.keep_alive = Some(duration);
-    }
-    fn set_404_file(&mut self, dir_name: &'static str) {
-        self.settings.file_404 = Some(StdPathBuf::from(dir_name));
     }
     fn with_ssl_config(&mut self, ssl_conf: Ssl) {
         self.settings.ssl.key = ssl_conf.key;

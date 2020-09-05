@@ -10,6 +10,8 @@ edition = "2018"
 
 [dependencies]
 num_cpus = "1.13.0"
+quote = "1.0.7"
+proc-macro2 = "1.0"
 
 [lib]
 proc-macro = true

@@ -57,10 +57,9 @@
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
 //! octane will throw a `compile_error!`
-#[warn(missing_docs)]
+// #![warn(missing_docs)]
 #[macro_use]
 extern crate lazy_static;
-
 pub mod config;
 mod constants;
 #[cfg(feature = "cookies")]

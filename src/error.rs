@@ -1,12 +1,10 @@
-use crate::config::OctaneConfig;
-use crate::file_handler::FileHandler;
+use crate::constants::NOT_FOUND;
+use crate::responder::Response;
 use crate::responder::StatusCode;
-use crate::responder::{BoxReader, Response};
 use std::error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::marker::Unpin;
-use std::path::PathBuf;
 use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 
 /// The Error structure holds the kind of error code and
@@ -20,7 +18,6 @@ use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 /// `res.status(status_code).send("")`.
 pub struct Error {
     kind: StatusCode,
-    file_404: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,41 +27,30 @@ pub struct InvalidPathError;
 // Custom error type for invalid SSL certificates
 pub struct InvalidCertError;
 
+#[macro_export]
+macro_rules! declare_error {
+    ($stream : expr, $error_type : expr, $settings : expr) => {
+        Error::err($error_type, $stream).await?;
+        return Ok(());
+    };
+}
+
 impl Error {
-    pub async fn err<S>(
-        status_code: StatusCode,
-        config: &OctaneConfig,
-        stream: S,
-    ) -> Result<(), Box<dyn error::Error>>
+    pub async fn err<S>(status_code: StatusCode, stream: S) -> Result<(), Box<dyn error::Error>>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
-        Error {
-            kind: status_code,
-            file_404: config.file_404.as_ref().map(|e| e.to_path_buf()),
-        }
-        .send(stream)
-        .await
+        Error { kind: status_code }.send(stream).await
     }
     async fn send<S>(self, mut stream: S) -> Result<(), Box<dyn error::Error>>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
-        let mut res = Response::new_from_slice(b"");
-        if self.kind == StatusCode::NotFound {
-            if let Some(file_404) = self.file_404 {
-                let file = FileHandler::handle_file(&file_404)?;
-                res = Response::new(
-                    Box::new(file.file) as BoxReader,
-                    Some(file.meta.len() as usize),
-                );
-                res.status(self.kind)
-                    .default_headers()
-                    .set("Content-Type", "text/html");
-            } else {
-                res.status(self.kind);
-            }
-        }
+        let mut res = Response::new_from_slice(NOT_FOUND.as_bytes());
+        res.status(self.kind)
+            .default_headers()
+            .set("Content-Type", "text/html");
+
         let mut response = res.get_data();
         stream.write_all(response.0.as_bytes()).await?;
         copy(&mut response.1, &mut stream).await?;

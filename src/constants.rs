@@ -23,7 +23,7 @@ pub const DAYS_PER_400Y: i64 = 365 * 400 + 97;
 pub const DAYS_PER_100Y: i64 = 365 * 100 + 24;
 pub const DAYS_PER_4Y: i64 = 365 * 4 + 1;
 pub static DAYS_IN_MONTH: [i64; 12] = [31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29];
-
+pub const NOT_FOUND: &str = r#"<!DOCTYPE html><html><head><title>404 NOT FOUND - OCTANE</title></head><body style="padding: 20px;"><h2 style="text-align: center;">404 NOT FOUND</h2><hr><h5>OCTANE - 0.1</h2></body></html>"#;
 // Default buffer size
 pub const BUF_SIZE: usize = 512;
 
@@ -40,7 +40,7 @@ where
     F: FnOnce(&mut HashMap<RequestMethod, PathNode<Closures>>) -> T,
 {
     let mut lock = CLOSURES.lock().unwrap();
-    f(&mut *lock)
+    f(&mut lock)
 }
 
 #[macro_export]

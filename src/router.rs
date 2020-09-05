@@ -1,10 +1,10 @@
 use crate::constants::closures_lock;
 use crate::default;
 use crate::error::InvalidPathError;
-use crate::inject_method;
+use crate::inject_method_on_instance;
 use crate::middlewares::Closures;
+use crate::path::MatchedPath;
 use crate::path::PathNode;
-use crate::path::{MatchedPath, PathBuf};
 use crate::request::{MatchedRequest, Request, RequestMethod};
 use crate::responder::Response;
 use std::collections::HashMap;
@@ -196,13 +196,16 @@ pub trait Route {
     fn add(&mut self, entity: Closure) -> RouterResult;
 }
 
-/// The router structure defines the routes and
-/// stores them along with their indexes. Router
-/// methods can be used with this struct also with
-/// the main server structure
+/// The router structure defines the routes and stores them along with
+/// their indexes. Router methods can be used with this struct also with
+/// the main server structure. Even though the routes you register on Octane
+/// are stored in a global mutable singleton, router specifically holds a
+/// clone of the golbal singleton and only pushes the routes when you call
+/// `Octane::with_routes(&self, router)` on it
 pub struct Router {
     pub route_counter: usize,
     pub middlewares: Vec<Closures>,
+    paths: Paths,
 }
 
 impl Router {
@@ -214,11 +217,37 @@ impl Router {
         Router {
             route_counter: 0,
             middlewares: Vec::new(),
+            paths: HashMap::new(),
         }
+    }
+    /// append the routes stored in the Router to the global
+    /// mutable singleton
+    pub fn append(&mut self, router: Self) {
+        let self_count = self.route_counter;
+        let other_count = router.route_counter;
+        closures_lock(|map| {
+            for (methods, paths) in router.paths.into_iter() {
+                if let Some(x) = self.paths.get_mut(&methods) {
+                    x.extend(paths.into_iter().map(|mut v| {
+                        v.data.index += self_count;
+                        v
+                    }));
+                } else {
+                    map.insert(methods, paths);
+                }
+            }
+
+            self.middlewares
+                .extend(router.middlewares.into_iter().map(|mut v| {
+                    v.index += self_count;
+                    v
+                }));
+            self.route_counter += other_count;
+        });
     }
 
     /// Runs all the closures
-    pub async fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
+    pub fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
         let req = &parsed_request.request_line;
 
         closures_lock(|map| {
@@ -311,24 +340,24 @@ default!(Router);
 
 impl Route for Router {
     fn option(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Options);
+        inject_method_on_instance!(self, path, closure, RequestMethod::Options);
         Ok(())
     }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Head);
+        inject_method_on_instance!(self, path, closure, RequestMethod::Head);
         Ok(())
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Put);
+        inject_method_on_instance!(self, path, closure, RequestMethod::Put);
         Ok(())
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Get);
+        inject_method_on_instance!(self, path, closure, RequestMethod::Get);
         Ok(())
     }
 
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Post);
+        inject_method_on_instance!(self, path, closure, RequestMethod::Post);
         Ok(())
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
@@ -340,7 +369,7 @@ impl Route for Router {
         Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::All);
+        inject_method_on_instance!(self, path, closure, RequestMethod::All);
         Ok(())
     }
 }

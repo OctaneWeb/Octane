@@ -120,8 +120,7 @@ impl Ssl {
 pub struct OctaneConfig {
     pub keep_alive: Option<Duration>,
     pub ssl: Ssl,
-    pub file_404: Option<PathBuf>,
-    pub worker_threads: Option<usize>,
+    worker_threads: Option<usize>,
     pub extensions: Vec<Extensions>,
 }
 
@@ -155,30 +154,6 @@ pub trait Config {
     /// app.set_keepalive(Duration::new(5, 0));
     /// ```
     fn set_keepalive(&mut self, duration: Duration);
-    /// Sets the path of the file which is to be served
-    /// when the server sends a 404 to the client
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use octane::config::{OctaneConfig, Config};
-    /// use std::time::Duration;
-    ///
-    /// let mut config = OctaneConfig::new();
-    /// config.set_404_file("templates/error.html");
-    /// ```
-    ///
-    /// Or with Octane struct
-    ///
-    /// ```no_run
-    /// use octane::server::Octane;
-    /// use std::time::Duration;
-    /// use octane::config::Config;
-    ///
-    /// let mut app = Octane::new();
-    /// app.set_404_file("templates/error.html");
-    /// ```
-    fn set_404_file(&mut self, dir_name: &'static str);
     /// Replaces the current ssl config with the one
     /// specified in the arguments
     ///
@@ -251,7 +226,6 @@ impl OctaneConfig {
             ssl: Ssl::new(),
             keep_alive: Some(Duration::from_secs(5)),
             worker_threads: None,
-            file_404: None,
             extensions: Vec::new(),
         }
     }
@@ -382,9 +356,7 @@ impl Config for OctaneConfig {
     fn set_keepalive(&mut self, duration: Duration) {
         self.keep_alive = Some(duration);
     }
-    fn set_404_file(&mut self, dir_name: &'static str) {
-        self.file_404 = Some(PathBuf::from(dir_name));
-    }
+
     fn with_ssl_config(&mut self, ssl_conf: Ssl) {
         self.ssl.key = ssl_conf.key;
         self.ssl.cert = ssl_conf.cert;

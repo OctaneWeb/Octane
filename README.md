@@ -60,9 +60,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 Documentation will be available on [docs.rs](https://docs.rs/octane/) and on the offical [Octane Site]().
 
 # Roadmap to production
-- [] http2
-- [] Stable SSL support
-- [] Efficient error handling (using enums instead of `Box<dyn Error>`)
+- [ ] http2
+- [ ] Stable SSL support
+- [ ] Efficient error handling (using enums instead of `Box<dyn Error>`)
 - Much more....
 
 # Contribute

@@ -6,16 +6,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut app = Octane::new();
     let mut router = Router::new();
     router.get(
-        "/",
-        route!(|req, res| {
-            res.send("Hello");
-            Flow::Next
-        }),
-    )?;
-    router.get(
         "/test",
         route!(|req, res| {
-            res.send("Hello");
+            res.charset("utf-8").send("Hello");
             Flow::Next
         }),
     )?;

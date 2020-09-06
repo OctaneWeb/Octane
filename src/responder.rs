@@ -13,6 +13,7 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use tokio::io::AsyncRead;
 
+#[doc(hidden)]
 pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 
 /// The response struct contains the data which is
@@ -41,13 +42,19 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// }
 /// ```
 pub struct Response {
+    /// The status code the response will contain
     pub status_code: StatusCode,
     body: BoxReader,
+    /// Length of the content which will be sent as the response
     pub content_len: Option<usize>,
+    /// Http version which the reponse will use
     pub http_version: String,
+    /// Custom headers which will be sent with the response
     pub headers: HashMap<String, String>,
+    /// Content-Type charset
     pub charset: Option<String>,
     #[cfg(feature = "cookies")]
+    /// Cookies that will be sent with the response
     pub cookies: Cookies,
 }
 
@@ -190,7 +197,6 @@ impl Response {
         self.set("Content-Type", _type);
         self
     }
-
     /// Consume the response and get the final formed http
     /// response that the server will send in bytes
     pub fn get_data(self) -> (String, BoxReader) {
@@ -408,7 +414,7 @@ impl Response {
     /// app.get(
     ///     "/",
     ///     route!(|req, res| {
-    ///         res.cookie("name", "value").send("Cookie has been set!");            res.cookie("name", "value");
+    ///         res.cookie("name", "value").send("Cookie has been set!");
     ///         if let Some(value) = req.request.cookies.get("name") {
     ///             println!("{:?}", value); // value
     ///         }
@@ -421,6 +427,22 @@ impl Response {
         self.cookies.set(name, value);
         self
     }
+    /// Sets the content type charset
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::prelude::*;
+    ///
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(|req, res| {
+    ///         res.charset("utf-8").send("Hello"); // the header is now Content-Type: text/html; charset=utf-8
+    ///         Flow::Stop
+    ///     }),
+    /// );
+    /// ```
     pub fn charset(&mut self, charset: &str) -> &mut Self {
         self.charset = Some(charset.to_owned());
         self
@@ -458,7 +480,6 @@ impl Response {
     }
 }
 
-// Status code declarartion
 status_codes! {
     100 "Continue"
     101 "Switching Protocol"

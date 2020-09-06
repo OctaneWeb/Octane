@@ -28,7 +28,30 @@ pub fn derive_to_json(toks: TokenStream) -> TokenStream {
 /// some parameters which are specific to octane
 ///
 /// octane::main attribute sets the thread stack to 10 megabytes, core threads
-/// to the number of cpus available * 2
+/// to the number of cpus available * 2, use this in production
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::prelude::*;
+/// use std::error::Error;
+///
+/// #[octane::main]
+/// async fn main() -> Result<(), Box<dyn Error>> {
+///     let mut app = Octane::new();
+///     app.add(Octane::static_dir("dir_name")); // serve a static directory
+///     app.get("/",
+///         route!(
+///             |req, res| {
+///                 res.send("Hello, World");
+///                 Flow::Stop
+///             }
+///         ),
+///     )?;
+///
+///     app.listen(8080).await
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let stream = StreamParser::new(item.clone().into());
@@ -42,10 +65,10 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
             compile_error!("the async keyword is missing from function declaration");
         }
     }
-    let sign = properties.signature;
+    let signature = properties.signature;
     let rest = properties.rest;
     let tokens = quote! {
-        #sign {
+        #signature {
             #compile_error
             let mut builder = tokio::runtime::Builder::new();
             builder
@@ -82,10 +105,10 @@ pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             compile_error!("the async keyword is missing from function declaration");
         }
     }
-    let sign = properties.signature;
+    let signature = properties.signature;
     let rest = properties.rest;
     let tokens = quote! {
-        #sign {
+        #signature {
             #compile_error
             let mut builder = tokio::runtime::Builder::new();
             builder

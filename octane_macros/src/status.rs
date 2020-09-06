@@ -20,6 +20,7 @@ pub fn status_codes(toks: TokenStream) -> TokenStream {
                     let name: &str = &repr[1..repr.len() - 1];
                     let cased = pascal_case(name);
                     entries.push((prev_num, name.to_string(), cased.clone()));
+                    enum_stream.extend::<TokenStream>("#[doc(hidden)]".parse().unwrap());
                     extend(&mut enum_stream, Ident::new(&cased, Span::call_site()));
                     extend(&mut enum_stream, Punct::new(',', Spacing::Alone));
                 }
@@ -28,11 +29,12 @@ pub fn status_codes(toks: TokenStream) -> TokenStream {
             _ => continue,
         }
     }
-    enum_stream.extend::<TokenStream>("Other(i32, &'static str)".parse().unwrap());
+    enum_stream.extend::<TokenStream>("#[doc(hidden)] Other(i32, &'static str)".parse().unwrap());
     let enum_group = Group::new(Delimiter::Brace, enum_stream);
     let mut enum_tot = TokenStream::new();
     enum_tot.extend::<TokenStream>(
-        "#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum StatusCode"
+        "/// Exchanged http status codes
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum StatusCode"
             .parse()
             .unwrap(),
     );
@@ -55,7 +57,9 @@ pub fn status_codes(toks: TokenStream) -> TokenStream {
     );
     let mut impl_body = TokenStream::new();
     impl_body.extend::<TokenStream>(
-        "pub fn fetch(&self) -> (i32, &'static str)"
+        "
+        /// Get the status code along with the Status code line
+        pub fn fetch(&self) -> (i32, &'static str)"
             .parse()
             .unwrap(),
     );

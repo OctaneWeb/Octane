@@ -13,8 +13,7 @@ pub type Paths = HashMap<RequestMethod, PathNode<Closures>>;
 
 /// The Closure type is a type alias for the type
 /// that the routes should return
-pub type Closure =
-    Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> Flow + Send + Send + Sync>;
+pub type Closure = Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> Flow + Send + Sync>;
 
 /// RouterResult is the type which the app.METHOD methods
 /// return
@@ -42,7 +41,9 @@ pub type RouterResult = Result<(), InvalidPathError>;
 /// ```
 #[derive(Copy, Clone, Debug)]
 pub enum Flow {
+    /// Don't execute the next closure which is similar in url with the initial one
     Stop,
+    /// jump on the next closure which is similar in url with the initial one
     Next,
 }
 

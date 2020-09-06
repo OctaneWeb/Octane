@@ -15,15 +15,25 @@ use std::str;
 /// POST etc.
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
 pub enum RequestMethod {
+    #[doc(hidden)]
     Options,
+    #[doc(hidden)]
     Get,
+    #[doc(hidden)]
     Head,
+    #[doc(hidden)]
     Post,
+    #[doc(hidden)]
     Put,
+    #[doc(hidden)]
     Delete,
+    #[doc(hidden)]
     Trace,
+    #[doc(hidden)]
     Connect,
+    #[doc(hidden)]
     All,
+    #[doc(hidden)]
     None,
 }
 
@@ -72,10 +82,15 @@ impl RequestMethod {
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HttpVersion {
+    #[doc(hidden)]
     Http11,
+    #[doc(hidden)]
     Http10,
+    #[doc(hidden)]
     Http02,
+    #[doc(hidden)]
     Http09,
+    #[doc(hidden)]
     HttpInvalid,
 }
 

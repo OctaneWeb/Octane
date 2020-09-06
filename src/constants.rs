@@ -28,6 +28,7 @@ lazy_static! {
     );
 }
 
+/// macro to implement deref quickly on structs
 #[macro_export]
 macro_rules! deref {
     ( $struct : ident<$($gen: tt),+>, $target : ty, $body : ident ) => {
@@ -50,14 +51,14 @@ macro_rules! deref {
     };
 
 }
-
+/// macro to that spawns a tokio task
 #[macro_export]
 macro_rules! task {
     ($body : expr ) => {{
         tokio::spawn(async move { $body })
     }};
 }
-
+/// macro to implement default for structs
 #[macro_export]
 macro_rules! default {
     ( $struct : ident<$($gen: tt),+> ) => {
@@ -82,7 +83,7 @@ macro_rules! default {
         }
     };
 }
-
+/// implement displa with given message
 #[macro_export]
 macro_rules! display {
     ($struct : tt, $message : expr) => {

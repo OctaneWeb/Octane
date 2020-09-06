@@ -199,15 +199,13 @@ pub trait Route {
 
 /// The router structure defines the routes and stores them along with
 /// their indexes. Router methods can be used with this struct also with
-/// the main server structure. Even though the routes you register on Octane
-/// are stored in a global mutable singleton, router specifically holds a
-/// similar type of the gobal singleton and only pushes the routes when you call
-/// `Octane::with_routes(&self, router)` on it
+/// the main server structure.
 pub struct Router {
     /// Holds a counter and increments on new additions of routes
     pub route_counter: usize,
     /// A vector of middleware closures
     pub middlewares: Vec<Closures>,
+    /// The router paths which are to be exectued on requests
     pub paths: Paths,
 }
 
@@ -223,8 +221,7 @@ impl Router {
             paths: HashMap::new(),
         }
     }
-    /// append the routes stored in the Router to the global
-    /// mutable singleton
+    /// append the routes stored in a custom Router to the self Router
     pub fn append(&mut self, router: Self) {
         let self_count = self.route_counter;
         let other_count = router.route_counter;

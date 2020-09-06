@@ -29,7 +29,7 @@ use std::collections::HashMap;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cookies {
-    pub cookies: HashMap<String, String>,
+    cookies: HashMap<String, String>,
 }
 
 impl Cookies {

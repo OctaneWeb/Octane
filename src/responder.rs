@@ -22,8 +22,7 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
-/// use octane::{route, router::{Flow, Route}};
+/// use octane::prelude::*;
 ///
 /// #[octane::main]
 /// async fn main() {
@@ -62,8 +61,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -85,8 +83,7 @@ impl Response {
     ///
     /// # Example
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -128,8 +125,7 @@ impl Response {
     ///
     /// # Example
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -174,8 +170,7 @@ impl Response {
     ///
     /// # Example
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -210,8 +205,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     /// use std::path::PathBuf;
     ///
     /// let mut app = Octane::new();
@@ -249,8 +243,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     /// use std::path::PathBuf;
     ///
     /// let mut app = Octane::new();
@@ -282,8 +275,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::server::Octane;
-    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::prelude::*;
     /// use octane::responder::StatusCode;
     ///
     /// #[octane::main]
@@ -317,8 +309,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -340,8 +331,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -364,8 +354,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -390,8 +379,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -414,8 +402,7 @@ impl Response {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(

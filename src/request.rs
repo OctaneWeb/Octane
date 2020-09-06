@@ -55,7 +55,7 @@ impl RequestMethod {
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
+/// use octane::Octane;
 /// use octane::{route, router::{Flow, Route}};
 /// use octane::request::HttpVersion;
 ///
@@ -100,7 +100,7 @@ impl HttpVersion {
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
+/// use octane::Octane;
 /// use octane::{route, router::{Flow, Route}};
 /// use octane::request::RequestMethod;
 ///
@@ -219,13 +219,12 @@ impl Header {
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
+/// use octane::Octane;
 /// use octane::{route, router::{Flow, Route}};
 /// use octane::request::RequestMethod;
 ///
 /// let mut app = Octane::new();
-/// app
-/// .get("/",
+/// app.get("/",
 ///     route!(|req, res| {
 ///         let some_header = req.headers.get("HeaderName");
 ///         Flow::Stop
@@ -234,6 +233,7 @@ impl Header {
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Headers {
+    /// Headers, serialized to a HashMap
     pub parsed: HashMap<String, String>,
     #[cfg(feature = "raw_headers")]
     /// Contains headers in raw form
@@ -285,7 +285,7 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
+/// use octane::Octane;
 /// use octane::{route, router::{Flow, Route}};
 /// use octane::request::RequestMethod;
 ///
@@ -397,7 +397,7 @@ impl KeepAlive {
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
+/// use octane::Octane;
 /// use octane::{route, router::{Flow, Route}};
 /// use octane::request::RequestMethod;
 ///

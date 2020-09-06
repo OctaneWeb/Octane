@@ -5,6 +5,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::fs::{File, Metadata};
 use std::path::PathBuf;
+
 /// The FileHandler structure is a helper struct
 /// to manage files, contents and extensions also
 /// to decide their mime types accordingly

@@ -18,7 +18,7 @@ use tokio_rustls::rustls::{
 /// [`with_ssl_config()`]()
 ///
 /// ```no_run
-/// use octane::server::Octane;
+/// use octane::Octane;
 /// use std::time::Duration;
 /// use octane::config::{Config, Ssl};
 ///
@@ -90,7 +90,7 @@ impl Ssl {
 /// to push them to the main server struct like the following
 ///
 /// ```no_run
-/// use octane::server::Octane;
+/// use octane::Octane;
 /// use octane::config::OctaneConfig;
 ///
 /// let mut app = Octane::new();
@@ -128,7 +128,7 @@ pub trait Config {
     /// Or with Octane struct
     ///
     /// ```no_run
-    /// use octane::server::Octane;
+    /// use octane::Octane;
     /// use std::time::Duration;
     /// use octane::config::Config;
     ///
@@ -153,7 +153,7 @@ pub trait Config {
     /// Or with Octane struct
     ///
     /// ```no_run
-    /// use octane::server::Octane;
+    /// use octane::Octane;
     /// use std::time::Duration;
     /// use octane::config::{Config, Ssl};
     ///
@@ -182,7 +182,7 @@ pub trait Config {
     /// Or with Octane struct
     ///
     /// ```no_run
-    /// use octane::server::Octane;
+    /// use octane::Octane;
     /// use std::time::Duration;
     /// use octane::config::Config;
     ///
@@ -217,8 +217,8 @@ impl OctaneConfig {
 
     /// Sets the number of worker threads, this is settings
     /// which will be applied to the `core_threads` method
-    /// on the runtime builder struct
-    /// https://docs.rs/tokio/0.2.13/tokio/runtime/struct.Builder.html#method.core_threads
+    /// on the runtime builder struct. Alias for
+    /// [tokio's core_threads](https://docs.rs/tokio/0.2.13/tokio/runtime/struct.Builder.html#method.core_threads)
     pub fn worker_threads(&mut self, threads: usize) -> &mut Self {
         self.worker_threads = Some(threads);
         self

@@ -1,6 +1,5 @@
 use crate::default;
 use crate::error::InvalidPathError;
-use crate::inject_method;
 use crate::middlewares::Closures;
 use crate::path::MatchedPath;
 use crate::path::PathNode;
@@ -28,8 +27,7 @@ pub type RouterResult = Result<(), InvalidPathError>;
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
-/// use octane::{route, router::{Flow, Route}};
+/// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
 /// app.get(
@@ -65,8 +63,7 @@ impl Flow {
 /// # Example
 ///
 /// ```no_run
-/// use octane::{route, router::{Flow, Route}};
-/// use octane::server::Octane;
+/// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
 /// app.get(
@@ -95,8 +92,7 @@ pub trait Route {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.option(
@@ -116,8 +112,7 @@ pub trait Route {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.head(
@@ -136,8 +131,7 @@ pub trait Route {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.post(
@@ -156,8 +150,7 @@ pub trait Route {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(
@@ -176,8 +169,7 @@ pub trait Route {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.put(
@@ -311,8 +303,7 @@ impl Router {
 /// # Example
 ///
 /// ```no_run
-/// use octane::{route, router::{Flow, Route}};
-/// use octane::server::Octane;
+/// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
 /// app.get(
@@ -333,7 +324,85 @@ macro_rules! route {
     }};
 }
 
+/// Just like the `route!()` macro but return Flow::Next
+/// Implicitly
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::prelude::*;
+///
+/// let mut app = Octane::new();
+/// app.get(
+///     "/",
+///     route_next!(
+///         |req, res| {
+///             res.send("Hello, World");
+///         }
+///     ),
+/// );
+/// ```
+#[macro_export]
+macro_rules! route_next {
+    ( | $req : ident, $res : ident | $body : expr ) => {{
+        #[allow(unused_variables)]
+        Box::new(move |$req, $res| {
+            $body;
+            Flow::Next
+        })
+    }};
+}
+
+/// Just like the `route!()` macro but return Flow::Stop
+/// Implicitly
+///
+/// # Example
+///
+/// ```no_run
+/// use octane::prelude::*;
+///
+/// let mut app = Octane::new();
+/// app.get(
+///     "/",
+///     route_stop!(
+///         |req, res| {
+///             res.send("Hello, World");
+///         }
+///     ),
+/// );
+/// ```
+#[macro_export]
+macro_rules! route_stop {
+    ( | $req : ident, $res : ident | $body : expr ) => {{
+        #[allow(unused_variables)]
+        Box::new(move |$req, $res| {
+            $body;
+            Flow::Stop
+        })
+    }};
+}
+
 default!(Router);
+
+#[macro_use]
+macro_rules! inject_method {
+    ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
+        use crate::middlewares::Closures;
+        use crate::path::{PathBuf, PathNode};
+        $instance
+            .paths
+            .entry($method)
+            .or_insert(PathNode::new())
+            .insert(
+                PathBuf::parse($path)?,
+                Closures {
+                    closure: $closure,
+                    index: $instance.route_counter,
+                },
+            );
+        $instance.route_counter += 1;
+    };
+}
 
 impl Route for Router {
     fn option(&mut self, path: &str, closure: Closure) -> RouterResult {

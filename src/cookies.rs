@@ -12,8 +12,7 @@ use std::collections::HashMap;
 /// # Example
 ///
 /// ```no_run
-/// use octane::{route, router::{Flow, Route}};
-/// use octane::server::Octane;
+/// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
 /// app.get(
@@ -60,8 +59,7 @@ impl Cookies {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::{route, router::{Flow, Route}};
-    /// use octane::server::Octane;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// app.get(

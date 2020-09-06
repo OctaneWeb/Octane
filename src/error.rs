@@ -5,7 +5,7 @@ use std::error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::marker::Unpin;
-use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{copy, AsyncWrite, AsyncWriteExt};
 
 /// The Error structure holds the kind of error code and
 /// the location of the custom 404 file, if given by the user
@@ -27,9 +27,11 @@ pub struct InvalidPathError;
 // Custom error type for invalid SSL certificates
 pub struct InvalidCertError;
 
+/// Takes in a http stream and a error code and sends to the client
 #[macro_export]
+#[doc(hidden)]
 macro_rules! declare_error {
-    ($stream : expr, $error_type : expr, $settings : expr) => {
+    ($stream : expr, $error_type : expr) => {
         Error::err($error_type, $stream).await?;
         return Ok(());
     };
@@ -38,13 +40,13 @@ macro_rules! declare_error {
 impl Error {
     pub async fn err<S>(status_code: StatusCode, stream: S) -> Result<(), Box<dyn error::Error>>
     where
-        S: AsyncRead + AsyncWrite + Unpin,
+        S: AsyncWrite + Unpin,
     {
         Error { kind: status_code }.send(stream).await
     }
     async fn send<S>(self, mut stream: S) -> Result<(), Box<dyn error::Error>>
     where
-        S: AsyncRead + AsyncWrite + Unpin,
+        S: AsyncWrite + Unpin,
     {
         let mut res = Response::new_from_slice(NOT_FOUND.as_bytes());
         res.status(self.kind)

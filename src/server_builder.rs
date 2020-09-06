@@ -85,7 +85,7 @@ impl ServerBuilder {
             let acceptor = acceptor.clone();
             stream.map(|stream| {
                 let server = Arc::clone(&server);
-                tokio::spawn(async move {
+                task!({
                     acceptor
                         .accept(stream)
                         .await

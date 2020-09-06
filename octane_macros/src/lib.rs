@@ -27,7 +27,7 @@ pub fn derive_to_json(toks: TokenStream) -> TokenStream {
 /// The main attribute is just like #[tokio::main] but it defines
 /// some parameters which are specific to octane
 ///
-/// octane::main attribute sets the thread stack to 10 megabytes, coroe threads
+/// octane::main attribute sets the thread stack to 10 megabytes, core threads
 /// to the number of cpus available * 2
 #[proc_macro_attribute]
 pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -68,8 +68,8 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// The test attribute is just like #[tokio::test] but it defines
 /// some parameters which are specific to octane
 ///
-/// octane::test attribute sets the scheduler to a basic scheduler, everything else
-/// is default from tokio
+/// octane::test attribute sets the scheduler to a basic scheduler, keeps everything
+/// else to defaults
 #[proc_macro_attribute]
 pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let stream = StreamParser::new(item.clone().into());

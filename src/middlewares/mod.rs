@@ -6,23 +6,3 @@ pub struct Closures {
 }
 
 pub mod static_files;
-
-#[macro_export]
-macro_rules! inject_method {
-    ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
-        use crate::middlewares::Closures;
-        use crate::path::{PathBuf, PathNode};
-        $instance
-            .paths
-            .entry($method)
-            .or_insert(PathNode::new())
-            .insert(
-                PathBuf::parse($path)?,
-                Closures {
-                    closure: $closure,
-                    index: $instance.route_counter,
-                },
-            );
-        $instance.route_counter += 1;
-    };
-}

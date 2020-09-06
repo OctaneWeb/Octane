@@ -23,8 +23,7 @@ use tokio::prelude::*;
 /// # Example
 ///
 /// ```no_run
-/// use octane::server::Octane;
-/// use octane::{route, router::{Flow, Route}};
+/// use octane::prelude::*;
 ///
 /// #[octane::main]
 /// async fn main() {
@@ -43,7 +42,8 @@ use tokio::prelude::*;
 /// }
 /// ```
 pub struct Octane {
-    settings: OctaneConfig,
+    /// Some preferences which decides upon how the web server runs
+    pub settings: OctaneConfig,
     router: Router,
 }
 
@@ -62,9 +62,8 @@ impl Octane {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::server::Octane;
-    /// use octane::config::{OctaneConfig, Config};
-    /// use octane::{route, router::{Flow, Route}};
+    /// use octane::config::OctaneConfig;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// let mut config = OctaneConfig::new();
@@ -87,8 +86,7 @@ impl Octane {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::server::Octane;
-    /// use octane::{route, router::{Flow, Route, Router}};
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     /// let mut router = Router::new();
@@ -109,8 +107,7 @@ impl Octane {
     /// # Example
     ///
     /// ```no_run
-    /// use octane::server::Octane;
-    /// use octane::router::Route;
+    /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     ///
@@ -140,7 +137,7 @@ impl Octane {
     ///
     /// # Example
     /// ```no_run
-    /// use octane::server::Octane;
+    /// use octane::Octane;
     ///
     /// #[octane::main]
     /// async fn main() {
@@ -150,19 +147,20 @@ impl Octane {
     /// ```
     pub async fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
         let server = Arc::new(self);
-        let ssl = false;
+        let _ssl = false;
         #[cfg(any(feature = "openSSL", feature = "rustls"))]
         {
+            use crate::task;
             let clone = Arc::clone(&server);
-            task!({ Octane::listen_ssl(clone) });
-            let ssl = true;
+            task!(Octane::listen_ssl(clone));
+            let _ssl = true;
         }
         // echo server string
         println!(
             "{}",
             server
                 .settings
-                .startup_string(ssl, port, server.router.paths.len())
+                .startup_string(_ssl, port, server.router.paths.len())
         );
         let mut server_builder = ServerBuilder::new();
         server_builder
@@ -203,7 +201,7 @@ impl Octane {
         loop {
             let read = stream_async.read(&mut buf).await?;
             if read == 0 {
-                declare_error!(stream_async, StatusCode::BadRequest, settings);
+                declare_error!(stream_async, StatusCode::BadRequest);
             }
             let cur = &buf[..read];
 
@@ -216,7 +214,7 @@ impl Octane {
                     headers = heads;
                     break;
                 } else {
-                    declare_error!(stream_async, StatusCode::BadRequest, settings);
+                    declare_error!(stream_async, StatusCode::BadRequest);
                 }
             }
         }
@@ -246,7 +244,7 @@ impl Octane {
             // Detect http version and validate
             let checker = Validator::validate(&request);
             if checker.is_malformed() {
-                declare_error!(stream_async, checker.err_code.unwrap(), settings);
+                declare_error!(stream_async, checker.err_code.unwrap());
             }
             match checker.keep_alive {
                 KeepAliveState::UserDefined => stream_async
@@ -263,18 +261,18 @@ impl Octane {
                 // run closures
                 server.router.run(request.clone(), &mut res);
                 if res.content_len.unwrap_or(0) == 0 {
-                    declare_error!(stream_async, StatusCode::NotFound, settings);
+                    declare_error!(stream_async, StatusCode::NotFound);
                 }
-                Octane::send_data(res.get_data(), stream_async).await?;
+                Octane::send(res.get_data(), stream_async).await?;
             } else {
-                declare_error!(stream_async, StatusCode::NotImplemented, settings);
+                declare_error!(stream_async, StatusCode::NotImplemented);
             }
         } else {
-            declare_error!(stream_async, StatusCode::BadRequest, settings);
+            declare_error!(stream_async, StatusCode::BadRequest);
         }
         Ok(())
     }
-    async fn send_data<S>(
+    async fn send<S>(
         mut response: (String, BoxReader),
         mut stream_async: S,
     ) -> Result<(), Box<dyn StdError>>

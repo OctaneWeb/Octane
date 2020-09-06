@@ -7,7 +7,6 @@ use tokio::net::TcpStream;
 use tokio_openssl::SslStream;
 
 pub fn acceptor(settings: &OctaneConfig) -> Result<SslAcceptor> {
-    settings.ssl.validate();
     let mut acceptor = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;
     acceptor.set_private_key_file(&settings.ssl.key, SslFiletype::PEM)?;
     acceptor.set_certificate_chain_file(&settings.ssl.cert)?;

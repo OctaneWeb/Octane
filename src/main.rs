@@ -1,9 +1,4 @@
-use octane::router::Router;
-use octane::server::Octane;
-use octane::{
-    route,
-    router::{Flow, Route},
-};
+use octane::prelude::*;
 use std::error::Error;
 
 #[octane::main]

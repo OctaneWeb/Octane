@@ -12,33 +12,32 @@
 //!
 //! ```toml
 //! octane = "0.1.1"
+//! tokio = "0.2.22"
 //! ```
 //!
 //! and then in your main.rs,
 //!
 //! ```no_run
-//! use octane::server::Octane;
-//! use octane::config::Config;
-//! use octane::{route, router::{Flow, Route}};
+//! use octane::prelude::*;
+//! use std::error::Error;
 //!
 //! #[octane::main]
-//! async fn main() {
+//! async fn main() -> Result<(), Box<dyn Error>> {
 //!     let mut app = Octane::new();
 //!     app.add(Octane::static_dir("dir_name")); // serve a static directory
-//!     app.get(
-//!         "/",
+//!     app.get("/",
 //!         route!(
 //!             |req, res| {
 //!                 res.send("Hello, World");
 //!                 Flow::Stop
 //!             }
 //!         ),
-//!     );
+//!     )?;
 //!
-//!     app.listen(8080).await.expect("Cannot establish connection");
+//!     app.listen(8080).await
 //! }
 //! ```
-//! and now you can see the page at http://0.0.0.0:8080.
+//! and now you can see the page at [http://localhost:8080](http://localhost:8080).
 //!
 //! ## Features
 //!
@@ -85,12 +84,15 @@ pub mod request;
 pub mod responder;
 /// The router module has utils to create routes and custom routers
 pub mod router;
+#[doc(hidden)]
+mod server;
 /// Server struct that manages request/response and allows the routes to enter in
-pub mod server;
+pub use crate::server::Octane;
 #[doc(hidden)]
 mod server_builder;
 #[doc(hidden)]
 mod time;
+#[doc(hidden)]
 mod tls;
 #[doc(hidden)]
 mod util;
@@ -99,6 +101,19 @@ mod util;
 pub use octane_json as json;
 pub use octane_macros::main;
 pub use octane_macros::test;
+
+/// Prelude brings in scope, the `Route` trait, `Config` trait, `Octane` main server
+/// struct and `Router` with the `Flow` enum and the `route`, `route_next`,
+/// `route_stop` macros
+pub mod prelude {
+    // config trait
+    pub use crate::config::Config;
+    pub use crate::Octane;
+    pub use crate::{
+        route, route_next, route_stop,
+        router::{Flow, Route, Router},
+    };
+}
 
 #[cfg(all(feature = "openSSL", feature = "rustls"))]
 compile_error!("openSSL and rustls are both enabled, you may want to one of those");

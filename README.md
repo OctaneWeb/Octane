@@ -15,6 +15,7 @@ A high-powered web server aimed at minimizing dependencies while maintaining spe
 - Multithreaded 🚄
 - Asynchronous design 🐆
 - Easy to use, intuitive design 🌱
+- TLS enabled, rustls/openssl ready 🔒
 - Minimal dependencies (working to reduce them more!) 💕
 
 #  Basic Usage 
@@ -22,16 +23,13 @@ A high-powered web server aimed at minimizing dependencies while maintaining spe
 Create an octane instance, and then you can register your methods on it using `app.METHOD()`
 
 ```rust
-use octane::config::Config;
+use octane::prelude::*;
 use octane::responder::StatusCode;
 use octane::server::Octane;
-use octane::{
-    route,
-    router::{Flow, Route},
-};
 use std::error::Error;
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[octane::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let mut app = Octane::new();
     app.ssl(8001)
         .key("templates/key.pem")
@@ -53,13 +51,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     app.add(Octane::static_dir("templates/"))?;
-    app.listen(8000)
+    app.listen(8000).await
 }
 ```
 
 # Docs
 
-Documentation will be available on [docs.rs](https://docs.rs/octane/0.1.1/octane/) and on the offical [Octane Site]().
+Documentation will be available on [docs.rs](https://docs.rs/octane/) and on the offical [Octane Site]().
+
+# Roadmap to production
+1. [] http2
+2. [] Stable SSL support
+3. [] Efficient error handling (using enums instead of `Box<dyn Error>`)
+4. Much more....
 
 # Contribute
 

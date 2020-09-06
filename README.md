@@ -25,7 +25,6 @@ Create an octane instance, and then you can register your methods on it using `a
 ```rust
 use octane::prelude::*;
 use octane::responder::StatusCode;
-use octane::server::Octane;
 use std::error::Error;
 
 #[octane::main]
@@ -34,6 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     app.ssl(8001)
         .key("templates/key.pem")
         .cert("templates/cert.pem");
+        
     app.get(
         "/to_home",
         route!(|req, res| {

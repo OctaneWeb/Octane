@@ -193,8 +193,8 @@ pub struct Header {
 }
 
 impl Header {
-    /// Parses the `key: value` header unit
-    /// str and returns a Header struct
+    /// Parses a `key: value` header string and
+    /// returns a Header struct
     pub fn parse(header: String) -> Option<Self> {
         let mut toks = header.splitn(2, ':');
         let name = toks.next()?;
@@ -358,7 +358,7 @@ impl<'a> Request<'a> {
 
 /// The KeepAlive struct represents the value
 /// parsed in the KeepAlive header. It holds the
-/// timeout and max duration as a u64, only http 1.0 and below
+/// timeout and max duration as a u64, (only http 1.0 and below)
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeepAlive {
     timeout: Option<u64>,

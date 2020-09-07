@@ -85,10 +85,10 @@ impl Response {
         self.headers.insert(key.to_owned(), value.to_owned());
         self
     }
-    /// Asks for the Returns the value of the header
-    /// key and returns the value of the field
+    /// Get the header value by name
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use octane::prelude::*;
     ///
@@ -113,8 +113,9 @@ impl Response {
             Some(body_slice.len()),
         )
     }
-    /// Generates a new empty response, usually
-    /// you should not be using this method directly.
+    /// Generates a new empty response. A new response is
+    /// already created for you, so you don't have to call this
+    /// method
     pub fn new(body: BoxReader, content_len: Option<usize>) -> Self {
         Response {
             status_code: StatusCode::Ok,

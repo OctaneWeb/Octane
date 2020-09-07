@@ -9,7 +9,7 @@ use crate::router::{Closure, Flow, Route, Router, RouterResult};
 use crate::server_builder::ServerBuilder;
 use crate::tls::AsMutStream;
 use crate::util::find_in_slice;
-use crate::{declare_error, default, route};
+use crate::{declare_error, default, route_next};
 use std::error::Error as StdError;
 use std::marker::Unpin;
 use std::str;
@@ -117,7 +117,7 @@ impl Octane {
     /// )));
     /// ```
     pub fn static_dir(dir: &'static str) -> Closure {
-        route!(|req, res| {
+        route_next!(|req, res| {
             let static_dir_name = std::path::PathBuf::from(dir);
             let final_url = static_dir_name.join(req.request_line.path.to_std_pathbuf());
             let final_string = final_url.to_str().unwrap();
@@ -127,8 +127,6 @@ impl Octane {
             } else {
                 res.send_file(final_string).ok();
             };
-
-            Flow::Next
         })
     }
     /// Start listening on the port specified, the listen
@@ -147,13 +145,18 @@ impl Octane {
     /// ```
     pub async fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
         let server = Arc::new(self);
-        let _ssl = false;
+        let mut _ssl = false;
         #[cfg(any(feature = "openSSL", feature = "rustls"))]
         {
             use crate::task;
             let clone = Arc::clone(&server);
-            task!(Octane::listen_ssl(clone));
-            let _ssl = true;
+            _ssl = true;
+
+            task!({
+                if let Err(x) = Octane::listen_ssl(clone).await {
+                    println!("WARNING: {}", x);
+                }
+            });
         }
         // echo server string
         println!(
@@ -162,6 +165,7 @@ impl Octane {
                 .settings
                 .startup_string(_ssl, port, server.router.paths.len())
         );
+
         let mut server_builder = ServerBuilder::new();
         server_builder
             .port(port)
@@ -237,7 +241,6 @@ impl Octane {
         } else {
             body = &[];
         }
-
         if let Some(request) = Request::parse(request_line, headers, body) {
             let request_line = &request.request_line;
             let mut res = Response::new_from_slice(b"");
@@ -263,6 +266,7 @@ impl Octane {
                 if res.content_len.unwrap_or(0) == 0 {
                     declare_error!(stream_async, StatusCode::NotFound);
                 }
+
                 Octane::send(res.get_data(), stream_async).await?;
             } else {
                 declare_error!(stream_async, StatusCode::NotImplemented);

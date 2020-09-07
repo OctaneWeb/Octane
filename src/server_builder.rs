@@ -1,7 +1,8 @@
 use crate::server::Octane;
 use crate::task;
+use std::error::Error;
 use std::future::Future;
-use std::io::Error;
+use std::io::Error as IOError;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -9,7 +10,6 @@ use tokio::net::TcpStream;
 use tokio::stream::StreamExt;
 #[cfg(feature = "openSSL")]
 use tokio_openssl::SslStream;
-
 #[cfg(feature = "rustls")]
 use tokio_rustls::server::TlsStream;
 
@@ -27,11 +27,11 @@ impl ServerBuilder {
         self
     }
 
-    async fn get_tcp_listener(&mut self) -> Result<TcpListener, Error> {
+    async fn get_tcp_listener(&mut self) -> Result<TcpListener, IOError> {
         TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), self.port)).await
     }
 
-    pub async fn listen<C, T>(&mut self, exec: C, server: Arc<Octane>) -> Result<(), Error>
+    pub async fn listen<C, T>(&mut self, exec: C, server: Arc<Octane>) -> Result<(), Box<dyn Error>>
     where
         T: Future + Send,
         C: FnOnce(TcpStream, Arc<Octane>) -> T + Send + 'static + Copy,
@@ -49,52 +49,55 @@ impl ServerBuilder {
     }
 
     #[cfg(feature = "openSSL")]
-    pub async fn listen_ssl<C, T>(&mut self, exec: C, server: Arc<Octane>) -> Result<(), Error>
+    pub async fn listen_ssl<C, T>(
+        &mut self,
+        exec: C,
+        server: Arc<Octane>,
+    ) -> Result<(), Box<dyn Error>>
     where
         T: Future + Send,
-        C: FnOnce(SslStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy + Sync,
+        C: FnOnce(SslStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
         let mut ssl_listener = self.get_tcp_listener().await?;
         let acceptor = crate::tls::openssl::acceptor(&server.settings)?;
         while let Some(stream) = ssl_listener.next().await {
             let acceptor = acceptor.clone();
-            stream.map(|stream| {
-                let server = Arc::clone(&server);
-                task!({
-                    tokio_openssl::accept(&acceptor, stream)
-                        .await
-                        .map(move |stream_ssl| async move {
-                            exec(stream_ssl, server).await;
-                        })
-                        .map_err(|e| panic!("{:?}", e))
-                })
-            })?;
+            let tcp_stream = stream?;
+            let server = Arc::clone(&server);
+            task!({
+                tokio_openssl::accept(&acceptor, tcp_stream)
+                    .await
+                    .map(move |stream_ssl| async move { exec(stream_ssl, server).await })
+                    .map_err(|e| println!("WARNING: {}", e))
+            });
         }
         Ok(())
     }
 
     #[cfg(feature = "rustls")]
-    pub async fn listen_ssl<C, T>(&mut self, exec: C, server: Arc<Octane>) -> Result<(), Error>
+    pub async fn listen_ssl<C, T>(
+        &mut self,
+        exec: C,
+        server: Arc<Octane>,
+    ) -> Result<(), Box<dyn Error>>
     where
         T: Future + Send,
-        C: FnOnce(TlsStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy + Sync,
+        C: FnOnce(TlsStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
         let mut ssl_listener = self.get_tcp_listener().await?;
         let acceptor = crate::tls::rustls::acceptor(&server.settings)?;
         while let Some(stream) = ssl_listener.next().await {
             let acceptor = acceptor.clone();
-            stream.map(|stream| {
-                let server = Arc::clone(&server);
-                task!({
-                    acceptor
-                        .accept(stream)
-                        .await
-                        .map(move |stream_ssl| async move {
-                            exec(stream_ssl, server).await;
-                        })
-                        .map_err(|e| panic!("{:?}", e))
-                })
-            })?;
+
+            let server = Arc::clone(&server);
+            let tcp_stream = stream?;
+            task!({
+                acceptor
+                    .accept(tcp_stream)
+                    .await
+                    .map(move |stream_ssl| async move { exec(stream_ssl, server).await })
+                    .map_err(|e| println!("WARNING: {:?}", e.kind()))
+            });
         }
         Ok(())
     }

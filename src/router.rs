@@ -239,7 +239,8 @@ impl Router {
         self.route_counter += other_count;
     }
 
-    /// Runs all the closures
+    /// Fetch the closure according to the request path, run that
+    /// specific closure.
     pub fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
         let req = &parsed_request.request_line;
 

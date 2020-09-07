@@ -1,8 +1,7 @@
 #![cfg(feature = "rustls")]
 use crate::config::OctaneConfig;
 use crate::tls::AsMutStream;
-use std::io;
-use std::io::Result;
+use std::error::Error;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio_rustls::server::TlsStream;
@@ -11,13 +10,9 @@ use tokio_rustls::{
     TlsAcceptor,
 };
 
-pub fn acceptor(settings: &OctaneConfig) -> Result<TlsAcceptor> {
+pub fn acceptor(settings: &OctaneConfig) -> Result<TlsAcceptor, Box<dyn Error>> {
     let mut config = ServerConfig::new(NoClientAuth::new());
-    // FIXME: panic on get_key()?.remove(0)
-    config
-        .set_single_cert(settings.get_cert()?, settings.get_key()?.remove(0))
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-    config.set_protocols(&["h2".as_bytes().to_vec()]);
+    config.set_single_cert(settings.get_cert()?, settings.get_key()?.remove(0))?;
     let acceptor = TlsAcceptor::from(Arc::new(config));
     Ok(acceptor)
 }

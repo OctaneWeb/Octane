@@ -228,7 +228,6 @@ impl OctaneConfig {
     /// use this directly, this is used and done for them
     #[cfg(feature = "rustls")]
     pub fn get_cert(&self) -> std::io::Result<Vec<Certificate>> {
-        self.ssl.validate();
         let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.cert)?);
         certs(&mut buf)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Certs"))
@@ -237,7 +236,6 @@ impl OctaneConfig {
     /// use this directly
     #[cfg(feature = "rustls")]
     pub fn get_key(&self) -> std::io::Result<Vec<PrivateKey>> {
-        self.ssl.validate();
         let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.key)?);
         rsa_private_keys(&mut buf)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))

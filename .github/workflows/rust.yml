@@ -19,3 +19,7 @@ jobs:
       run: cargo test --verbose --no-fail-fast
     - name: Run fmt tests
       run: cargo fmt -- --check
+    - name: Run rustls tests
+      run: cargo build --verbose --features rustls
+    - name: Run openSSL tests
+      run: cargo build --verbose --features openSSL

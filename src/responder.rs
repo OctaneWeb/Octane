@@ -47,7 +47,7 @@ pub struct Response {
     body: BoxReader,
     /// Length of the content which will be sent as the response
     pub content_len: Option<usize>,
-    /// Http version which the reponse will use
+    /// Http version which the response will use
     pub http_version: String,
     /// Custom headers which will be sent with the response
     pub headers: HashMap<String, String>,
@@ -62,7 +62,7 @@ impl Response {
     /// Adds appends a custom header with the headers
     /// that will be sent.
     ///
-    /// **Note**: Will overwrite the header with the
+    /// **Note**: This will overwrite the header with the
     /// same name
     ///
     /// # Example
@@ -240,7 +240,7 @@ impl Response {
 
     /// Converts the structure to a json string and sends
     /// it as the response with the mime type `application/json`.
-    /// The structure which will be passed, should implement
+    /// The structure which will be passed should implement
     /// `ToJSON` from `octane_macros::convert`
     ///
     /// TODO: add a example here with a struct that implements
@@ -402,8 +402,8 @@ impl Response {
         self
     }
     /// Creates a cookie with the specified name
-    /// and value. Cookies are behind a feature
-    /// but are included in the default one
+    /// and value. This method requires `cookies`
+    /// feature, which is enabled in default feature
     ///
     /// # Example
     ///

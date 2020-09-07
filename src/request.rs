@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::str;
 
-/// Holds the type of request method, like GET
+/// Holds the type of request method, like GET,
 /// POST etc.
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
 pub enum RequestMethod {
@@ -48,8 +48,7 @@ impl RequestMethod {
             Options, Get, Head, Post, Put, Delete, Trace, Connect, All, None,
         ]
     }
-    /// Return false if the RequestMethod has the
-    /// variant `None` else return true
+    /// Return false if the RequestMethod is `None`, otherwise it's true
     pub fn is_some(&self) -> bool {
         if let Self::None = self {
             false
@@ -58,7 +57,7 @@ impl RequestMethod {
         }
     }
 }
-/// Holds the http versions you can match the
+/// Holds the http versions. You can match the
 /// variants by doing a comparison with the version
 /// in the request_line
 ///
@@ -96,7 +95,7 @@ pub enum HttpVersion {
 
 impl HttpVersion {
     /// Returns the version in string like "1.1"
-    /// or "1.0" etc
+    /// or "1.0" etc.
     pub fn get_version_string(self) -> String {
         match self {
             Self::Http11 => "1.1",
@@ -181,7 +180,7 @@ impl RequestLine {
 
 /// The header structure represents a parsed value
 /// of unit header that looks like `key: value`
-/// and holds the key and value both. You
+/// and holds both the key and value. You
 /// shouldn't use it directly as the parsing has
 /// been done for you and all the headers are
 /// available in the `Headers` struct which you
@@ -323,15 +322,15 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 /// request_line
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Request<'a> {
-    /// The requestline is the first line of the http request, it has the version,
+    /// The request_line is the first line of the http request, it has the version,
     /// request method, request_uri.
     pub request_line: RequestLine,
-    /// Headers in a request
+    /// Headers in the request
     pub headers: Headers,
     /// The body of the request
     pub body: &'a [u8],
     #[cfg(feature = "cookies")]
-    /// Cookies in a request
+    /// Cookies in the request
     pub cookies: Cookies,
 }
 
@@ -394,18 +393,18 @@ impl KeepAlive {
         }
         ret
     }
-    /// Returns the ammount of timeout specified in the keep alive header
+    /// Returns the amount of timeout specified in the keep alive header
     pub fn timeout(&self) -> Option<u64> {
         self.timeout
     }
-    /// Returns the ammount of max requests specified in the keep alive header
+    /// Returns the amount of max requests specified in the keep alive header
     pub fn max(&self) -> Option<u64> {
         self.max
     }
 }
 
 /// The MatchedRequest is the struct which you see
-/// when you have the `req` variable in the closure
+/// when you have the `req` variable in the closure.
 /// It implements Deref to Request so you can use
 /// Request methods/properties directly on it
 ///
@@ -432,10 +431,11 @@ impl KeepAlive {
 /// ```
 /// The struct also have the values of the url
 /// variables
+///
 /// TODO: Add a url variable example
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MatchedRequest<'a> {
-    /// The request comming from a client
+    /// The request coming from the client
     pub request: Request<'a>,
     #[cfg(feature = "url_variables")]
     /// A Hashmap containing the variables specified in the url with their respective keys

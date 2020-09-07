@@ -24,7 +24,7 @@
 //! #[octane::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
 //!     let mut app = Octane::new();
-//!     app.add(Octane::static_dir("dir_name")); // serve a static directory
+//!     app.add(Octane::static_dir("dir_name"))?; // serve a static directory
 //!     app.get("/",
 //!         route!(
 //!             |req, res| {
@@ -44,10 +44,10 @@
 //! Octane divides most of the things that one might _leave_ out for
 //! any reason into features. These include,
 //!
-//! - `faithful`: This feature, when enabled, makes octane conforms to http spec
-//! with some added overhead because of it
+//! - `faithful`: To make octane conform to http spec
+//! with some added overhead
 //! - `query_strings`: To enable query string parsing, eg. `?foo=bar&bar=foo`
-//! - `cookies`: Basic cookie parsing and value handling.
+//! - `cookies`: To enable basic cookie parsing and value handling.
 //! - `url_variables`: To support variables in url.
 //! - `raw_headers`: To have access to original, un-normalized headers.
 //! - `rustls`: To use rustls for ssl.
@@ -82,7 +82,7 @@ pub mod query;
 pub mod request;
 /// Responder module contains the response which will be sent
 pub mod responder;
-/// The router module has utils to create routes and custom routers
+/// The router module has utilities to create routes and custom routers
 pub mod router;
 #[doc(hidden)]
 mod server;

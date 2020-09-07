@@ -8,7 +8,7 @@ use tokio_rustls::rustls::{
     Certificate, PrivateKey,
 };
 
-/// Ssl struct, contains the key and cert
+/// Ssl struct contains the key and cert
 /// required to setup SSL with the selected
 /// feature (rustls or openssl)
 ///
@@ -33,7 +33,7 @@ pub struct Ssl {
     pub key: PathBuf,
     /// Location of the certificate file.
     pub cert: PathBuf,
-    /// The port where TLS should listen, is 443 by default.
+    /// The port where TLS should listen, it is 443 by default.
     pub port: u16,
 }
 
@@ -82,7 +82,7 @@ impl Ssl {
 }
 
 /// An independent OctaneConfig struct that can be used
-/// seperately from the app structure and then be appended
+/// separately from the app structure and then be appended
 /// to it.
 ///
 /// **Note**: If you won't push the independently made config
@@ -99,10 +99,10 @@ impl Ssl {
 /// ```
 ///
 /// The config holds the values for various configurable
-/// item. If no config is specfied then defaults are used.
+/// item. If no config is specified then defaults are used.
 ///
 pub struct OctaneConfig {
-    /// The duration for keep alive requests. Is 5 seconds by default
+    /// The duration for keep alive requests. It is 5 seconds by default
     pub keep_alive: Option<Duration>,
     /// An instance of the `Ssl` struct to store the values of key and certificates.
     pub ssl: Ssl,

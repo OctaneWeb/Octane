@@ -19,8 +19,8 @@ pub type Closure = Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> F
 /// return
 pub type RouterResult = Result<(), InvalidPathError>;
 /// The flow enum works just like the next() callback
-/// in express. The variant returns decides wheather
-/// the exection should go to the next similar route
+/// in express. The variant returns decides whether
+/// the execution should go to the next similar route
 /// or not
 ///
 /// # Example
@@ -78,12 +78,13 @@ impl Flow {
 /// );
 /// ```
 /// While you are using these methods directly on your
-/// octane struct, you can add them on a router instance
+/// Octane struct, you can add them on a router instance
 /// which can be appended to your main server (octane)
 /// struct. It's called Router
+///
 /// TODO: Include router example here
 pub trait Route {
-    /// add_route() is a dupliate of add() but with a
+    /// add_route() is a duplicate of add() but with a
     /// specified url on where it should run.
     /// It runs on the given path and on all types of requests
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
@@ -191,14 +192,14 @@ pub trait Route {
 }
 
 /// The router structure defines the routes and stores them along with
-/// their indexes. Router methods can be used with this struct also with
+/// their indexes. Router methods can be used with this struct and also
 /// the main server structure.
 pub struct Router {
     /// Holds a counter and increments on new additions of routes
     pub route_counter: usize,
     /// A vector of middleware closures
     pub middlewares: Vec<Closures>,
-    /// The router paths which are to be exectued on requests
+    /// The router paths which are to be executed on requests
     pub paths: Paths,
 }
 

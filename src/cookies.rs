@@ -6,7 +6,7 @@ use std::collections::HashMap;
 /// with the name and values. By default you have
 /// yourself a `Cookies` field in `Response`.
 ///
-/// Cookies are behind a feature but are included
+/// Cookies are behind the feature `cookies` which is included
 /// in the default one
 ///
 /// # Example

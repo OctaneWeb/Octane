@@ -18,7 +18,7 @@ use std::time::Duration;
 use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::prelude::*;
 
-/// The octane server
+/// The Octane server
 ///
 /// # Example
 ///

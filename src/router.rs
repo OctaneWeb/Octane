@@ -277,7 +277,7 @@ impl Router {
         };
         #[cfg(not(feature = "url_variables"))]
         let matched = MatchedRequest {
-            request: parsed_request,
+            request: parsed_request.clone(),
         };
         for _ in 0..total {
             let mut minind = 0;

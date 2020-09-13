@@ -1,3 +1,5 @@
+#![cfg(feature = "cookies")]
+
 use octane::cookies::*;
 
 #[test]

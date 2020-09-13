@@ -125,11 +125,13 @@ impl<'a, T: Eq> Spliterator<'a, T> {
         find_in_slice(self.string, self.seq)
     }
 
+    /*
     pub fn skip_empty(&mut self) {
         while let Some(0) = self.find_seq() {
             self.next();
         }
     }
+    */
 }
 
 impl<'a, T: Eq> Iterator for Spliterator<'a, T> {

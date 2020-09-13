@@ -64,9 +64,11 @@ impl Time {
             String::new()
         }
     }
+    /*
     pub fn with_stamp(self, stamp: i64) -> Option<Self> {
         Self::time(stamp)
     }
+    */
     fn week_day(&self) -> Option<String> {
         if let Some(week) = WEEKS.iter().enumerate().find(|(i, _)| {
             if let Ok(week_day) = self.week.try_into() {

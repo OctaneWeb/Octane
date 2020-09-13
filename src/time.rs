@@ -167,9 +167,7 @@ mod tests {
     #[test]
     fn some_time_stamp() {
         // the method should work for some arbitary time stamps after 1970 Jan 1
-        let some_time = Time::time(6043440870)
-            .unwrap()
-            .format();
+        let some_time = Time::time(6043440870).unwrap().format();
         assert_eq!(some_time, "Sun, 05 Jul 2161 05:34:30 GMT");
     }
 

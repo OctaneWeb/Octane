@@ -20,6 +20,6 @@ jobs:
     - name: Test with most features
       run: cargo test --no-fail-fast --no-default-features --features faithful,raw_headers,query_strings,extended_queries,cookies,url_variables,rustls
     - name: Test with openSSL
-      run: cargo build --no-fail-fast --features openSSL
+      run: cargo test --no-fail-fast --features openSSL
     - name: Test with no features
-      run: cargo build --no-fail-fast --no-default-features
+      run: cargo test --no-fail-fast --no-default-features

@@ -13,13 +13,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose --no-fail-fast
     - name: Run fmt tests
       run: cargo fmt -- --check
-    - name: Build with rustls
-      run: cargo build --verbose --features rustls
-    - name: Build with openSSL
-      run: cargo build --verbose --features openSSL
+    - name: Test with default features
+      run: cargo test --no-fail-fast
+    - name: Test with most features
+      run: cargo test --no-fail-fast --no-default-features --features faithful,raw_headers,query_strings,extended_queries,cookies,url_variables,rustls
+    - name: Test with openSSL
+      run: cargo build --no-fail-fast --features openSSL
+    - name: Test with no features
+      run: cargo build --no-fail-fast --no-default-features

@@ -65,10 +65,12 @@ impl ServerBuilder {
             let tcp_stream = stream?;
             let server = Arc::clone(&server);
             task!({
-                tokio_openssl::accept(&acceptor, tcp_stream)
-                    .await
-                    .map(move |stream_ssl| async move { exec(stream_ssl, server).await })
-                    .map_err(|e| println!("WARNING: {}", e))
+                let stream = tokio_openssl::accept(&acceptor, tcp_stream).await;
+                if let Ok(stream_ssl) = stream {
+                    exec(stream_ssl, server).await;
+                } else {
+                    stream.map_err(|e| println!("{:?}", e)).unwrap();
+                }
             });
         }
         Ok(())
@@ -92,11 +94,14 @@ impl ServerBuilder {
             let server = Arc::clone(&server);
             let tcp_stream = stream?;
             task!({
-                acceptor
-                    .accept(tcp_stream)
-                    .await
-                    .map(move |stream_ssl| async move { exec(stream_ssl, server).await })
-                    .map_err(|e| println!("WARNING: {:?}", e.kind()))
+                let stream = acceptor.accept(tcp_stream).await;
+                if let Ok(stream_ssl) = stream {
+                    exec(stream_ssl, server).await;
+                } else {
+                    stream
+                        .map_err(|e| println!("WARNING: {:?}", e.kind()))
+                        .unwrap();
+                }
             });
         }
         Ok(())

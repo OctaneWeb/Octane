@@ -1,5 +1,6 @@
 use octane::prelude::*;
 use std::error::Error;
+
 #[octane::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mut app = Octane::new();

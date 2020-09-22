@@ -26,15 +26,16 @@
 //!     let mut app = Octane::new();
 //!     app.add(Octane::static_dir("dir_name"))?; // serve a static directory
 //!     app.get("/",
-//!         route!(
+//!         route_stop!(
 //!             |req, res| {
 //!                 res.send("Hello, World");
-//!                 Flow::Stop
 //!             }
 //!         ),
 //!     )?;
-//!
-//!     app.listen(8080).await
+//!     let port = 8080;
+//!     app.listen(port, || {
+//!         println!("Server running on {}", port)
+//!     }).await
 //! }
 //! ```
 //! and now you can see the page at [http://localhost:8080](http://localhost:8080).
@@ -61,41 +62,30 @@
 extern crate lazy_static;
 /// Configurations for Octane web server
 pub mod config;
-#[doc(hidden)]
-mod constants;
+pub(crate) mod constants;
 #[cfg(feature = "cookies")]
 /// Module for cookie parsing and handling
 pub mod cookies;
-#[doc(hidden)]
-mod error;
-#[doc(hidden)]
-mod file_handler;
-#[doc(hidden)]
-mod http;
-mod middlewares;
-/// Module to manipulate and work with paths
-pub mod path;
-/// Module to handle query string parsing
+pub(crate) mod error;
+pub(crate) mod file_handler;
+pub(crate) mod http;
+pub(crate) mod middlewares;
+pub(crate) mod path;
 #[cfg(feature = "query_strings")]
-pub mod query;
+pub(crate) mod query;
 /// Request module contains the ongoing request and methods to read from it
 pub mod request;
 /// Responder module contains the response which will be sent
 pub mod responder;
 /// The router module has utilities to create routes and custom routers
 pub mod router;
-#[doc(hidden)]
-mod server;
+pub(crate) mod server;
 /// Server struct that manages request/response and allows the routes to enter in
 pub use crate::server::Octane;
-#[doc(hidden)]
-mod server_builder;
-#[doc(hidden)]
-mod time;
-#[doc(hidden)]
-mod tls;
-#[doc(hidden)]
-mod util;
+pub(crate) mod server_builder;
+pub(crate) mod time;
+pub(crate) mod tls;
+pub(crate) mod util;
 
 // convenient aliasing for octane_json
 pub use octane_json as json;
@@ -103,14 +93,14 @@ pub use octane_macros::main;
 pub use octane_macros::test;
 
 /// Prelude brings in scope, the `Route` trait, `Config` trait, `Octane` main server
-/// struct and `Router` with the `Flow` enum and the `route`, `route_next`,
+/// struct and `Router` with the `Flow` enum and the `route`, `route_next`, `path`,
 /// `route_stop` macros
 pub mod prelude {
     // config trait
     pub use crate::config::Config;
     pub use crate::Octane;
     pub use crate::{
-        route, route_next, route_stop,
+        path, route, route_next, route_stop,
         router::{Flow, Route, Router},
     };
 }

@@ -37,8 +37,10 @@ use tokio::prelude::*;
 ///             }
 ///         ),
 ///     );
-///
-///     app.listen(8080).await.expect("Cannot establish connection");
+///     let port = 8080;
+///     app.listen(port, || {
+///         println!("Server started on port {}", port);
+///     }).await.expect("Cannot establish connection");
 /// }
 /// ```
 pub struct Octane {
@@ -111,8 +113,7 @@ impl Octane {
     ///
     /// let mut app = Octane::new();
     ///
-    /// app.add(Octane::static_dir(concat!(
-    ///    env!("CARGO_MANIFEST_DIR"),
+    /// app.add(Octane::static_dir(path!(
     ///    "/pub_dir_name"
     /// )));
     /// ```
@@ -140,12 +141,19 @@ impl Octane {
     /// #[octane::main]
     /// async fn main() {
     ///     let mut app = Octane::new();
-    ///     app.listen(80).await.expect("Cannot establish connection");
+    ///     let port = 80;
+    ///     app.listen(port, || println!("Server started on port {}", port))
+    ///         .await
+    ///         .expect("Cannot establish connection");
     /// }
     /// ```
-    pub async fn listen(self, port: u16) -> Result<(), Box<dyn StdError>> {
+    pub async fn listen<F>(self, port: u16, exec: F) -> Result<(), Box<dyn StdError>>
+    where
+        F: FnOnce(),
+    {
         let server = Arc::new(self);
         let mut _ssl = false;
+
         #[cfg(any(feature = "openSSL", feature = "rustls"))]
         {
             use crate::task;
@@ -158,19 +166,12 @@ impl Octane {
                 }
             });
         }
-        // echo server string
-        println!(
-            "{}",
-            server
-                .settings
-                .startup_string(_ssl, port, server.router.paths.len())
-        );
-
+        exec();
         let mut server_builder = ServerBuilder::new();
         server_builder
             .port(port)
             .listen(
-                |stream, server| async { Octane::serve(stream, server).await },
+                move |stream, server| async move { Octane::serve(stream, server).await },
                 server,
             )
             .await?;
@@ -276,7 +277,7 @@ impl Octane {
         }
         Ok(())
     }
-    async fn send<S>(
+    pub(crate) async fn send<S>(
         mut response: (String, BoxReader),
         mut stream_async: S,
     ) -> Result<(), Box<dyn StdError>>

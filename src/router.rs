@@ -1,23 +1,21 @@
 use crate::default;
 use crate::error::InvalidPathError;
 use crate::middlewares::Closures;
-use crate::path::MatchedPath;
-use crate::path::PathNode;
+use crate::path::{MatchedPath, PathNode};
 use crate::request::{MatchedRequest, Request, RequestMethod};
 use crate::responder::Response;
 use std::collections::HashMap;
 use std::result::Result;
 
-/// The type of HashMap where we will be storing the all the closures
-pub type Paths = HashMap<RequestMethod, PathNode<Closures>>;
-
+// The type of HashMap where we will be storing the all the closures
+pub(crate) type Paths = HashMap<RequestMethod, PathNode<Closures>>;
 /// The Closure type is a type alias for the type
 /// that the routes should return
 pub type Closure = Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> Flow + Send + Sync>;
+// RouterResult is the type which the app.METHOD methods
+// return
+pub(crate) type RouterResult = Result<(), InvalidPathError>;
 
-/// RouterResult is the type which the app.METHOD methods
-/// return
-pub type RouterResult = Result<(), InvalidPathError>;
 /// The flow enum works just like the next() callback
 /// in express. The variant returns decides whether
 /// the execution should go to the next similar route
@@ -215,8 +213,8 @@ impl Router {
             paths: HashMap::new(),
         }
     }
-    /// append the routes stored in a custom Router to the self Router
-    pub fn append(&mut self, router: Self) {
+    // append the routes stored in a custom Router to the self Router
+    pub(crate) fn append(&mut self, router: Self) {
         let self_count = self.route_counter;
         let other_count = router.route_counter;
         for (methods, paths) in router.paths.into_iter() {
@@ -239,9 +237,9 @@ impl Router {
         self.route_counter += other_count;
     }
 
-    /// Fetch the closure according to the request path, run that
-    /// specific closure.
-    pub fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
+    // Fetch the closure according to the request path, run that
+    // specific closure.
+    pub(crate) fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
         let req = &parsed_request.request_line;
 
         let mut matches: Vec<Vec<MatchedPath<Closures>>> = Vec::new();
@@ -440,5 +438,117 @@ impl Route for Router {
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
         inject_method!(self, path, closure, RequestMethod::All);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::path::PathBuf;
+
+    #[test]
+    pub fn router_test() {
+        let mut router = Router::new();
+        router.add(route!(|req, res| { Flow::Next })).unwrap();
+        router.get("/", route!(|req, res| { Flow::Next })).unwrap();
+        router
+            .option("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        router.post("/", route!(|req, res| { Flow::Next })).unwrap();
+        router.head("/", route!(|req, res| { Flow::Next })).unwrap();
+        router.put("/", route!(|req, res| { Flow::Next })).unwrap();
+        // middleware with path
+        assert_eq!(5, router.paths.len());
+        // middleware without paths
+        assert_eq!(1, router.middlewares.len());
+    }
+
+    #[test]
+    pub fn router_append_test() {
+        let mut first_router = Router::new();
+        first_router.add(route!(|req, res| { Flow::Next })).unwrap();
+        first_router
+            .get("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        first_router
+            .option("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        first_router
+            .post("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        first_router
+            .head("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        first_router
+            .put("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        let mut second_router = Router::new();
+        second_router
+            .add(route!(|req, res| { Flow::Next }))
+            .unwrap();
+        second_router
+            .get("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        second_router
+            .option("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        second_router
+            .post("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        second_router
+            .head("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        second_router
+            .put("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        first_router.append(second_router);
+        // middleware tied without path
+        assert_eq!(2, first_router.middlewares.len());
+        assert_eq!(
+            2,
+            first_router
+                .paths
+                .get(&RequestMethod::Get)
+                .unwrap()
+                .get(&PathBuf::parse("/").unwrap())
+                .len()
+        );
+
+        assert_eq!(
+            2,
+            first_router
+                .paths
+                .get(&RequestMethod::Options)
+                .unwrap()
+                .get(&PathBuf::parse("/").unwrap())
+                .len()
+        );
+        assert_eq!(
+            2,
+            first_router
+                .paths
+                .get(&RequestMethod::Post)
+                .unwrap()
+                .get(&PathBuf::parse("/").unwrap())
+                .len()
+        );
+        assert_eq!(
+            2,
+            first_router
+                .paths
+                .get(&RequestMethod::Head)
+                .unwrap()
+                .get(&PathBuf::parse("/").unwrap())
+                .len()
+        );
+        assert_eq!(
+            2,
+            first_router
+                .paths
+                .get(&RequestMethod::Put)
+                .unwrap()
+                .get(&PathBuf::parse("/").unwrap())
+                .len()
+        );
     }
 }

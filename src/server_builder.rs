@@ -13,7 +13,7 @@ use tokio_openssl::SslStream;
 #[cfg(feature = "rustls")]
 use tokio_rustls::server::TlsStream;
 
-pub struct ServerBuilder {
+pub(crate) struct ServerBuilder {
     port: u16,
 }
 

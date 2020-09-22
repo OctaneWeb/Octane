@@ -1,11 +1,12 @@
 use crate::constants::NOT_FOUND;
 use crate::responder::Response;
 use crate::responder::StatusCode;
+use crate::Octane;
 use std::error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::marker::Unpin;
-use tokio::io::{copy, AsyncWrite, AsyncWriteExt};
+use tokio::io::AsyncWrite;
 
 /// The Error structure holds the kind of error code and
 /// the location of the custom 404 file, if given by the user
@@ -44,7 +45,7 @@ impl Error {
     {
         Error { kind: status_code }.send(stream).await
     }
-    async fn send<S>(self, mut stream: S) -> Result<(), Box<dyn error::Error>>
+    async fn send<S>(self, stream: S) -> Result<(), Box<dyn error::Error>>
     where
         S: AsyncWrite + Unpin,
     {
@@ -53,9 +54,8 @@ impl Error {
             .default_headers()
             .set("Content-Type", "text/html");
 
-        let mut response = res.get_data();
-        stream.write_all(response.0.as_bytes()).await?;
-        copy(&mut response.1, &mut stream).await?;
+        let response = res.get_data();
+        Octane::send(response, stream).await?;
         Ok(())
     }
 }

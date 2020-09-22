@@ -10,6 +10,7 @@ use std::collections::HashMap;
 #[cfg(not(feature = "raw_headers"))]
 use std::marker::PhantomData;
 use std::str;
+use std::string::ToString;
 
 /// Holds the type of request method, like GET,
 /// POST etc.
@@ -38,16 +39,6 @@ pub enum RequestMethod {
 }
 
 impl RequestMethod {
-    /// Get all the values of the enum in an
-    /// array. Useful for iterating and populating
-    /// HashMap that holds closures for different
-    /// different methods.
-    pub fn values() -> [Self; 10] {
-        use RequestMethod::*;
-        [
-            Options, Get, Head, Post, Put, Delete, Trace, Connect, All, None,
-        ]
-    }
     /// Return false if the RequestMethod is `None`, otherwise it's true
     pub fn is_some(&self) -> bool {
         if let Self::None = self {
@@ -64,8 +55,7 @@ impl RequestMethod {
 /// # Example
 ///
 /// ```no_run
-/// use octane::Octane;
-/// use octane::{route, router::{Flow, Route}};
+/// use octane::prelude::*;
 /// use octane::request::HttpVersion;
 ///
 /// let mut app = Octane::new();
@@ -93,10 +83,8 @@ pub enum HttpVersion {
     HttpInvalid,
 }
 
-impl HttpVersion {
-    /// Returns the version in string like "1.1"
-    /// or "1.0" etc.
-    pub fn get_version_string(self) -> String {
+impl ToString for HttpVersion {
+    fn to_string(&self) -> std::string::String {
         match self {
             Self::Http11 => "1.1",
             Self::Http10 => "1.0",
@@ -114,8 +102,7 @@ impl HttpVersion {
 /// # Example
 ///
 /// ```no_run
-/// use octane::Octane;
-/// use octane::{route, router::{Flow, Route}};
+/// use octane::prelude::*;
 /// use octane::request::RequestMethod;
 ///
 /// let mut app = Octane::new();
@@ -139,7 +126,7 @@ pub struct RequestLine {
 impl RequestLine {
     /// Parses a request line str and returns a
     /// request line struct.
-    pub fn parse(request_line: &str) -> Option<Self> {
+    pub(crate) fn parse(request_line: &str) -> Option<Self> {
         let mut toks = request_line.split(SP);
         let method = toks.next()?;
         let path = match PathBuf::parse(toks.next()?) {
@@ -195,7 +182,7 @@ pub struct Header {
 impl Header {
     /// Parses a `key: value` header string and
     /// returns a Header struct
-    pub fn parse(header: String) -> Option<Self> {
+    pub(crate) fn parse(header: String) -> Option<Self> {
         let mut toks = header.splitn(2, ':');
         let name = toks.next()?;
         if name.is_empty() {
@@ -233,8 +220,7 @@ impl Header {
 /// # Example
 ///
 /// ```no_run
-/// use octane::Octane;
-/// use octane::{route, router::{Flow, Route}};
+/// use octane::prelude::*;
 /// use octane::request::RequestMethod;
 ///
 /// let mut app = Octane::new();
@@ -258,7 +244,7 @@ pub struct Headers {
 
 impl Headers {
     /// Parse all the headers on a request
-    pub fn parse(request: String) -> Option<Self> {
+    pub(crate) fn parse(request: String) -> Option<Self> {
         let toks = Spliterator::new(request.as_bytes(), B_CRLF);
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
@@ -285,8 +271,8 @@ impl Headers {
     }
 }
 
-/// Helper function for extracting some headers
-pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
+// Helper function for extracting some headers
+pub(crate) fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
     let n = data.find("\r\n")?;
     let (line, rest) = data.split_at(n);
     let request_line = RequestLine::parse(line)?;
@@ -299,8 +285,7 @@ pub fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 /// # Example
 ///
 /// ```no_run
-/// use octane::Octane;
-/// use octane::{route, router::{Flow, Route}};
+/// use octane::prelude::*;
 /// use octane::request::RequestMethod;
 ///
 /// let mut app = Octane::new();
@@ -337,7 +322,11 @@ pub struct Request<'a> {
 impl<'a> Request<'a> {
     /// Parse a Request with request_line, headers
     /// and body and return a Request struct
-    pub fn parse(request_line: RequestLine, headers: Headers, body: &'a [u8]) -> Option<Self> {
+    pub(crate) fn parse(
+        request_line: RequestLine,
+        headers: Headers,
+        body: &'a [u8],
+    ) -> Option<Self> {
         #[cfg(feature = "cookies")]
         let cookies: Cookies;
         #[cfg(feature = "cookies")]
@@ -360,7 +349,7 @@ impl<'a> Request<'a> {
 /// parsed in the KeepAlive header. It holds the
 /// timeout and max duration as a u64, (only http 1.0 and below)
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct KeepAlive {
+pub(crate) struct KeepAlive {
     timeout: Option<u64>,
     max: Option<u64>,
 }
@@ -393,11 +382,12 @@ impl KeepAlive {
         }
         ret
     }
-    /// Returns the amount of timeout specified in the keep alive header
+    // Returns the amount of timeout specified in the keep alive header
     pub fn timeout(&self) -> Option<u64> {
         self.timeout
     }
-    /// Returns the amount of max requests specified in the keep alive header
+    #[allow(dead_code)]
+    // Returns the amount of max requests specified in the keep alive header
     pub fn max(&self) -> Option<u64> {
         self.max
     }
@@ -411,36 +401,194 @@ impl KeepAlive {
 /// # Example
 ///
 /// ```no_run
-/// use octane::Octane;
-/// use octane::{route, router::{Flow, Route}};
-/// use octane::request::RequestMethod;
+/// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
-/// app
-/// .get("/",
-///     route!(|req, res| {
+/// app.get("/",
+///     route_next!(|req, res| {
 ///         // The req here is not actually a
 ///         // Request but a MatchedRequest which
 ///         // implements deref to Request.
 ///         // You can just directly use Request
 ///         // methods on it
 ///         let header = req.headers.get("Some-Header");
-///         Flow::Stop
 ///     }),
 /// );
 /// ```
-/// The struct also have the values of the url
-/// variables
-///
-/// TODO: Add a url variable example
+/// The struct also has the values of the url variables. This
+/// requires the feature `url_variables` to be enabled.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MatchedRequest<'a> {
     /// The request coming from the client
     pub request: Request<'a>,
     #[cfg(feature = "url_variables")]
-    /// A Hashmap containing the variables specified in the url with their respective keys
+    /// A Hashmap containing the variables specified in the url with their
+    /// respective keys.
+    ///
+    /// ```no_run
+    /// use octane::prelude::*;
+    ///
+    /// let mut app = Octane::new();
+    ///
+    /// app.get("/foo/:var", // we used "var" as the identifier here
+    ///     route_next!(|req, res| {
+    ///         let some_header = req.headers.get("HeaderName");
+    ///         res.with_type("application/json")
+    ///            .send(req.vars.get("var").unwrap()); // we'll get the variable with the same keyword "var"
+    ///     }),
+    /// );
+    /// ```
     pub vars: HashMap<&'a str, &'a str>,
 }
 
 deref!(MatchedRequest<'a>, Request<'a>, request);
 deref!(Headers, HashMap<String, String>, parsed);
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn success_standard_request_line() {
+        // Parsing should work as expected.
+        let req = RequestLine::parse("POST /abc/def HTTP/1.1").unwrap();
+        assert_eq!(req.method, RequestMethod::Post);
+        assert_eq!(req.path, PathBuf::parse("/abc/def").ok().unwrap());
+        assert_eq!(req.version, HttpVersion::Http11);
+    }
+
+    #[test]
+    fn success_other_method() {
+        // Non-documented methods should also work.
+        let req = RequestLine::parse("PATCH /abc/def HTTP/1.1").unwrap();
+        assert_eq!(req.method, RequestMethod::None);
+        assert_eq!(req.path, PathBuf::parse("/abc/def").ok().unwrap());
+        assert_eq!(req.version, HttpVersion::Http11);
+    }
+
+    #[test]
+    #[should_panic]
+    #[cfg_attr(not(feature = "faithful"), ignore)]
+    fn fail_extra_1() {
+        // Extra clauses should error.
+        RequestLine::parse("POST /abc/def HTTP/1.1 x").unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn fail_extra_2() {
+        // Extra clauses should error.
+        RequestLine::parse("POST /a /b HTTP/1.1").unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    #[cfg_attr(not(feature = "faithful"), ignore)]
+    fn fail_malformed_version() {
+        // Malformed versions should error.
+        RequestLine::parse("POST /abc/def HTDP/1.1").unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn fail_missing_clause() {
+        // Missing clauses should error.
+        RequestLine::parse("POST /abc/def").unwrap();
+    }
+
+    #[test]
+    fn success_standard() {
+        // Parsing should work as expected.
+        let reqline = RequestLine::parse("POST /abc/def HTTP/1.1").unwrap();
+        assert_eq!(reqline.method, RequestMethod::Post);
+        assert_eq!(reqline.path, PathBuf::parse("/abc/def").ok().unwrap());
+        assert_eq!(reqline.version, HttpVersion::Http11);
+        let headers = Headers::parse(
+            "Host: localhost:12345\r\n\
+        User-Agent: curl/7.58.0\r\n\
+        Accept: */*\r\n\
+        Content-Length: 20\r\n\
+        Content-Type: application/x-www-form-urlencoded"
+                .to_string(),
+        )
+        .unwrap();
+        assert_eq!(headers.get("host").unwrap(), "localhost:12345");
+        assert_eq!(headers.get("user-agent").unwrap(), "curl/7.58.0");
+        assert_eq!(headers.get("accept").unwrap(), "*/*");
+        assert_eq!(headers.get("content-length").unwrap(), "20");
+        assert_eq!(
+            headers.get("content-type").unwrap(),
+            "application/x-www-form-urlencoded"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "raw_headers")]
+    fn success_raw_headers() {
+        // Parsing should work as expected.
+        let headers = Headers::parse(
+            "HOst: localhost:12345\r\n\
+        User-Agent: curl/7.58.0"
+                .to_string(),
+        )
+        .unwrap();
+        assert_eq!(headers.raw[0].name(), "HOst");
+        assert_eq!(headers.raw[0].value(), "localhost:12345");
+        assert_eq!(headers.raw[1].name(), "User-Agent");
+        assert_eq!(headers.raw[1].value(), "curl/7.58.0");
+    }
+
+    #[test]
+    fn success_standard_header() {
+        // Parsing should work as expected.
+        let req = Header::parse("Referer: \t\t request://www.example.com/".to_string()).unwrap();
+        assert_eq!(req.name(), "Referer");
+        assert_eq!(req.value(), "request://www.example.com/");
+    }
+
+    #[test]
+    fn success_empty_value() {
+        // Empty values are allowed.
+        let req = Header::parse("Referer: \t\t ".to_string()).unwrap();
+        assert_eq!(req.name(), "Referer");
+        assert_eq!(req.value(), "");
+    }
+
+    #[test]
+    #[should_panic]
+    fn fail_no_value() {
+        // Having no value should fail.
+        Header::parse("Referer".to_string()).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn fail_empty_name() {
+        // Having no name should fail.
+        Header::parse(": test".to_string()).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    #[cfg_attr(not(feature = "faithful"), ignore)]
+    fn fail_malformed_name() {
+        // Having separators in the name should fail.
+        Header::parse("Test Header: test".to_string()).unwrap();
+    }
+
+    #[test]
+    fn success_keepalive() {
+        // Parsing should work as expected.
+        let req = KeepAlive::parse("timeout=5, max=1000");
+        assert_eq!(req.timeout(), Some(5));
+        assert_eq!(req.max(), Some(1000));
+    }
+
+    #[test]
+    fn success_keepalive_edge() {
+        // Edge cases should work as expected.
+        let req = KeepAlive::parse("timeout=,test,max=a, timeout=5");
+        assert_eq!(req.timeout(), Some(5));
+        assert_eq!(req.max(), None);
+    }
+}

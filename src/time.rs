@@ -4,7 +4,7 @@ use crate::constants::{
 use std::convert::TryInto;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub struct Time {
+pub(crate) struct Time {
     min: i64,
     sec: i64,
     hour: i64,
@@ -26,7 +26,7 @@ impl Padding for i64 {
 }
 
 impl Time {
-    pub fn now() -> Option<Self> {
+    pub(crate) fn now() -> Option<Self> {
         let stamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(n) => {
                 if let Ok(x) = n.as_secs().try_into() {
@@ -39,7 +39,7 @@ impl Time {
         };
         Self::time(stamp)
     }
-    pub fn format(&self) -> String {
+    pub(crate) fn format(&self) -> String {
         if let Some(month_day) = self.month_day() {
             if let Some(week_day) = self.week_day() {
                 let date = format!(

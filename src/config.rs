@@ -209,8 +209,8 @@ impl OctaneConfig {
             worker_threads: None,
         }
     }
-    /// Appends a settings instance to self
-    pub fn append(&mut self, settings: Self) {
+    // Appends a settings instance to self
+    pub(crate) fn append(&mut self, settings: Self) {
         self.ssl = settings.ssl;
         self.keep_alive = settings.keep_alive;
     }
@@ -224,101 +224,21 @@ impl OctaneConfig {
         self
     }
 
-    /// Get the certs as a Vec<Certificate>, a user will not have to
-    /// use this directly, this is used and done for them
+    // Get the certs as a Vec<Certificate>, a user will not have to
+    // use this directly, this is used and done for them
     #[cfg(feature = "rustls")]
-    pub fn get_cert(&self) -> std::io::Result<Vec<Certificate>> {
+    pub(crate) fn get_cert(&self) -> std::io::Result<Vec<Certificate>> {
         let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.cert)?);
         certs(&mut buf)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Certs"))
     }
-    /// Get the private key as a Vec<PrivateKey>, a user will not have to
-    /// use this directly
+    // Get the private key as a Vec<PrivateKey>, a user will not have to
+    // use this directly
     #[cfg(feature = "rustls")]
-    pub fn get_key(&self) -> std::io::Result<Vec<PrivateKey>> {
+    pub(crate) fn get_key(&self) -> std::io::Result<Vec<PrivateKey>> {
         let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.key)?);
         rsa_private_keys(&mut buf)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))
-    }
-    /// Generates a string which prints the configurations when the server runs
-    pub fn startup_string(&self, ssl: bool, port: u16, len: usize) -> String {
-        let mut final_string = String::new();
-        final_string.push_str(
-            format!(
-                "\n\r{} {}\n\r\n{}\n\n",
-                "Starting".bold().blue(),
-                "Octane".green().bold(),
-                "Configurations".red().bold()
-            )
-            .as_str(),
-        );
-        if let Some(x) = self.keep_alive {
-            final_string.push_str(
-                format!(
-                    "{}: {}s\n",
-                    "-> Keep-alive".blue(),
-                    x.as_secs_f64().to_string().green(),
-                )
-                .as_str(),
-            );
-        } else {
-            final_string.push_str(
-                format!("{}: {}\n", "-> Keep-alive".blue(), "Disabled".green(),).as_str(),
-            );
-        }
-        if let Some(x) = self.worker_threads {
-            final_string.push_str(
-                format!(
-                    "{}: {}\n",
-                    "-> Worker-threads".blue(),
-                    x.to_string().green(),
-                )
-                .as_str(),
-            );
-        } else {
-            final_string.push_str(
-                format!(
-                    "{}: {}\n",
-                    "-> Worker-threads".blue(),
-                    "2 * Number of cores available in the CPU".green(),
-                )
-                .as_str(),
-            );
-        }
-        if ssl {
-            final_string.push_str(
-                format!(
-                    "{}: {} {}\n",
-                    "-> TLS".blue(),
-                    "enabled at".green(),
-                    self.ssl.port.to_string().red().bold()
-                )
-                .as_str(),
-            );
-        } else {
-            final_string.push_str(format!("{}: {} \n", "TLS".red(), "disabled".green()).as_str());
-        }
-
-        final_string.push_str(
-            format!(
-                "{}: {} paths\n",
-                "-> Serving".blue(),
-                len.to_string().red().bold()
-            )
-            .as_str(),
-        );
-
-        final_string.push_str(
-            format!(
-                "\n{} at {}:{}\n",
-                "Listening".red(),
-                "localhost".blue(),
-                port.to_string().red().bold()
-            )
-            .as_str(),
-        );
-
-        final_string
     }
 }
 

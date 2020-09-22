@@ -13,8 +13,7 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use tokio::io::AsyncRead;
 
-#[doc(hidden)]
-pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
+pub(crate) type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 
 /// The response struct contains the data which is
 /// to be send on a request. The struct has several
@@ -25,26 +24,19 @@ pub type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// ```no_run
 /// use octane::prelude::*;
 ///
-/// #[octane::main]
-/// async fn main() {
-///     let mut app = Octane::new();
-///     app.get(
-///         "/",
-///         route!(
-///             |req, res| {
-///                 // access res (response) here
-///                 Flow::Next
-///             }
-///         ),
-///     );
-///
-///     app.listen(8080).await.expect("Cannot establish connection");
-/// }
+/// let mut app = Octane::new();
+/// app.get(
+///     "/",
+///     route!(|req, res| {
+///         // access res (response) here
+///         Flow::Next
+///     }),
+/// );
 /// ```
 pub struct Response {
+    body: BoxReader,
     /// The status code the response will contain
     pub status_code: StatusCode,
-    body: BoxReader,
     /// Length of the content which will be sent as the response
     pub content_len: Option<usize>,
     /// Http version which the response will use
@@ -285,21 +277,17 @@ impl Response {
     /// use octane::prelude::*;
     /// use octane::responder::StatusCode;
     ///
-    /// #[octane::main]
-    /// async fn main() {
-    ///     let mut app = Octane::new();
-    ///     app.get(
-    ///         "/",
-    ///         route!(
-    ///             |req, res| {
-    ///                 res.status(StatusCode::NotFound).send("Page not found");
-    ///                 Flow::Stop
-    ///             }
-    ///         ),
-    ///     );
+    /// let mut app = Octane::new();
+    /// app.get(
+    ///     "/",
+    ///     route!(
+    ///         |req, res| {
+    ///             res.status(StatusCode::NotFound).send("Page not found");
+    ///             Flow::Stop
+    ///         }
+    ///     ),
+    /// );
     ///
-    ///     app.listen(8080).await.expect("Cannot establish connection");
-    /// }
     /// ```
     pub fn status(&mut self, code: StatusCode) -> &mut Self {
         self.status_code = code;
@@ -308,7 +296,7 @@ impl Response {
     /// Sets the http version specified, to specify a version
     /// the version type should be variant of HttpVersion
     pub fn http_version(&mut self, version: HttpVersion) -> &mut Self {
-        self.http_version = version.get_version_string();
+        self.http_version = version.to_string();
         self
     }
     /// Tells if the headers are sent or not
@@ -572,5 +560,53 @@ impl fmt::Debug for Response {
             .field("headers", &self.headers)
             .field("http_version", &self.http_version)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::request::HttpVersion;
+    use tokio::io::AsyncReadExt;
+
+    async fn data_to_string(mut data: (String, BoxReader)) -> String {
+        let mut ret = data.0;
+        data.1
+            .read_to_string(&mut ret)
+            .await
+            .expect("cannot read to string");
+        ret
+    }
+
+    #[crate::test]
+    async fn success_standard() {
+        // default response should provide OK 200 Code
+        let req = data_to_string(Response::new_from_slice(b"").get_data()).await;
+        assert_eq!(req, "HTTP/1.1 200 OK\r\n\r\n");
+    }
+
+    #[crate::test]
+    async fn response_with_status_code_different() {
+        // Reponse with different status codes should work
+        let mut req = Response::new_from_slice(b"");
+        req.status(StatusCode::Created);
+
+        assert_eq!(
+            data_to_string(req.get_data()).await,
+            "HTTP/1.1 201 CREATED\r\n\r\n"
+        );
+    }
+
+    #[crate::test]
+    async fn response_with_different_http_version() {
+        // Reponse with different status codes should work
+        let mut req = Response::new_from_slice(b"");
+
+        req.http_version(HttpVersion::Http10)
+            .status(StatusCode::Created);
+        assert_eq!(
+            data_to_string(req.get_data()).await,
+            "HTTP/1.0 201 CREATED\r\n\r\n"
+        );
     }
 }

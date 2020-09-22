@@ -101,3 +101,7 @@ GitHub.sublime-settings
 
 # Local testing scripts
 /*.script
+
+# Testing folder for Octane, contains certs, keys, test.html, js, css,
+# favicon, and a nested test folder
+/templates/

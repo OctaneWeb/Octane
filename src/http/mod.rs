@@ -43,6 +43,7 @@ impl<'a> Validator<'a> {
     pub fn is_malformed(&self) -> bool {
         self.err_code.is_some()
     }
+    #[allow(dead_code)]
     pub fn keep_alive(&self) -> bool {
         if self.keep_alive == KeepAliveState::Close {
             false

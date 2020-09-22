@@ -1,8 +1,7 @@
-#![cfg(feature = "query_strings")]
 use crate::util::{from_hex, DoublePeek};
 use std::collections::HashMap;
 
-pub fn unescape_hex(string: &str) -> String {
+pub(crate) fn unescape_hex(string: &str) -> String {
     let mut ret = "".to_owned();
     let mut chars = string.chars();
     let mut peekable = DoublePeek::new(&mut chars);
@@ -38,7 +37,8 @@ pub fn unescape_hex(string: &str) -> String {
     ret
 }
 
-pub fn parse_query(query: &str) -> HashMap<String, String> {
+#[allow(dead_code)]
+pub(crate) fn parse_query(query: &str) -> HashMap<String, String> {
     let toks = query.split('&');
     let mut ret: HashMap<String, String> = HashMap::new();
     for tok in toks {
@@ -70,7 +70,7 @@ pub enum QueryValue {
 }
 
 #[cfg(feature = "extended_queries")]
-pub fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
+pub(crate) fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
     let toks = query.split('&');
     let mut ret: HashMap<String, QueryValue> = HashMap::new();
     for tok in toks {
@@ -131,4 +131,80 @@ pub fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
         }
     }
     ret
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "extended_queries")]
+    fn success_standard_extend_queries() {
+        // Parsing should work as expected.
+        let query = parse_extended_query(
+            "abc=def&ab=ab%20cd%4A&arr[]=x&arr[]=y&arr[]=z&obj[a]=x&obj[b]=y&obj[c]=z",
+        );
+        assert_eq!(query["abc"], QueryValue::Str("def".to_string()));
+        assert_eq!(query["ab"], QueryValue::Str("ab cdJ".to_string()));
+        assert_eq!(
+            query["arr"],
+            QueryValue::Arr(["x", "y", "z"].iter().map(|v| v.to_string()).collect())
+        );
+        let obj = match query["obj"].clone() {
+            QueryValue::Obj(v) => v,
+            _ => panic!("Query string did not have an object where expected."),
+        };
+        assert_eq!(obj["a"], "x");
+        assert_eq!(obj["b"], "y");
+        assert_eq!(obj["c"], "z");
+    }
+
+    #[test]
+    #[cfg(feature = "extended_queries")]
+    fn success_ignore_incompatible() {
+        // If different types are specified, strings take precedence, then the one coming first takes precedence.
+        let query = parse_extended_query("a[]=2&a[x]=3&a=1&b[]=1&b[x]=2&c[x]=1&c[]=2");
+        assert_eq!(query["a"], QueryValue::Str("1".to_string()));
+        assert_eq!(query["b"], QueryValue::Arr(vec!["1".to_string()]));
+        let obj = match query["c"].clone() {
+            QueryValue::Obj(v) => v,
+            _ => panic!("Query string did not have an object where expected."),
+        };
+        assert_eq!(obj["x"], "1".to_string());
+    }
+
+    #[test]
+    fn success_standard() {
+        // Parsing should work as expected.
+        let query = parse_query("abc=def&ab=ab%20cd%4A");
+        assert_eq!(query["abc"], "def");
+        assert_eq!(query["ab"], "ab cdJ");
+    }
+
+    #[test]
+    fn success_blank_query() {
+        // Queries without an "=" should be blank.
+        let query = parse_query("a&abc=def");
+        assert_eq!(query["a"], "");
+        assert_eq!(query["abc"], "def");
+    }
+
+    #[test]
+    fn success_weird_hex() {
+        // Queries should be able to handle weird hex escapes.
+        let query = parse_query("a=%0%41&b=%41%0&c=%%41&d=A%5");
+        assert_eq!(query["a"], "%0A");
+        assert_eq!(query["b"], "A%0");
+        assert_eq!(query["c"], "%A");
+        assert_eq!(query["d"], "A%5");
+    }
+
+    #[test]
+    #[cfg_attr(not(feature = "faithful"), ignore)]
+    fn success_no_name() {
+        // Queries with no name should not insert anything into the hashmap.
+        assert_eq!(parse_query("").len(), 0);
+        assert_eq!(parse_query("=x").len(), 0);
+        assert_eq!(parse_query("=x&=y").len(), 0);
+    }
 }

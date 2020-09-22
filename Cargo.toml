@@ -2,7 +2,7 @@
 name = "octane"
 version = "0.1.2"
 authors = ["weegee <somilsharma627@gmail.com>", "aplet123 <aplet@aplet.me>"]
-description = "A web server built from the ground up."
+description = "A web server which is express-like, intuitive and high-powered"
 license-file = "LICENSE"
 homepage = "https://github.com/OctaneWeb/Octane"
 readme = "README.md"
@@ -34,6 +34,10 @@ cookies = []
 url_variables = []
 rustls = ["tokio-rustls"]
 openSSL = ["openssl", "tokio-openssl"]
+
+[dev-dependencies]
+reqwest = { version = "0.10.8", features = ["blocking"] }
+tokio = { version = "0.2.22", features = ["full"] }
 
 [workspace]
 members = [

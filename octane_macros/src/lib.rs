@@ -108,6 +108,7 @@ pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let signature = properties.signature;
     let rest = properties.rest;
     let tokens = quote! {
+        #[test]
         #signature {
             #compile_error
             let mut builder = tokio::runtime::Builder::new();

@@ -32,7 +32,7 @@ where
 macro_rules! path {
     ( $url : expr ) => {{
         use common::PORT;
-        format!("{}/{}", format!("http://locahost:{}", PORT), $url)
+        format!("{}/{}", format!("http://0.0.0.0:{}", PORT), $url)
     }};
 }
 

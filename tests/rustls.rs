@@ -19,8 +19,9 @@ pub fn basic_https_hello_world_rustls() {
     .unwrap();
     common::run(app, || async {
         let mut easy = Easy::new();
-        easy.url(&path!("")).unwrap();
-
+        easy.url("https://localhost:8000/").unwrap();
+        easy.ssl_verify_peer(false).unwrap();
+        easy.ssl_verify_host(false).unwrap();
         let mut transfer = easy.transfer();
         transfer
             .write_function(|data| {

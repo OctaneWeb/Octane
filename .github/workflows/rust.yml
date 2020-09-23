@@ -13,14 +13,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Persmissions
+      run: sudo chown -R $(whoami) ./
     - name: Run fmt tests
       run: cargo fmt -- --check
     - name: Test with default features
       run: cargo test --no-fail-fast
     - name: Test with most features
-      run: sudo cargo test --no-fail-fast --no-default-features --features faithful,raw_headers,query_strings,extended_queries,cookies,url_variables,rustls
+      run: cargo test --no-fail-fast --no-default-features --features faithful,raw_headers,query_strings,extended_queries,cookies,url_variables,rustls
     - name: Test with openSSL
-      run: sudo cargo test --no-fail-fast --features openSSL
+      run: cargo test --no-fail-fast --features openSSL
     - name: Test with no features
       run: cargo test --no-fail-fast --no-default-features
     - name: Test octane_json

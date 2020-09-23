@@ -18,9 +18,9 @@ jobs:
     - name: Test with default features
       run: cargo test --no-fail-fast
     - name: Test with most features
-      run: cargo test --no-fail-fast --no-default-features --features faithful,raw_headers,query_strings,extended_queries,cookies,url_variables,rustls
+      run: sudo cargo test --no-fail-fast --no-default-features --features faithful,raw_headers,query_strings,extended_queries,cookies,url_variables,rustls
     - name: Test with openSSL
-      run: cargo test --no-fail-fast --features openSSL
+      run: sudo cargo test --no-fail-fast --features openSSL
     - name: Test with no features
       run: cargo test --no-fail-fast --no-default-features
     - name: Test octane_json

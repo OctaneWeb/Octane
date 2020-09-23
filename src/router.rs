@@ -87,26 +87,6 @@ pub trait Route {
     /// It runs on the given path and on all types of requests
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
-    /// path given and the request method is OPTION
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    /// app.option(
-    ///     "/",
-    ///     route!(
-    ///         |req, res| {
-    ///             res.send("Hello, World");
-    ///             Flow::Stop
-    ///         }
-    ///     ),
-    /// );
-    /// ```
-    fn option(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is HEAD
     ///
     /// # Example
@@ -183,6 +163,44 @@ pub trait Route {
     /// );
     /// ```
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult;
+    /// Part of app.METHOD, runs on when the request is on the
+    /// path given and the request method is DELETE
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::prelude::*;
+    ///
+    /// let mut app = Octane::new();
+    /// app.delete(
+    ///     "/",
+    ///     route!(
+    ///         |req, res| {
+    ///             res.send("Hello, World");
+    ///             Flow::Stop
+    ///         }
+    ///     ),
+    /// );
+    /// ```
+    fn delete(&mut self, path: &str, closure: Closure) -> RouterResult;
+    /// Part of app.METHOD, runs on when the request is on the
+    /// path given and the request method is PATCH
+    /// # Example
+    ///
+    /// ```no_run
+    /// use octane::prelude::*;
+    ///
+    /// let mut app = Octane::new();
+    /// app.patch(
+    ///     "/",
+    ///     route!(
+    ///         |req, res| {
+    ///             res.send("Hello, World");
+    ///             Flow::Stop
+    ///         }
+    ///     ),
+    /// );
+    /// ```
+    fn patch(&mut self, path: &str, closure: Closure) -> RouterResult;
     /// add() is like `app.use` in express, it runs on all the
     /// paths and all types of valid methods, the request comes
     /// on
@@ -406,10 +424,6 @@ macro_rules! inject_method {
 }
 
 impl Route for Router {
-    fn option(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Options);
-        Ok(())
-    }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
         inject_method!(self, path, closure, RequestMethod::Head);
         Ok(())
@@ -422,9 +436,16 @@ impl Route for Router {
         inject_method!(self, path, closure, RequestMethod::Get);
         Ok(())
     }
-
+    fn delete(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_method!(self, path, closure, RequestMethod::Delete);
+        Ok(())
+    }
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
         inject_method!(self, path, closure, RequestMethod::Post);
+        Ok(())
+    }
+    fn patch(&mut self, path: &str, closure: Closure) -> RouterResult {
+        inject_method!(self, path, closure, RequestMethod::Patch);
         Ok(())
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
@@ -451,12 +472,12 @@ mod test {
         let mut router = Router::new();
         router.add(route!(|req, res| { Flow::Next })).unwrap();
         router.get("/", route!(|req, res| { Flow::Next })).unwrap();
-        router
-            .option("/", route!(|req, res| { Flow::Next }))
-            .unwrap();
         router.post("/", route!(|req, res| { Flow::Next })).unwrap();
         router.head("/", route!(|req, res| { Flow::Next })).unwrap();
         router.put("/", route!(|req, res| { Flow::Next })).unwrap();
+        router
+            .delete("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
         // middleware with path
         assert_eq!(5, router.paths.len());
         // middleware without paths
@@ -471,9 +492,6 @@ mod test {
             .get("/", route!(|req, res| { Flow::Next }))
             .unwrap();
         first_router
-            .option("/", route!(|req, res| { Flow::Next }))
-            .unwrap();
-        first_router
             .post("/", route!(|req, res| { Flow::Next }))
             .unwrap();
         first_router
@@ -481,6 +499,9 @@ mod test {
             .unwrap();
         first_router
             .put("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        first_router
+            .delete("/", route!(|req, res| { Flow::Next }))
             .unwrap();
         let mut second_router = Router::new();
         second_router
@@ -490,9 +511,6 @@ mod test {
             .get("/", route!(|req, res| { Flow::Next }))
             .unwrap();
         second_router
-            .option("/", route!(|req, res| { Flow::Next }))
-            .unwrap();
-        second_router
             .post("/", route!(|req, res| { Flow::Next }))
             .unwrap();
         second_router
@@ -500,6 +518,9 @@ mod test {
             .unwrap();
         second_router
             .put("/", route!(|req, res| { Flow::Next }))
+            .unwrap();
+        second_router
+            .delete("/", route!(|req, res| { Flow::Next }))
             .unwrap();
         first_router.append(second_router);
         // middleware tied without path
@@ -518,7 +539,7 @@ mod test {
             2,
             first_router
                 .paths
-                .get(&RequestMethod::Options)
+                .get(&RequestMethod::Delete)
                 .unwrap()
                 .get(&PathBuf::parse("/").unwrap())
                 .len()

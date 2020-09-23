@@ -524,7 +524,7 @@ mod test {
         let path3 = PathBuf::parse("/asdf/test/foo").unwrap();
         let path4 = PathBuf::parse("/asdf/test/bad").unwrap();
         let path5 = PathBuf::parse("/asdf/test/nope").unwrap();
-        temp_node.insert(path1.clone(), 1);
+        temp_node.insert(path1, 1);
         temp_node.insert(path4.clone(), 4);
         let mut node: PathNode<i32> = PathNode::new();
         node.extend(temp_node);

@@ -33,6 +33,8 @@ pub enum RequestMethod {
     #[doc(hidden)]
     Connect,
     #[doc(hidden)]
+    Patch,
+    #[doc(hidden)]
     All,
     #[doc(hidden)]
     None,
@@ -155,6 +157,7 @@ impl RequestLine {
             "HEAD" => RequestMethod::Head,
             "TRACE" => RequestMethod::Trace,
             "CONNECT" => RequestMethod::Connect,
+            "PATCH" => RequestMethod::Patch,
             _ => RequestMethod::None,
         };
         Some(Self {
@@ -459,8 +462,16 @@ mod test {
 
     #[test]
     fn success_other_method() {
-        // Non-documented methods should also work.
         let req = RequestLine::parse("PATCH /abc/def HTTP/1.1").unwrap();
+        assert_eq!(req.method, RequestMethod::Patch);
+        assert_eq!(req.path, PathBuf::parse("/abc/def").ok().unwrap());
+        assert_eq!(req.version, HttpVersion::Http11);
+    }
+
+    #[test]
+    fn sucess_non_documented() {
+        // Non-documented methods should also work.
+        let req = RequestLine::parse("XYZ /abc/def HTTP/1.1").unwrap();
         assert_eq!(req.method, RequestMethod::None);
         assert_eq!(req.path, PathBuf::parse("/abc/def").ok().unwrap());
         assert_eq!(req.version, HttpVersion::Http11);

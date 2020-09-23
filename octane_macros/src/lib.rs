@@ -54,7 +54,7 @@ pub fn derive_to_json(toks: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let stream = StreamParser::new(item.clone().into());
+    let stream = StreamParser::new(item.into());
     let properties = stream.parse();
     let num_cpus = num_cpus::get() * 2;
     let compile_error;
@@ -95,7 +95,7 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// else to defaults
 #[proc_macro_attribute]
 pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let stream = StreamParser::new(item.clone().into());
+    let stream = StreamParser::new(item.into());
     let properties = stream.parse();
     let compile_error;
     if properties.is_async {

@@ -36,6 +36,7 @@ macro_rules! path {
     }};
 }
 
+#[allow(dead_code)]
 pub async fn client_request(url: &str) -> String {
     reqwest::get(url).await.unwrap().text().await.unwrap()
 }

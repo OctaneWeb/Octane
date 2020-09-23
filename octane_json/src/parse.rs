@@ -81,14 +81,14 @@ pub fn parse_int_or_float(dat: &str) -> Option<(Value, &str)> {
             }
         };
     }
-    return Some((
+    Some((
         if is_float {
             Value::Float(dat[..end].parse().ok()?)
         } else {
             Value::Integer(dat[..end].parse().ok()?)
         },
         &dat[end..],
-    ));
+    ))
 }
 
 pub fn parse_object(dat: &str) -> Option<(HashMap<String, Value>, &str)> {

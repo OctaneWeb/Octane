@@ -293,9 +293,6 @@ impl Octane {
 default!(Octane);
 
 impl Route for Octane {
-    fn option(&mut self, path: &str, closure: Closure) -> RouterResult {
-        self.router.option(path, closure)
-    }
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
         self.router.head(path, closure)
     }
@@ -305,9 +302,14 @@ impl Route for Octane {
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
         self.router.get(path, closure)
     }
-
+    fn delete(&mut self, path: &str, closure: Closure) -> RouterResult {
+        self.router.delete(path, closure)
+    }
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
         self.router.post(path, closure)
+    }
+    fn patch(&mut self, path: &str, closure: Closure) -> RouterResult {
+        self.router.patch(path, closure)
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
         self.router.middlewares.push(Closures {

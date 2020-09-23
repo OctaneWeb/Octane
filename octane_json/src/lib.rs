@@ -1,3 +1,5 @@
+#![allow(clippy::float_cmp)]
+#![allow(clippy::unit_cmp)]
 pub mod convert;
 mod impls;
 pub mod parse;
@@ -11,6 +13,8 @@ pub use value::Value;
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::convert::{FromJSON, ToJSON};
+    use octane_macros::{FromJSON, ToJSON};
 
     #[test]
     fn success_string() {
@@ -79,7 +83,7 @@ mod test {
         assert!(obj["g"]
             .as_array()
             .unwrap()
-            .into_iter()
+            .iter()
             .map(|v| *v.as_boolean().unwrap())
             .eq(vec![true, false].into_iter()));
         assert_eq!(rest, "asdf");

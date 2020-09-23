@@ -23,7 +23,7 @@ pub struct Validator<'a> {
 impl<'a> Validator<'a> {
     pub fn validate(request: &'a Request<'a>) -> Self {
         let mut handler = Validator {
-            request: request,
+            request,
             err_code: None,
             keep_alive: KeepAliveState::Close,
         };
@@ -45,10 +45,6 @@ impl<'a> Validator<'a> {
     }
     #[allow(dead_code)]
     pub fn keep_alive(&self) -> bool {
-        if self.keep_alive == KeepAliveState::Close {
-            false
-        } else {
-            true
-        }
+        !(self.keep_alive == KeepAliveState::Close)
     }
 }

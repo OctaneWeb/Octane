@@ -1,3 +1,6 @@
+#![deny(clippy::all)]
+#![allow(clippy::type_complexity)]
+#![forbid(unsafe_code)]
 //! Octane is a web server that's modelled after express (a very
 //! popular and easy to use web framework) for rust.
 //!

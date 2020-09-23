@@ -115,7 +115,7 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     let mut vals = String::new();
     for field in fields {
         vals.push_str(&format!(
-            "{0}: octane_json::FromJSON::from_json(obj.remove({0:?})?)?,",
+            "{0}: crate::FromJSON::from_json(obj.remove({0:?})?)?,",
             field.to_string()
         ));
     }
@@ -145,7 +145,7 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     for gen in info.generics {
         info.where_between.extend::<TokenStream>(
-            format!("{}{}: octane_json::FromJSON", comma, gen)
+            format!("{}{}: crate::FromJSON", comma, gen)
                 .parse()
                 .unwrap(),
         );
@@ -153,9 +153,9 @@ fn fromjson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     format!(
         "\
-    impl{} octane_json::FromJSON for {}{} where {} {{\
-        fn from_json(val: octane_json::Value) -> Option<Self> {{\
-            if let octane_json::Value::Object(mut obj) = val {{\
+    impl{} crate::FromJSON for {}{} where {} {{\
+        fn from_json(val: crate::Value) -> Option<Self> {{\
+            if let crate::Value::Object(mut obj) = val {{\
                 let ret = Self {{\
                     {}\
                 }};\
@@ -191,7 +191,7 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     let mut vals = String::new();
     for _ in 0..fields {
-        vals.push_str("octane_json::FromJSON::from_json(it.next()?)?,");
+        vals.push_str("crate::FromJSON::from_json(it.next()?)?,");
     }
     let mut gen_list: String = String::new();
     if !info.generics.is_empty() {
@@ -219,7 +219,7 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     for gen in info.generics {
         info.where_between.extend::<TokenStream>(
-            format!("{}{}: octane_json::FromJSON", comma, gen)
+            format!("{}{}: crate::FromJSON", comma, gen)
                 .parse()
                 .unwrap(),
         );
@@ -227,9 +227,9 @@ fn fromjson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     format!(
         "\
-    impl{} octane_json::FromJSON for {}{} where {} {{\
-        fn from_json(val: octane_json::Value) -> Option<Self> {{\
-            if let octane_json::Value::Array(arr) = val {{\
+    impl{} crate::FromJSON for {}{} where {} {{\
+        fn from_json(val: crate::Value) -> Option<Self> {{\
+            if let crate::Value::Array(arr) = val {{\
                 let mut it = arr.into_iter();
                 let ret = Self (\
                     {}\
@@ -271,7 +271,7 @@ fn tojson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     let mut vals = String::new();
     for field in fields {
         vals.push_str(&format!(
-            "obj.insert({0:?}.to_owned(), octane_json::ToJSON::to_json(self.{0})?);",
+            "obj.insert({0:?}.to_owned(), crate::ToJSON::to_json(self.{0})?);",
             field.to_string()
         ));
     }
@@ -300,20 +300,17 @@ fn tojson_braces(toks: TokenStream, mut info: StructInfo) -> TokenStream {
         comma = "";
     }
     for gen in info.generics {
-        info.where_between.extend::<TokenStream>(
-            format!("{}{}: octane_json::ToJSON", comma, gen)
-                .parse()
-                .unwrap(),
-        );
+        info.where_between
+            .extend::<TokenStream>(format!("{}{}: crate::ToJSON", comma, gen).parse().unwrap());
         comma = ", ";
     }
     format!(
         "\
-    impl{} octane_json::ToJSON for {}{} where {} {{\
-        fn to_json(self) -> Option<octane_json::Value> {{\
+    impl{} crate::ToJSON for {}{} where {} {{\
+        fn to_json(self) -> Option<crate::Value> {{\
             let mut obj = std::collections::HashMap::new();\
             {}\
-            Some(octane_json::Value::Object(obj))\
+            Some(crate::Value::Object(obj))\
         }}\
     }}",
         info.gen_between, info.name, gen_list, info.where_between, vals
@@ -339,10 +336,7 @@ fn tojson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
     }
     let mut vals = String::new();
     for i in 0..fields {
-        vals.push_str(&format!(
-            "arr.push(octane_json::ToJSON::to_json(self.{})?);",
-            i
-        ));
+        vals.push_str(&format!("arr.push(crate::ToJSON::to_json(self.{})?);", i));
     }
     let mut gen_list: String = String::new();
     if !info.generics.is_empty() {
@@ -369,20 +363,17 @@ fn tojson_parens(toks: TokenStream, mut info: StructInfo) -> TokenStream {
         comma = "";
     }
     for gen in info.generics {
-        info.where_between.extend::<TokenStream>(
-            format!("{}{}: octane_json::ToJSON", comma, gen)
-                .parse()
-                .unwrap(),
-        );
+        info.where_between
+            .extend::<TokenStream>(format!("{}{}: crate::ToJSON", comma, gen).parse().unwrap());
         comma = ", ";
     }
     format!(
         "\
-    impl{} octane_json::ToJSON for {}{} where {} {{\
-        fn to_json(self) -> Option<octane_json::Value> {{\
+    impl{} crate::ToJSON for {}{} where {} {{\
+        fn to_json(self) -> Option<crate::Value> {{\
             let mut arr = Vec::new();\
             {}\
-            Some(octane_json::Value::Array(arr))\
+            Some(crate::Value::Array(arr))\
         }}\
     }}",
         info.gen_between, info.name, gen_list, info.where_between, vals

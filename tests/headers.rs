@@ -3,13 +3,14 @@ use reqwest::header::USER_AGENT;
 
 mod common;
 
-pub fn basic_header_value_retri() {
+#[test]
+pub fn basic_header_value_retrival() {
     let mut app = Octane::new();
     let string = "My Rust Program 1.0";
     app.get(
         "/",
         route_next!(|req, res| {
-            assert_eq!(string, req.headers.get("user_agent").unwrap());
+            assert_eq!(string, req.headers.get("user-agent").unwrap());
         }),
     )
     .unwrap();

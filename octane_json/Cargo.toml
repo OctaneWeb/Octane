@@ -9,6 +9,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
+
 [dependencies.octane_macros]
 path = "../octane_macros"
 version = "0.1.2"

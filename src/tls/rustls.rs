@@ -13,7 +13,7 @@ use tokio_rustls::{
 pub fn acceptor(settings: &OctaneConfig) -> Result<TlsAcceptor, Box<dyn Error>> {
     let mut config = ServerConfig::new(NoClientAuth::new());
     let mut key = settings.get_key()?;
-    if let None = key.get(0) {
+    if key.get(0).is_none() {
         panic!(
             "{:?}",
             "rustls expects a RSA_PRIVATE_KEY, invalid key provided"

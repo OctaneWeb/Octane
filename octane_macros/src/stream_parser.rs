@@ -31,7 +31,7 @@ impl StreamParser {
                     }
                 }
                 TokenTree::Ident(x) => {
-                    if x.to_string() == "async" {
+                    if *x == "async" {
                         self.is_async = true;
                         peekable.next();
                     } else {

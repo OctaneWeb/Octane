@@ -1,5 +1,4 @@
 use crate::default;
-use colored::*;
 use core::time::Duration;
 use std::path::PathBuf;
 #[cfg(feature = "rustls")]

@@ -100,7 +100,7 @@ impl ServerBuilder {
                 } else {
                     stream
                         .map_err(|e| println!("WARNING: {:?}", e.kind()))
-                        .unwrap();
+                        .err();
                 }
             });
         }

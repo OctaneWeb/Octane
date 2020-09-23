@@ -262,7 +262,7 @@ impl Response {
         self.body = Box::new(Cursor::new(
             structure
                 .to_json_string()
-                .unwrap_or(String::new())
+                .unwrap_or_default()
                 .as_bytes()
                 .to_vec(),
         )) as BoxReader;
@@ -318,7 +318,7 @@ impl Response {
     /// );
     /// ```
     pub fn headers_sent(&self) -> bool {
-        self.headers.len() != 0
+        !self.headers.is_empty()
     }
     /// Sets the http `Content-Disposition` header field
     /// to `attachment`

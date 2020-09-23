@@ -1,7 +1,6 @@
-use crate::util::{from_hex, DoublePeek};
 use std::collections::HashMap;
 
-pub(crate) fn unescape_hex(string: &str) -> String {
+pub fn unescape_hex(string: &str) -> String {
     let mut ret = "".to_owned();
     let mut chars = string.chars();
     let mut peekable = DoublePeek::new(&mut chars);
@@ -37,8 +36,87 @@ pub(crate) fn unescape_hex(string: &str) -> String {
     ret
 }
 
-#[allow(dead_code)]
-pub(crate) fn parse_query(query: &str) -> HashMap<String, String> {
+pub struct DoublePeek<'a, T>
+where
+    T: Default,
+{
+    pub iter: &'a mut dyn Iterator<Item = T>,
+    pub cache: [T; 2],
+    pub stored: usize,
+    pub unpeek: bool,
+}
+
+impl<'a, T> DoublePeek<'a, T>
+where
+    T: Default,
+{
+    pub fn new(it: &'a mut dyn Iterator<Item = T>) -> Self {
+        let cache: [T; 2] = Default::default();
+        Self {
+            iter: it,
+            cache,
+            stored: 0,
+            unpeek: false,
+        }
+    }
+
+    pub fn peek(&mut self) -> Option<&T> {
+        if self.unpeek && self.stored > 0 {
+            self.unpeek = false;
+            return Some(&self.cache[0]);
+        }
+        self.unpeek = false;
+        if self.stored == 2 {
+            return None;
+        }
+        let item = self.iter.next();
+        match item {
+            None => None,
+            Some(v) => {
+                self.cache[self.stored] = v;
+                self.stored += 1;
+                Some(&self.cache[self.stored - 1])
+            }
+        }
+    }
+}
+
+impl<'a, T> Iterator for DoublePeek<'a, T>
+where
+    T: Default,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.stored == 1 {
+            self.stored = 0;
+            return Some(std::mem::take(&mut self.cache[0]));
+        } else if self.stored == 2 {
+            self.stored = 1;
+            let dat1 = std::mem::take(&mut self.cache[1]);
+            return Some(std::mem::replace(&mut self.cache[0], dat1));
+        }
+        self.iter.next()
+    }
+}
+
+pub fn from_hex(chr: char) -> Option<u8> {
+    if chr > 'f' {
+        return None;
+    }
+    let c = chr as u8;
+    if c >= b'0' && c <= b'9' {
+        return Some(c - b'0');
+    }
+    if c >= b'A' && c <= b'F' {
+        return Some(c - b'A' + 10);
+    }
+    if c >= b'a' && c <= b'f' {
+        return Some(c - b'a' + 10);
+    }
+    None
+}
+
+pub fn parse_query(query: &str) -> HashMap<String, String> {
     let toks = query.split('&');
     let mut ret: HashMap<String, String> = HashMap::new();
     for tok in toks {
@@ -70,7 +148,7 @@ pub enum QueryValue {
 }
 
 #[cfg(feature = "extended_queries")]
-pub(crate) fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
+pub fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
     let toks = query.split('&');
     let mut ret: HashMap<String, QueryValue> = HashMap::new();
     for tok in toks {
@@ -99,7 +177,7 @@ pub(crate) fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
                                 Err(_) => continue,
                             };
                         if inside.is_empty() {
-                            if let None = ret.get(&outside) {
+                            if ret.get(&outside).is_none() {
                                 ret.insert(outside.clone(), QueryValue::Arr(Vec::new()));
                             }
                             match ret.get_mut(&outside) {
@@ -110,7 +188,7 @@ pub(crate) fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
                                 _ => continue,
                             }
                         } else {
-                            if let None = ret.get(&outside) {
+                            if ret.get(&outside).is_none() {
                                 ret.insert(outside.clone(), QueryValue::Obj(HashMap::new()));
                             }
                             match ret.get_mut(&outside) {
@@ -139,7 +217,7 @@ mod test {
 
     #[test]
     #[cfg(feature = "extended_queries")]
-    fn success_standard_extend_queries() {
+    fn success_standard_extended_queries() {
         // Parsing should work as expected.
         let query = parse_extended_query(
             "abc=def&ab=ab%20cd%4A&arr[]=x&arr[]=y&arr[]=z&obj[a]=x&obj[b]=y&obj[c]=z",

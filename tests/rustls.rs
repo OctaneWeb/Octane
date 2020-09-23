@@ -1,9 +1,11 @@
 #![cfg(feature = "rustls")]
-use curl::easy::Easy;
 use octane::prelude::*;
+use reqwest::{Certificate, ClientBuilder};
+use std::fs::File;
+use std::io::Read;
+use std::net::IpAddr;
 mod common;
 
-#[test]
 pub fn basic_https_hello_world_rustls() {
     let mut app = Octane::new();
     app.ssl(8000)
@@ -18,17 +20,33 @@ pub fn basic_https_hello_world_rustls() {
     )
     .unwrap();
     common::run(app, || async {
-        let mut easy = Easy::new();
-        easy.url("https://0.0.0.0:8000/").unwrap();
-        easy.ssl_verify_peer(false).unwrap();
-        easy.ssl_verify_host(false).unwrap();
-        let mut transfer = easy.transfer();
-        transfer
-            .write_function(|data| {
-                assert_eq!(data, string.as_bytes());
-                Ok(data.len())
-            })
+        let mut buf = Vec::new();
+        File::open("templates/cert.pem")
+            .unwrap()
+            .read_to_end(&mut buf)
             .unwrap();
-        transfer.perform().unwrap();
+        let cert = Certificate::from_pem(&buf).unwrap();
+        let local_addr = IpAddr::from([0, 0, 0, 0]);
+        let client = ClientBuilder::new()
+            .local_address(local_addr)
+            .use_native_tls()
+            .no_proxy()
+            .no_trust_dns()
+            .add_root_certificate(cert)
+            .danger_accept_invalid_certs(true)
+            .danger_accept_invalid_hostnames(true)
+            .build()
+            .unwrap();
+        assert_eq!(
+            string,
+            client
+                .get("https://0.0.0.0:8000/")
+                .send()
+                .await
+                .unwrap()
+                .text()
+                .await
+                .unwrap()
+        );
     })
 }

@@ -35,7 +35,7 @@ rustls = ["tokio-rustls"]
 openSSL = ["openssl", "tokio-openssl"]
 
 [dev-dependencies]
-reqwest = { version = "0.10.8", features = ["rustls-tls"] }
+reqwest = { version = "0.10.8", features = ["native-tls"] }
 tokio = { version = "0.2.22", features = ["full"] }
 curl = "0.4.33"
 

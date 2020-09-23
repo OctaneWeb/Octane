@@ -1,5 +1,4 @@
 #![cfg(feature = "openSSL")]
-use curl::easy::Easy;
 use octane::prelude::*;
 use reqwest::ClientBuilder;
 mod common;
@@ -19,18 +18,20 @@ pub fn basic_https_hello_world_openssl() {
     )
     .unwrap();
     common::run(app, || async {
-        let mut easy = Easy::new();
-        easy.url("https://0.0.0.0:8000/").unwrap();
-        easy.ssl_verify_peer(false).unwrap();
-        easy.ssl_verify_host(false).unwrap();
-
-        let mut transfer = easy.transfer();
-        transfer
-            .write_function(|data| {
-                assert_eq!(data, string.as_bytes());
-                Ok(data.len())
-            })
+        let client = ClientBuilder::new()
+            .danger_accept_invalid_certs(true)
+            .build()
             .unwrap();
-        transfer.perform().unwrap();
-    })
+        assert_eq!(
+            string,
+            client
+                .get("https://0.0.0.0:8000/")
+                .send()
+                .await
+                .unwrap()
+                .text()
+                .await
+                .unwrap()
+        );
+    });
 }

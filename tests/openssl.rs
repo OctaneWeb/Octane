@@ -20,7 +20,7 @@ pub fn basic_https_hello_world_openssl() {
     .unwrap();
     common::run(app, || async {
         let mut easy = Easy::new();
-        easy.url("https://localhost:8000/").unwrap();
+        easy.url("https://0.0.0.0:8000/").unwrap();
         easy.ssl_verify_peer(false).unwrap();
         easy.ssl_verify_host(false).unwrap();
 

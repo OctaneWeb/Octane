@@ -11,6 +11,7 @@ pub fn acceptor(settings: &OctaneConfig) -> Result<SslAcceptor> {
     acceptor.set_private_key_file(&settings.ssl.key, SslFiletype::PEM)?;
     acceptor.set_certificate_chain_file(&settings.ssl.cert)?;
     acceptor.set_alpn_protos(b"h2")?;
+    acceptor.set_alpn_protos(b"http/1.1")?;
     let acceptor = acceptor.build();
     Ok(acceptor)
 }

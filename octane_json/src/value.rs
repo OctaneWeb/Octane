@@ -1,19 +1,40 @@
 use crate::parse::parse_element;
 use std::collections::HashMap;
 
+/// Represents a unit value in parsed json
 #[derive(Debug, Clone)]
 pub enum Value {
+    /// An integer, both signed and unsigned
     Integer(i64),
+    /// Floating values
     Float(f64),
+    /// Strings
     String(String),
+    /// Arrays which are just Vectors of elements [`Value`](enum.Value.html)
     Array(Vec<Value>),
+    /// An object is a collection of values that are tied to a key
+    /// for example
+    /// ```json
+    /// {
+    ///   "key": "value"
+    /// }
+    /// ```
     Object(HashMap<String, Value>),
+    /// truthy and falshy values
     Boolean(bool),
+    /// No value at all
     Null,
 }
 
 macro_rules! make_as_func {
     ($name: ident, $type: ty, $variant: ident) => {
+        make_as_func!($name, $type, $variant, stringify!($variant));
+
+    };
+    ($name: ident, $type: ty, $variant: ident, $doc_string : expr) => {
+        #[doc = "Return x if the variant is `"]
+        #[doc = $doc_string]
+        #[doc = "(x)` else return None"]
         pub fn $name(&self) -> Option<&$type> {
             if let Value::$variant(x) = self {
                 Some(x)
@@ -21,11 +42,17 @@ macro_rules! make_as_func {
                 None
             }
         }
-    };
+    }
 }
 
 macro_rules! make_is_func {
     ($name: ident, $variant: ident) => {
+        make_is_func!($name, $variant, stringify!($variant));
+    };
+    ($name: ident, $variant: ident, $doc_string: expr) => {
+        #[doc = "Returns true if the variant is `"]
+        #[doc = $doc_string]
+        #[doc = "` else return false"]
         pub fn $name(&self) -> bool {
             if let Value::$variant(_) = self {
                 true
@@ -58,6 +85,7 @@ impl Value {
     make_as_func!(as_array, Vec<Value>, Array);
     make_as_func!(as_object, HashMap<String, Value>, Object);
 
+    /// Return a unit `()` if the variant is Null
     pub fn as_null(&self) -> Option<()> {
         if let Value::Null = self {
             Some(())
@@ -73,6 +101,7 @@ impl Value {
     make_is_func!(is_array, Array);
     make_is_func!(is_object, Object);
 
+    /// Return true if the variant is null
     pub fn is_null(&self) -> bool {
         if let Value::Null = self {
             true
@@ -80,7 +109,8 @@ impl Value {
             false
         }
     }
-
+    /// Parse a string literal and return the corresponding
+    /// enum variant
     pub fn parse(dat: &str) -> Option<Self> {
         let (val, rest) = parse_element(dat)?;
         if !rest.is_empty() {

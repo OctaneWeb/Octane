@@ -3,26 +3,36 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 
+/// Throw this error when json serializes to a type that can't be
+/// cast to an invalid type
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidTypeError;
 
+/// The FromJSON trait is for structs which can deserialise
+/// json into themselves
 pub trait FromJSON
 where
     Self: Sized,
 {
+    /// Parse a Value enum and spit out the corresponding struct
     fn from_json(val: Value) -> Option<Self>;
-
+    /// Parse a json string and spit out the corresponding struct
     fn from_json_string(s: &str) -> Option<Self> {
         Value::parse(s).and_then(Self::from_json)
     }
 }
 
+/// The FromJSON trait is for structs who's values
+/// can be serialized to json.
 pub trait ToJSON
 where
     Self: Sized,
 {
+    /// Take in the struct instance and spit out the
+    /// a Value
     fn to_json(self) -> Option<Value>;
-
+    /// Take in the struct instance and spit out the
+    /// json string
     fn to_json_string(self) -> Option<String> {
         self.to_json().map(|v| v.to_string())
     }

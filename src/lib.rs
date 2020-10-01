@@ -95,17 +95,22 @@ pub use octane_json as json;
 pub use octane_macros::main;
 pub use octane_macros::test;
 
-/// Prelude brings in scope, the `Route` trait, `Config` trait, `Octane` main server
-/// struct and `Router` with the `Flow` enum and the `route`, `route_next`, `path`,
-/// `route_stop` macros
+/// Prelude here brings in scope, the [`Route`](router/trait.Route.html) and
+/// [`Config`](config/trait.Config.html) trait, [`Octane`](struct.Octane.html) main server
+/// and [`Router`](router/struct.Router.html) struct with the [`Flow`](router/enum.Flow.html)
+/// and the [`Value`](../octane_json/enum.Value.html) enum, the [`route`](macro.route.html),
+/// [`route_next`](macro.route_next.html), [`path`](macro.path.html), [`route_stop`](macro.route_stop.html)
+/// macros with the [`ToJSON`](../octane_json/convert/trait.ToJSON.html)
+/// /[`FromJSON`](../octane_json/convert/trait.FromJSON.html) derive macros
 pub mod prelude {
-    // config trait
     pub use crate::config::Config;
+    pub use crate::json::{FromJSON, ToJSON};
     pub use crate::Octane;
     pub use crate::{
         path, route, route_next, route_stop,
         router::{Flow, Route, Router},
     };
+    pub use octane_json::Value;
 }
 
 #[cfg(all(feature = "openSSL", feature = "rustls"))]

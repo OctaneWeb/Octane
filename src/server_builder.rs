@@ -69,7 +69,7 @@ impl ServerBuilder {
                 if let Ok(stream_ssl) = stream {
                     exec(stream_ssl, server).await;
                 } else {
-                    stream.map_err(|e| println!("{:?}", e)).unwrap();
+                    stream.map_err(|e| println!("{:?}", e)).err();
                 }
             });
         }

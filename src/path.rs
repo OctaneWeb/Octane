@@ -24,8 +24,8 @@ impl fmt::Display for PathBuf {
     }
 }
 
-/// Alias for `concat!(env!("CARGO_MANIFEST_DIR"), "ANY_PATH")`
-/// `path!("/url/file")` is equivalent to
+/// Alias for `concat!(env!("CARGO_MANIFEST_DIR"), "ANY_PATH")`.
+/// So `path!("/url/file")` is equivalent to
 /// `concat!(env!("CARGO_MANIFEST_DIR"), "/url/file")`
 #[macro_export]
 macro_rules! path {

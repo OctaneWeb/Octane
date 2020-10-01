@@ -1,9 +1,72 @@
 #![allow(clippy::float_cmp)]
 #![allow(clippy::unit_cmp)]
+//! The octane_json crate provides traits and methods to facilitate
+//! json serilisaing/deserilasation. The [`ToJSON`](convert/trait.ToJSON.html)
+//! and [`FromJSON`](convert/trait.FromJSON.html) traits.
+//! They make this possible, the crate also provide them as derive macros
+//! so its a matter of just using [`#[derive(ToJSON)]`](derive.ToJSON.html)
+//!
+//! # Example
+//!
+//! ```ignore
+//! use octane::prelude::*;
+//! use std::error::Error;
+//!
+//! #[derive(ToJSON, Copy, Clone)]
+//! struct User {
+//!     id: u8,
+//! }
+//!
+//! impl User {
+//!     pub fn new(id: u8) -> Self {
+//!         Self { id }
+//!     }
+//! }
+//!
+//! #[octane::main]
+//! async fn main() -> Result<(), Box<dyn Error>> {
+//!     let mut app = Octane::new();
+//!     let data = User::new(2);
+//!     app.get("/", route_next!(|req, res| res.json(data)))?;
+//!     app.listen(8080, || {}).await?;
+//!     Ok(())
+//! }
+//! ```
+//! To serialise back to struct from json string, you have to
+//! implement [`FromJSON`](convert/trait.FromJSON.html)
+//!
+//! # Example
+//!
+//! ```ignore
+//! use octane::prelude::*;
+//!
+//! #[derive(FromJSON, ToJSON)]
+//! struct User {
+//!     id: u64,
+//!     name: String,
+//!     email: String,
+//! }
+//!
+//! impl User {
+//!     pub fn new() -> Self {
+//!         Self {
+//!             id: 1,
+//!             name: "John Doe".to_string(),
+//!             email: "JohnDoe@hotmail.com".to_string(),
+//!         }
+//!     }
+//! }
+//!
+//! let json_string = User::new().to_json_string().unwrap();
+//! let user_back: Option<User> = User::from_json_string(&json_string);
+//! ```
+
+/// The modules which holds the traits required to serialise/
+/// deserialise json data and a custom error struct
 pub mod convert;
 mod impls;
-pub mod parse;
-pub mod value;
+pub(crate) mod parse;
+pub(crate) mod value;
 
 // Bring important functions to top level namespace.
 pub use convert::{FromJSON, ToJSON};

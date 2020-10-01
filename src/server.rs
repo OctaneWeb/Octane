@@ -5,6 +5,7 @@ use crate::http::{KeepAliveState, Validator};
 use crate::middlewares::Closures;
 use crate::request::{parse_without_body, Headers, Request, RequestLine};
 use crate::responder::{BoxReader, Response, StatusCode};
+use crate::route;
 use crate::router::{Closure, Flow, Route, Router, RouterResult};
 use crate::server_builder::ServerBuilder;
 use crate::tls::AsMutStream;

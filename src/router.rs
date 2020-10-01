@@ -12,10 +12,8 @@ pub(crate) type Paths = HashMap<RequestMethod, PathNode<Closures>>;
 /// The Closure type is a type alias for the type
 /// that the routes should return
 pub type Closure = Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> Flow + Send + Sync>;
-// RouterResult is the type which the app.METHOD methods
-// return
+// RouterResult is the type which the app.METHOD methods return
 pub(crate) type RouterResult = Result<(), InvalidPathError>;
-
 /// The flow enum works just like the next() callback
 /// in express. The variant returns decides whether
 /// the execution should go to the next similar route
@@ -335,6 +333,18 @@ impl Router {
 ///     ),
 /// );
 /// ```
+///
+/// The closure's environment is captured by value explictly,
+/// so you are basically writing (pseudo code below)
+///
+/// ```ignore
+/// use octane::prelude::*;
+///
+/// route!(move |req, res| {
+///     res.send("Hello, World");
+///     Flow::Stop
+/// });
+/// ```
 #[macro_export]
 macro_rules! route {
     ( | $req : ident, $res : ident | $body : expr ) => {{
@@ -343,7 +353,7 @@ macro_rules! route {
     }};
 }
 
-/// Just like the `route!()` macro but return Flow::Next
+/// Just like the [`route!()`](macro.route.html) macro but return [`Flow::Next`](enum.Flow.html)
 /// Implicitly
 ///
 /// # Example
@@ -364,15 +374,14 @@ macro_rules! route {
 #[macro_export]
 macro_rules! route_next {
     ( | $req : ident, $res : ident | $body : expr ) => {{
-        #[allow(unused_variables)]
-        Box::new(move |$req, $res| {
+        route!(|$req, $res| {
             $body;
             Flow::Next
         })
     }};
 }
 
-/// Just like the `route!()` macro but return Flow::Stop
+/// Just like the [`route!()`](macro.route.html) macro but return [`Flow::Stop`](enum.Flow.html)
 /// Implicitly
 ///
 /// # Example
@@ -393,8 +402,7 @@ macro_rules! route_next {
 #[macro_export]
 macro_rules! route_stop {
     ( | $req : ident, $res : ident | $body : expr ) => {{
-        #[allow(unused_variables)]
-        Box::new(move |$req, $res| {
+        route!(|$req, $res| {
             $body;
             Flow::Stop
         })

@@ -9,16 +9,74 @@ use crate::stream_parser::StreamParser;
 use proc_macro::TokenStream;
 use quote::quote;
 
+/// Used to generate status codes with their number
+/// counter parts. You don't need to use this directly
+/// as status codes are already declared for you.
 #[proc_macro]
 pub fn status_codes(toks: TokenStream) -> TokenStream {
     status::status_codes(toks)
 }
 
+/// Derive FromJSON to implement the [`FromJSON`](convert/trait.FromJSON.html) trait that allows
+/// deserialising struct values to a struct
+///
+/// # Example
+///
+/// ```
+/// use octane::prelude::*;
+///
+/// #[derive(FromJSON, ToJSON)]
+/// struct User {
+///     id: u64,
+///     name: String,
+///     email: String,
+/// }
+///
+/// impl User {
+///     pub fn new() -> Self {
+///         Self {
+///             id: 1,
+///             name: "John Doe".to_string(),
+///             email: "JohnDoe@hotmail.com".to_string(),
+///         }
+///     }
+/// }
+///
+/// let json_string = User::new().to_json_string().unwrap();
+/// let user_back: Option<User> = User::from_json_string(&json_string);
+/// ```
 #[proc_macro_derive(FromJSON)]
 pub fn derive_from_json(toks: TokenStream) -> TokenStream {
     json::derive_from_json(toks)
 }
 
+/// Derive ToJSON to implement [`ToJSON`](convert/trait.ToJSON.html) trait that allows
+/// serialising struct values to valid json
+///
+/// # Example
+///
+/// ```
+/// use octane::prelude::*;
+///
+/// #[derive(ToJSON)]
+/// struct User {
+///     id: u64,
+///     name: String,
+///     email: String,
+/// }
+///
+/// impl User {
+///     pub fn new() -> Self {
+///         Self {
+///             id: 1,
+///             name: "John Doe".to_string(),
+///             email: "JohnDoe@hotmail.com".to_string(),
+///         }
+///     }
+/// }
+///
+/// let json_string = User::new().to_json_string();
+/// ```
 #[proc_macro_derive(ToJSON)]
 pub fn derive_to_json(toks: TokenStream) -> TokenStream {
     json::derive_to_json(toks)
@@ -39,7 +97,7 @@ pub fn derive_to_json(toks: TokenStream) -> TokenStream {
 /// #[octane::main]
 /// async fn main() -> Result<(), Box<dyn Error>> {
 ///     let mut app = Octane::new();
-///     app.add(Octane::static_dir("dir_name")); // serve a static directory
+///     app.add(Octane::static_dir("dir_name"));
 ///     app.get("/",
 ///         route!(
 ///             |req, res| {

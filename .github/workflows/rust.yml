@@ -13,8 +13,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Permissions
-      run: sudo chown -R $(whoami) /home/runner/work/Octane/Octane
     - name: Run fmt tests
       run: cargo fmt -- --check
     - name: Test with default features

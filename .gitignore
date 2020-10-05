@@ -108,3 +108,6 @@ GitHub.sublime-settings
 /templates/*.html
 /templates/*.ico
 /templates/*.css
+
+# Do not commit main.rs file
+/src/main.rs

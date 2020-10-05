@@ -10,8 +10,7 @@ pub fn acceptor(settings: &OctaneConfig) -> Result<SslAcceptor> {
     let mut acceptor = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;
     acceptor.set_private_key_file(&settings.ssl.key, SslFiletype::PEM)?;
     acceptor.set_certificate_chain_file(&settings.ssl.cert)?;
-    acceptor.set_alpn_protos(b"h2")?;
-    acceptor.set_alpn_protos(b"http/1.1")?;
+    acceptor.set_alpn_select_callback(|_, _| Ok(b"h2"));
     let acceptor = acceptor.build();
     Ok(acceptor)
 }

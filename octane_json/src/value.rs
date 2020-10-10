@@ -54,11 +54,7 @@ macro_rules! make_is_func {
         #[doc = $doc_string]
         #[doc = "` else return false"]
         pub fn $name(&self) -> bool {
-            if let Value::$variant(_) = self {
-                true
-            } else {
-                false
-            }
+            matches!(self, Value::$variant(_))
         }
     };
 }
@@ -103,11 +99,7 @@ impl Value {
 
     /// Return true if the variant is null
     pub fn is_null(&self) -> bool {
-        if let Value::Null = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Value::Null)
     }
     /// Parse a string literal and return the corresponding
     /// enum variant

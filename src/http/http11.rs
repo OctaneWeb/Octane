@@ -15,8 +15,8 @@ pub fn http11_check(validator: &mut Validator) {
     // Check for http2 connection header here, if found then call a http2 parse
     // function that will parse http2 frames and parse the request from that
     if let Some(x) = validator.request.headers.get("connection") {
-        let value = x.split(',').map(str::to_lowercase).collect::<Vec<_>>();
-        if value.contains(&"upgrade".to_string()) {
+        let value = x.split(',').map(str::to_lowercase).any(|x| x == "upgrade");
+        if value {
             if let Some(upgrade_header) = validator.request.headers.get("upgrade") {
                 let _values = upgrade_header.split(',');
             }

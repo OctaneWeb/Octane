@@ -245,7 +245,7 @@ impl Octane {
         }
         if let Some(request) = Request::parse(request_line, headers, body) {
             let request_line = &request.request_line;
-            let mut res = Response::new_from_slice(b"");
+            let mut res = Response::new_empty();
             // Detect http version and validate
             let checker = Validator::validate(&request);
             if checker.is_malformed() {
@@ -265,7 +265,7 @@ impl Octane {
             if request_line.method.is_some() {
                 // run closures
                 server.router.run(request.clone(), &mut res);
-                if res.content_len.unwrap_or(0) == 0 {
+                if !res.has_body() {
                     declare_error!(stream_async, StatusCode::NotFound);
                 }
 

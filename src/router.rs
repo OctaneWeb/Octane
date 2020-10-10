@@ -46,11 +46,7 @@ pub enum Flow {
 impl Flow {
     /// Returns true if the variant is `Flow::Next`
     pub fn should_continue(self) -> bool {
-        if let Self::Next = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Next)
     }
 }
 /// The route trait adds the app.METHOD behaviour

@@ -43,11 +43,7 @@ pub enum RequestMethod {
 impl RequestMethod {
     /// Return false if the RequestMethod is `None`, otherwise it's true
     pub fn is_some(&self) -> bool {
-        if let Self::None = self {
-            false
-        } else {
-            true
-        }
+        !matches!(self, Self::None)
     }
 }
 /// Holds the http versions. You can match the

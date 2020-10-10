@@ -15,6 +15,23 @@ use tokio::io::AsyncRead;
 
 pub(crate) type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 
+pub(crate) enum ResBody {
+    None,
+    Sized(usize, BoxReader),
+    Unsized(BoxReader),
+}
+impl ResBody {
+    pub fn get_reader(self) -> BoxReader {
+        match self {
+            ResBody::Sized(_, reader) => reader,
+            ResBody::Unsized(reader) => reader,
+            ResBody::None => Box::new(Cursor::new(Vec::new())) as BoxReader,
+        }
+    }
+    pub fn is_some(&self) -> bool {
+        !matches!(self, ResBody::None)
+    }
+}
 /// The response struct contains the data which is
 /// to be send on a request. The struct has several
 /// methods to modify the contents.
@@ -34,7 +51,7 @@ pub(crate) type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 /// );
 /// ```
 pub struct Response {
-    body: BoxReader,
+    body: ResBody,
     /// The status code the response will contain
     pub status_code: StatusCode,
     /// Length of the content which will be sent as the response
@@ -97,29 +114,6 @@ impl Response {
     pub fn get(&mut self, field: &'static str) -> Option<&String> {
         self.headers.get(field)
     }
-    /// Creates a new response from a slice
-    pub fn new_from_slice<T: AsRef<[u8]>>(body: T) -> Self {
-        let body_slice = body.as_ref();
-        Self::new(
-            Box::new(Cursor::new(body_slice.to_vec())) as BoxReader,
-            Some(body_slice.len()),
-        )
-    }
-    /// Generates a new empty response. A new response is
-    /// already created for you, so you don't have to call this
-    /// method
-    pub fn new(body: BoxReader, content_len: Option<usize>) -> Self {
-        Response {
-            status_code: StatusCode::Ok,
-            body,
-            content_len,
-            http_version: "1.1".to_owned(),
-            headers: HashMap::new(),
-            charset: None,
-            #[cfg(feature = "cookies")]
-            cookies: Cookies::new(),
-        }
-    }
     /// Puts the given text to the body and send it
     /// as html by default
     ///
@@ -141,7 +135,7 @@ impl Response {
     /// ```
     pub fn send<T: AsRef<[u8]>>(&mut self, body: T) {
         let body_slice = body.as_ref();
-        self.body = Box::new(Cursor::new(body_slice.to_vec())) as BoxReader;
+        self.body = ResBody::Unsized(Box::new(Cursor::new(body_slice.to_vec())) as BoxReader);
         self.content_len = Some(body_slice.len());
         self.default_headers();
     }
@@ -195,7 +189,7 @@ impl Response {
     pub fn get_data(self) -> (String, BoxReader) {
         (
             format!("{}{}{}", self.status_line(), self.headers(), CRLF),
-            self.body,
+            self.body.get_reader(),
         )
     }
     /// Send a file as the response, automatically detect the
@@ -226,8 +220,9 @@ impl Response {
             "Content-Type".to_string(),
             FileHandler::mime_type(file.extension),
         );
-        self.content_len = Some(file.meta.len() as usize);
-        self.body = Box::new(file.file) as BoxReader;
+        let len = file.meta.len() as usize;
+        self.content_len = Some(len);
+        self.body = ResBody::Sized(len, Box::new(file.file) as BoxReader);
         Ok(Some(()))
     }
 
@@ -259,13 +254,13 @@ impl Response {
     ///
     /// ```
     pub fn json<T: ToJSON>(&mut self, structure: T) {
-        self.body = Box::new(Cursor::new(
+        self.body = ResBody::Unsized(Box::new(Cursor::new(
             structure
                 .to_json_string()
                 .unwrap_or_default()
                 .as_bytes()
                 .to_vec(),
-        )) as BoxReader;
+        )) as BoxReader);
         self.with_type("application/json");
         self.default_headers();
     }
@@ -435,6 +430,49 @@ impl Response {
     pub fn charset(&mut self, charset: &str) -> &mut Self {
         self.charset = Some(charset.to_owned());
         self
+    }
+    pub(crate) fn has_body(&self) -> bool {
+        self.body.is_some()
+    }
+    // Creates a new response from a slice
+    pub(crate) fn new_from_slice<T: AsRef<[u8]>>(body: T) -> Self {
+        let body_slice = body.as_ref();
+        Self::new(
+            Box::new(Cursor::new(body_slice.to_vec())) as BoxReader,
+            Some(body_slice.len()),
+        )
+    }
+    // Creates a new response with empty body
+    pub(crate) fn new_empty() -> Self {
+        Response {
+            status_code: StatusCode::Ok,
+            body: ResBody::None,
+            content_len: None,
+            http_version: "1.1".to_owned(),
+            headers: HashMap::new(),
+            charset: None,
+            #[cfg(feature = "cookies")]
+            cookies: Cookies::new(),
+        }
+    }
+    // Generates a new empty response
+    fn new(body: BoxReader, content_len: Option<usize>) -> Self {
+        let body_res: ResBody;
+        if let Some(x) = content_len {
+            body_res = ResBody::Sized(x, body)
+        } else {
+            body_res = ResBody::Unsized(body)
+        }
+        Response {
+            status_code: StatusCode::Ok,
+            body: body_res,
+            content_len,
+            http_version: "1.1".to_owned(),
+            headers: HashMap::new(),
+            charset: None,
+            #[cfg(feature = "cookies")]
+            cookies: Cookies::new(),
+        }
     }
     fn reason_phrase(&self) -> String {
         self.status_code.to_string().to_uppercase()

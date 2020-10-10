@@ -135,7 +135,8 @@ impl Response {
     /// ```
     pub fn send<T: AsRef<[u8]>>(&mut self, body: T) {
         let body_slice = body.as_ref();
-        self.body = ResBody::Unsized(Box::new(Cursor::new(body_slice.to_vec())) as BoxReader);
+        let len = body_slice.len();
+        self.body = ResBody::Sized(len, Box::new(Cursor::new(body_slice.to_vec())) as BoxReader);
         self.content_len = Some(body_slice.len());
         self.default_headers();
     }

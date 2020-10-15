@@ -7,7 +7,9 @@ mod util;
 
 use crate::stream_parser::StreamParser;
 use proc_macro::TokenStream;
+use proc_macro::TokenTree;
 use quote::quote;
+use std::path::Path;
 
 /// Used to generate status codes with their number
 /// counter parts. You don't need to use this directly
@@ -183,4 +185,36 @@ pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     let token_stream: TokenStream = tokens.into();
     token_stream
+}
+/// Alias for `concat!(env!("CARGO_MANIFEST_DIR"), "ANY_PATH")`.
+/// So `path!("/url/file")` is equivalent to
+/// `concat!(env!("CARGO_MANIFEST_DIR"), "/url/file")`
+/// Checks if path exists at compile time, panics if the path
+/// doesn't exists.
+///
+/// # Example
+///
+/// ```
+/// let path = path!("/templates");
+/// ```
+///
+/// This allows for safety, you cannot compile code that has
+/// paths that don't exist. It's recommended to use when linking paths.
+#[proc_macro]
+pub fn path(input: TokenStream) -> TokenStream {
+    let input: Vec<TokenTree> = input.into_iter().collect();
+    let value = match &input.get(0) {
+        Some(TokenTree::Literal(literal)) => literal.to_string(),
+        _ => panic!(),
+    };
+    let str_value: String = value.parse().unwrap();
+    let mut path = String::from(env!("CARGO_MANIFEST_DIR"));
+    path.push_str("/..");
+    path.push_str(&str_value.replace("\"", ""));
+
+    if !Path::new(&path).exists() {
+        panic!("This directory or file doesn't exists");
+    }
+
+    format!("{:?}", path).parse().unwrap()
 }

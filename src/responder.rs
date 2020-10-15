@@ -38,7 +38,7 @@ impl ResBody {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
@@ -76,7 +76,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -98,7 +98,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -118,7 +118,7 @@ impl Response {
     /// as html by default
     ///
     /// # Example
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -164,7 +164,8 @@ impl Response {
     /// in the argument
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -198,7 +199,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     /// use std::path::PathBuf;
     ///
@@ -237,7 +238,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     /// use std::path::PathBuf;
     ///
@@ -269,7 +270,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     /// use octane::responder::StatusCode;
     ///
@@ -299,7 +300,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -321,7 +322,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -344,7 +345,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -369,7 +370,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -392,7 +393,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -416,7 +417,7 @@ impl Response {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();

@@ -24,16 +24,6 @@ impl fmt::Display for PathBuf {
     }
 }
 
-/// Alias for `concat!(env!("CARGO_MANIFEST_DIR"), "ANY_PATH")`.
-/// So `path!("/url/file")` is equivalent to
-/// `concat!(env!("CARGO_MANIFEST_DIR"), "/url/file")`
-#[macro_export]
-macro_rules! path {
-    ( $path : expr ) => {
-        concat!(env!("CARGO_MANIFEST_DIR"), $path)
-    };
-}
-
 impl PathBuf {
     pub fn new() -> Self {
         PathBuf { chunks: Vec::new() }

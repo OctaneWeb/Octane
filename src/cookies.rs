@@ -11,7 +11,7 @@ use std::collections::HashMap;
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
@@ -58,7 +58,7 @@ impl Cookies {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();

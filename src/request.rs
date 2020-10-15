@@ -52,7 +52,7 @@ impl RequestMethod {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 /// use octane::request::HttpVersion;
 ///
@@ -99,7 +99,7 @@ impl ToString for HttpVersion {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 /// use octane::request::RequestMethod;
 ///
@@ -218,7 +218,7 @@ impl Header {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 /// use octane::request::RequestMethod;
 ///
@@ -283,7 +283,7 @@ pub(crate) fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 /// use octane::request::RequestMethod;
 ///
@@ -399,7 +399,7 @@ impl KeepAlive {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
@@ -424,7 +424,7 @@ pub struct MatchedRequest<'a> {
     /// A Hashmap containing the variables specified in the url with their
     /// respective keys.
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();

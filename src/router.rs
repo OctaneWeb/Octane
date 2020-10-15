@@ -21,7 +21,7 @@ pub(crate) type RouterResult = Result<(), InvalidPathError>;
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
@@ -55,7 +55,7 @@ impl Flow {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
@@ -85,7 +85,7 @@ pub trait Route {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -102,9 +102,10 @@ pub trait Route {
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is POST
+    ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -121,9 +122,10 @@ pub trait Route {
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is GET
+    ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -140,9 +142,10 @@ pub trait Route {
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is PUT
+    ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -159,9 +162,10 @@ pub trait Route {
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is DELETE
+    ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -178,9 +182,10 @@ pub trait Route {
     fn delete(&mut self, path: &str, closure: Closure) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is PATCH
+    ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -315,7 +320,7 @@ impl Router {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
@@ -354,7 +359,7 @@ macro_rules! route {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();
@@ -382,7 +387,7 @@ macro_rules! route_next {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// use octane::prelude::*;
 ///
 /// let mut app = Octane::new();

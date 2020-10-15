@@ -64,7 +64,7 @@ impl Octane {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::config::OctaneConfig;
     /// use octane::prelude::*;
     ///
@@ -88,7 +88,7 @@ impl Octane {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
@@ -109,13 +109,13 @@ impl Octane {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use octane::prelude::*;
     ///
     /// let mut app = Octane::new();
     ///
     /// app.add(Octane::static_dir(path!(
-    ///    "/pub_dir_name"
+    ///    "/templates"
     /// )));
     /// ```
     pub fn static_dir(dir: &'static str) -> Closure {
@@ -136,6 +136,7 @@ impl Octane {
     /// are enabled and the key/certs are provided
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use octane::Octane;
     ///

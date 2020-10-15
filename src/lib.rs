@@ -107,10 +107,11 @@ pub mod prelude {
     pub use crate::json::{FromJSON, ToJSON};
     pub use crate::Octane;
     pub use crate::{
-        path, route, route_next, route_stop,
+        route, route_next, route_stop,
         router::{Flow, Route, Router},
     };
     pub use octane_json::Value;
+    pub use octane_macros::path;
 }
 
 #[cfg(all(feature = "openSSL", feature = "rustls"))]

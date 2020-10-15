@@ -213,7 +213,7 @@ pub fn path(input: TokenStream) -> TokenStream {
     path.push_str(&str_value.replace("\"", ""));
 
     if !Path::new(&path).exists() {
-        panic!("This directory or file doesn't exists");
+        panic!("{} -> {}", "This directory or file doesn't exists", path);
     }
 
     format!("{:?}", path).parse().unwrap()

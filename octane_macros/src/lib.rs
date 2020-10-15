@@ -208,10 +208,12 @@ pub fn path(input: TokenStream) -> TokenStream {
         _ => panic!(),
     };
     let str_value: String = value.parse().unwrap();
-    let mut path = String::from(env!("CARGO_MANIFEST_DIR"));
-    path.push_str("/..");
+    let mut path = std::env::current_dir()
+        .unwrap()
+        .into_os_string()
+        .into_string()
+        .unwrap();
     path.push_str(&str_value.replace("\"", ""));
-
     if !Path::new(&path).exists() {
         panic!("{} -> {}", "This directory or file doesn't exists", path);
     }

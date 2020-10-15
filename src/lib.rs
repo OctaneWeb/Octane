@@ -27,7 +27,7 @@
 //! #[octane::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
 //!     let mut app = Octane::new();
-//!     app.add(Octane::static_dir("dir_name"))?; // serve a static directory
+//!     app.add(Octane::static_dir(path!("/templates")))?; // serve a static directory
 //!     app.get("/",
 //!         route_stop!(
 //!             |req, res| {
@@ -61,6 +61,10 @@
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
 //! octane will throw a `compile_error!`
+//!
+//! The rust code you would use to setup openssl will be same as rustls (not including certs and keys).
+//! If you want to switch between any of them, its just the matter of editing your cargo.toml
+//! to enable the feature.
 #[macro_use]
 extern crate lazy_static;
 /// Configurations for Octane web server

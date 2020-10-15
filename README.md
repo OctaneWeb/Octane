@@ -24,7 +24,6 @@ Create an octane instance, and then you can register your methods on it using `a
 
 ```rust
 use octane::prelude::*;
-use octane::responder::StatusCode;
 use std::error::Error;
 
 #[octane::main]
@@ -50,7 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }),
     )?;
 
-    app.add(Octane::static_dir("templates/"))?;
+    app.add(Octane::static_dir(path!("/templates/")))?;
     app.listen(8000).await
 }
 ```

@@ -14,15 +14,15 @@ pub enum KeepAliveState {
     Particular(Duration),
 }
 
-pub struct Validator<'a> {
+pub struct Http<'a> {
     pub request: &'a Request<'a>,
     pub err_code: Option<StatusCode>,
     pub keep_alive: KeepAliveState,
 }
 
-impl<'a> Validator<'a> {
+impl<'a> Http<'a> {
     pub fn validate(request: &'a Request<'a>) -> Self {
-        let mut handler = Validator {
+        let mut handler = Self {
             request,
             err_code: None,
             keep_alive: KeepAliveState::Close,

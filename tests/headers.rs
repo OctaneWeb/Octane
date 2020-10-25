@@ -3,10 +3,9 @@ use reqwest::header::USER_AGENT;
 
 mod common;
 
-#[test]
 pub fn basic_header_value_retrival() {
     let mut app = Octane::new();
-    let string = "My Rust Program 1.0";
+    let string = "My Rust Program";
     app.get(
         "/",
         route_next!(|req, res| {

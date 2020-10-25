@@ -2,7 +2,6 @@ use octane::prelude::*;
 
 mod common;
 
-#[test]
 pub fn basic_router() {
     let mut app = Octane::new();
     let mut router = Router::new();

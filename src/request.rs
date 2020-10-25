@@ -4,6 +4,9 @@ use crate::cookies::Cookies;
 use crate::deref;
 use crate::path::is_ctl;
 use crate::path::PathBuf;
+use crate::query::parse_query;
+#[cfg(feature = "extended_queries")]
+use crate::query::{parse_extended_query, QueryValue};
 use crate::util::Spliterator;
 use std::cfg;
 use std::collections::HashMap;
@@ -342,6 +345,30 @@ impl<'a> Request<'a> {
             body,
         })
     }
+
+    /// Parse the query and return the key value pairs in the form
+    /// of an HashMap
+    ///
+    /// ```
+    /// use octane::prelude::*;
+    ///
+    /// let mut app = Octane::new();
+    ///
+    /// app.get("/", route_next!(|req, res| {
+    ///     let parsed_query = req.get_query();
+    ///     let value = parsed_query.get("value");
+    /// }));
+    /// ```
+    pub fn get_query(&self) -> HashMap<String, String> {
+        parse_query(&self.request_line.path.to_string())
+    }
+
+    /// Parse the extended query and return the key value pairs in the form
+    /// of an HashMap. See [`QueryValue`](../enum.QueryValue.html)
+    #[cfg(feature = "extended_queries")]
+    pub fn get_extended_query(&self) -> HashMap<String, QueryValue> {
+        parse_extended_query(&self.request_line.path.to_string())
+    }
 }
 
 /// The KeepAlive struct represents the value
@@ -393,7 +420,7 @@ impl KeepAlive {
 }
 
 /// The MatchedRequest is the struct which you see
-/// when you have the `req` variable in the closure.
+/// when you have the `req` variable in the middleware closure.
 /// It implements Deref to Request so you can use
 /// Request methods/properties directly on it
 ///

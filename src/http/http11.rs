@@ -1,7 +1,7 @@
-use crate::http::{KeepAliveState, Validator};
+use crate::http::{Http, KeepAliveState};
 use crate::responder::StatusCode;
 
-pub fn http11_check(validator: &mut Validator) {
+pub fn http11_check(validator: &mut Http) {
     if validator.request.headers.get("host").is_none() {
         validator.set(StatusCode::BadRequest)
     }

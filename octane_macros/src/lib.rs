@@ -130,13 +130,12 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let tokens = quote! {
         #signature {
             #compile_error
-            let mut builder = tokio::runtime::Builder::new();
+            let mut builder = tokio::runtime::Builder::new_multi_thread();
             builder
-                .threaded_scheduler()
                 .enable_io()
                 .thread_stack_size(10485760)
                 .thread_name("octane-main")
-                .core_threads(#num_cpus);
+                .worker_threads(#num_cpus);
 
             let mut runtime = builder.build().expect("Unable to build tokio runtime");
             runtime.block_on(async {
@@ -171,9 +170,8 @@ pub fn test(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #[test]
         #signature {
             #compile_error
-            let mut builder = tokio::runtime::Builder::new();
+            let mut builder = tokio::runtime::Builder::new_current_thread();
             builder
-                .basic_scheduler()
                 .enable_io()
                 .thread_name("octane-test");
 

@@ -1,12 +1,11 @@
 use crate::server::Octane;
 use crate::task;
-use std::error::Error;
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::future::Future;
-use std::io::Error as IOError;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::io::Result;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
-use tokio::net::TcpListener;
-use tokio::net::TcpStream;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::stream::StreamExt;
 #[cfg(feature = "openSSL")]
 use tokio_openssl::SslStream;
@@ -14,30 +13,28 @@ use tokio_openssl::SslStream;
 use tokio_rustls::server::TlsStream;
 
 pub struct ServerBuilder {
-    port: u16,
+    socket: TcpListener,
 }
 
 impl ServerBuilder {
-    pub fn new() -> Self {
-        ServerBuilder { port: 80 }
+    pub fn new(port: u16) -> Result<Self> {
+        let stream = Type::stream();
+        let socket = Socket::new(Domain::ipv4(), stream.non_blocking(), Some(Protocol::tcp()))?;
+        let bind_add = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
+        socket.bind(&SockAddr::from(bind_add))?;
+        socket.listen(2048)?;
+        socket.set_reuse_address(true)?;
+        Ok(ServerBuilder {
+            socket: TcpListener::from_std(socket.into_tcp_listener())?,
+        })
     }
 
-    pub fn port(&mut self, port: u16) -> &mut Self {
-        self.port = port;
-        self
-    }
-
-    async fn get_tcp_listener(&mut self) -> Result<TcpListener, IOError> {
-        TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), self.port)).await
-    }
-
-    pub async fn listen<C, T>(&mut self, exec: C, server: Arc<Octane>) -> Result<(), Box<dyn Error>>
+    pub async fn listen<C, T>(mut self, exec: C, server: Arc<Octane>) -> Result<()>
     where
         T: Future + Send,
         C: FnOnce(TcpStream, Arc<Octane>) -> T + Send + 'static + Copy,
     {
-        let mut listener = self.get_tcp_listener().await?;
-        while let Some(stream) = listener.next().await {
+        while let Some(stream) = self.socket.next().await {
             stream.map(|stream| {
                 let server = Arc::clone(&server);
                 task!({
@@ -49,21 +46,18 @@ impl ServerBuilder {
     }
 
     #[cfg(feature = "openSSL")]
-    pub async fn listen_ssl<C, T>(
-        &mut self,
-        exec: C,
-        server: Arc<Octane>,
-    ) -> Result<(), Box<dyn Error>>
+    pub async fn listen_ssl<C, T>(self, exec: C, server: Arc<Octane>) -> Result<()>
     where
         T: Future + Send,
         C: FnOnce(SslStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
-        let mut ssl_listener = self.get_tcp_listener().await?;
+        let mut ssl_listener = self.socket;
         let acceptor = crate::tls::openssl::acceptor(&server.settings)?;
         while let Some(stream) = ssl_listener.next().await {
             let acceptor = acceptor.clone();
             let tcp_stream = stream?;
             let server = Arc::clone(&server);
+
             task!({
                 let stream = tokio_openssl::accept(&acceptor, tcp_stream).await;
                 if let Ok(stream_ssl) = stream {
@@ -78,16 +72,17 @@ impl ServerBuilder {
 
     #[cfg(feature = "rustls")]
     pub async fn listen_ssl<C, T>(
-        &mut self,
+        self,
         exec: C,
         server: Arc<Octane>,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> std::result::Result<(), Box<dyn std::error::Error>>
     where
         T: Future + Send,
         C: FnOnce(TlsStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
-        let mut ssl_listener = self.get_tcp_listener().await?;
+        let mut ssl_listener = self.socket;
         let acceptor = crate::tls::rustls::acceptor(&server.settings)?;
+
         while let Some(stream) = ssl_listener.next().await {
             let acceptor = acceptor.clone();
 

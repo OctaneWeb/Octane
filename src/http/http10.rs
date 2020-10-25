@@ -1,8 +1,8 @@
-use crate::http::{KeepAliveState, Validator};
+use crate::http::{Http, KeepAliveState};
 use crate::request::KeepAlive;
 use std::time::Duration;
 
-pub fn http10_check(validator: &mut Validator) {
+pub fn http10_check(validator: &mut Http) {
     if let Some(connection_type) = validator.request.headers.get("connection") {
         if connection_type == "keep-alive" {
             if let Some(keep_alive_header) = validator.request.headers.get("keep-alive") {

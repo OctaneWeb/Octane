@@ -140,11 +140,57 @@ pub fn parse_query(query: &str) -> HashMap<String, String> {
 }
 
 #[cfg(feature = "extended_queries")]
+/// An parsed unit from an `extended_query`. We catch a request
+/// which has an extended query as the path, we call `get_extended_query()`
+/// method on the [`Request`](./request/struct.Request.html#method.get_extended_query) struct.
+///
+/// ```
+/// use octane::prelude::*;
+///
+/// let mut app = Octane::new();
+///
+/// app.get("/", route_next!(|req, res| {
+///     let parsed_extended_query = req.get_extended_query();
+///     let value = parsed_extended_query.get("value");
+/// }));
+/// ```
+/// An example of an extended query could be `a[]=2&a[x]=3&a=1&b[]=1&b[x]=2&c[x]=1&c[]=2`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueryValue {
+    /// A parsed String
     Str(String),
+    /// An array of parsed String
     Arr(Vec<String>),
+    /// A parsed object that is key and value represented
     Obj(HashMap<String, String>),
+}
+
+#[cfg(feature = "extended_queries")]
+impl QueryValue {
+    /// Get the string from a `QueryValue` instance, else None
+    pub fn get_str(&self) -> Option<&String> {
+        if let QueryValue::Str(x) = self {
+            Some(x)
+        } else {
+            None
+        }
+    }
+    /// Get the vector (array) from a `QueryValue` instance, else None
+    pub fn get_arr(&self) -> Option<&Vec<String>> {
+        if let QueryValue::Arr(x) = self {
+            Some(x)
+        } else {
+            None
+        }
+    }
+    /// Get the object (key and value seperated items) from a `QueryValue` instance, else None
+    pub fn get_obj(&self) -> Option<&HashMap<String, String>> {
+        if let QueryValue::Obj(x) = self {
+            Some(x)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(feature = "extended_queries")]

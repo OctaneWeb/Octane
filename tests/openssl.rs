@@ -3,7 +3,6 @@ use octane::prelude::*;
 use reqwest::ClientBuilder;
 mod common;
 
-#[test]
 pub fn basic_https_hello_world_openssl() {
     let mut app = Octane::new();
     app.ssl(8000)

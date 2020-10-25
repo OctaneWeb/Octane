@@ -1,7 +1,6 @@
 use octane::prelude::*;
 mod common;
 
-#[test]
 pub fn basic_server_hello() {
     let mut app = Octane::new();
     app.get(

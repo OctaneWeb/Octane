@@ -1,7 +1,7 @@
 use crate::config::{Config, OctaneConfig, Ssl};
 use crate::constants::*;
 use crate::error::Error;
-use crate::http::{KeepAliveState, Validator};
+use crate::http::Http;
 use crate::middlewares::Closures;
 use crate::request::{parse_without_body, Headers, Request, RequestLine};
 use crate::responder::{BoxReader, Response, StatusCode};
@@ -16,7 +16,7 @@ use std::marker::Unpin;
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{copy, AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{copy, split, AsyncWriteExt};
 use tokio::prelude::*;
 
 /// The Octane server
@@ -162,16 +162,26 @@ impl Octane {
             let clone = Arc::clone(&server);
             _ssl = true;
 
+            async fn listen_ssl(server: Arc<Octane>) -> Result<(), Box<dyn StdError>> {
+                let server_builder = ServerBuilder::new(server.settings.ssl.port);
+                server_builder?
+                    .listen_ssl(
+                        |stream, server| async { Octane::serve(stream, server).await },
+                        server,
+                    )
+                    .await?;
+                Ok(())
+            }
+
             task!({
-                if let Err(x) = Octane::listen_ssl(clone).await {
+                if let Err(x) = listen_ssl(clone).await {
                     println!("WARNING: {}", x);
                 }
             });
         }
         exec();
-        let mut server_builder = ServerBuilder::new();
-        server_builder
-            .port(port)
+        let server_builder = ServerBuilder::new(port);
+        server_builder?
             .listen(
                 move |stream, server| async move { Octane::serve(stream, server).await },
                 server,
@@ -181,23 +191,11 @@ impl Octane {
         Ok(())
     }
 
-    #[cfg(any(feature = "openSSL", feature = "rustls"))]
-    async fn listen_ssl(server: Arc<Octane>) -> Result<(), Box<dyn StdError>> {
-        let mut server_builder = ServerBuilder::new();
-        server_builder
-            .port(server.settings.ssl.port)
-            .listen_ssl(
-                |stream, server| async { Octane::serve(stream, server).await },
-                server,
-            )
-            .await?;
-        Ok(())
-    }
-
-    async fn serve<S>(mut stream_async: S, server: Arc<Octane>) -> Result<(), Box<dyn StdError>>
+    async fn serve<S>(stream_async: S, server: Arc<Octane>) -> Result<(), Box<dyn StdError>>
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
+        let (mut reader, writer) = split(stream_async);
         let mut data = Vec::<u8>::new();
         let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
         let body: &[u8];
@@ -206,9 +204,9 @@ impl Octane {
         let body_remainder: &[u8];
 
         loop {
-            let read = stream_async.read(&mut buf).await?;
+            let read = reader.read(&mut buf).await?;
             if read == 0 {
-                declare_error!(stream_async, StatusCode::BadRequest);
+                declare_error!(writer, StatusCode::BadRequest);
             }
             let cur = &buf[..read];
 
@@ -221,7 +219,7 @@ impl Octane {
                     headers = heads;
                     break;
                 } else {
-                    declare_error!(stream_async, StatusCode::BadRequest);
+                    declare_error!(writer, StatusCode::BadRequest);
                 }
             }
         }
@@ -233,7 +231,7 @@ impl Octane {
         if body_len > 0 {
             if body_remainder.len() < body_len {
                 let mut temp: Vec<u8> = vec![0; body_len - body_remainder.len()];
-                stream_async.read_exact(&mut temp[..]).await?;
+                reader.read_exact(&mut temp[..]).await?;
                 body_vec = Vec::with_capacity(body_len);
                 body_vec.extend_from_slice(body_remainder);
                 body_vec.extend_from_slice(&temp[..]);
@@ -248,34 +246,23 @@ impl Octane {
             let request_line = &request.request_line;
             let mut res = Response::new_empty();
             // Detect http version and validate
-            let checker = Validator::validate(&request);
+            let checker = Http::validate(&request);
             if checker.is_malformed() {
-                declare_error!(stream_async, checker.err_code.unwrap());
-            }
-            match checker.keep_alive {
-                KeepAliveState::UserDefined => stream_async
-                    .stream_mut()
-                    .set_keepalive(server.settings.keep_alive)?,
-                KeepAliveState::Particular(x) => {
-                    stream_async.stream_mut().set_keepalive(Some(x))?
-                }
-                KeepAliveState::Close => {
-                    res.set("Connection", "Close");
-                }
+                declare_error!(writer, checker.err_code.unwrap());
             }
             if request_line.method.is_some() {
                 // run closures
                 server.router.run(request.clone(), &mut res);
                 if !res.has_body() {
-                    declare_error!(stream_async, StatusCode::NotFound);
+                    declare_error!(writer, StatusCode::NotFound);
                 }
 
-                Octane::send(res.get_data(), stream_async).await?;
+                Octane::send(res.get_data(), writer).await?;
             } else {
-                declare_error!(stream_async, StatusCode::NotImplemented);
+                declare_error!(writer, StatusCode::NotImplemented);
             }
         } else {
-            declare_error!(stream_async, StatusCode::BadRequest);
+            declare_error!(writer, StatusCode::BadRequest);
         }
         Ok(())
     }

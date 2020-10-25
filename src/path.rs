@@ -33,12 +33,12 @@ impl PathBuf {
         self.chunks.as_ref()
     }
 
-    pub fn to_std_pathbuf(&self) -> std::path::PathBuf {
+    pub fn to_std_pathbuf(&self) -> StdPathBuf {
         let mut path_string = String::new();
         for chunks in &self.chunks {
             path_string.push_str(format!("{}/", chunks).as_str());
         }
-        std::path::PathBuf::from(path_string)
+        StdPathBuf::from(path_string)
     }
 
     pub fn parse(path: &str) -> Result<Self, InvalidPathError> {

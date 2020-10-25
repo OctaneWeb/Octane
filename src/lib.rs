@@ -78,7 +78,6 @@ pub(crate) mod file_handler;
 pub(crate) mod http;
 pub(crate) mod middlewares;
 pub(crate) mod path;
-#[cfg(feature = "query_strings")]
 pub(crate) mod query;
 /// Request module contains the ongoing request and methods to read from it
 pub mod request;
@@ -96,6 +95,9 @@ pub(crate) mod util;
 
 // convenient aliasing for octane_json
 pub use octane_json as json;
+// re exports
+#[cfg(feature = "extended_queries")]
+pub use crate::query::QueryValue;
 pub use octane_macros::main;
 pub use octane_macros::test;
 

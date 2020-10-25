@@ -2,7 +2,6 @@
 mod common;
 use octane::prelude::*;
 
-#[test]
 pub fn basic_url_variables() {
     let mut app = Octane::new();
     let value = "bar";

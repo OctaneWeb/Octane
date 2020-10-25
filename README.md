@@ -64,6 +64,7 @@ Documentation will be available on [docs.rs](https://docs.rs/octane/) and on the
 - [ ] Efficient error handling (using enums instead of `Box<dyn Error>`)
 - [ ] Web socket library
 - [ ] Multipart/json form handling (being worked on)
+- [ ] Logging
 - Much more....
 
 # Contribute

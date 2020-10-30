@@ -31,15 +31,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut app = Octane::new();
     app.ssl(8001)
         .key("templates/key.pem")
-        .cert("templates/cert.pem");
-        
-    app.get(
-        "/to_home",
-        route!(|req, res| {
-            res.redirect("/").send("redirecting");
-            Flow::Stop
-        }),
-    )?;
+        .cert("templates/cert.pem"); // Setup ssl
 
     app.get(
         "/",
@@ -50,7 +42,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     app.add(Octane::static_dir(path!("/templates/")))?;
-    app.listen(8000).await
+    app.listen(8000, || println!("Server Started!")).await
 }
 ```
 

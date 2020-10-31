@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 # Docs
 
-Documentation will be available on [docs.rs](https://docs.rs/octane/) and on the offical [Octane Site]().
+Documentation will be available on [docs.rs](https://docs.rs/octane/).
 
 # Roadmap to production
 - [ ] Http2
@@ -65,7 +65,7 @@ Documentation will be available on [docs.rs](https://docs.rs/octane/) and on the
 
 # Contribute
 
-Checkout [CONTRIBUTING.md](https://github.com/OctaneWeb/Octane/CONTRIBUTING.md) for info on how to contribute to this project
+Checkout [CONTRIBUTING.md](https://github.com/OctaneWeb/Octane/blob/develop/CONTRIBUTING.md) for info on how to contribute to this project
 
 # License
 

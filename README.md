@@ -21,6 +21,7 @@ A high-powered web server aimed at minimizing dependencies while maintaining spe
 # Not production ready
 
 The web server is not production ready yet, there are many things left to do before we are production ready. Use at your own risk!
+Development is being done right now, lots of things are untested in the library. If you would like to report any details, use issues or the chat!
 
 #  Basic Usage 
 

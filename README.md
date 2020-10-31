@@ -18,6 +18,10 @@ A high-powered web server aimed at minimizing dependencies while maintaining spe
 - TLS enabled, rustls/openssl ready 🔒
 - Minimal dependencies (working to reduce them more!) 💕
 
+# Not production ready
+
+The web server is not production ready yet, there are many things left to do before we are production ready. Use at your own risk!
+
 #  Basic Usage 
 
 Create an octane instance, and then you can register your methods on it using `app.METHOD()`

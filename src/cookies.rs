@@ -41,6 +41,13 @@ impl Cookies {
     // Parse a Cookie header value and populate the
     // HashMap with value and keys
     pub(crate) fn parse(header: &str) -> Self {
+        let header = {
+            if header.contains(":") {
+                header.split(":").collect::<Vec<&str>>().last().unwrap().trim()
+            } else {
+                header
+            }
+        };
         let mut cookies: HashMap<String, String> = HashMap::new();
         for tok in header.split("; ") {
             let eq_ind = match tok.find('=') {

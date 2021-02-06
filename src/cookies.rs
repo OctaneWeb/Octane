@@ -1,6 +1,7 @@
 use crate::constants::*;
 use crate::{default, deref};
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// Represents the cookies, cookies are stored
 /// with the name and values. By default you have
@@ -96,15 +97,21 @@ mod test {
         let mut cookies = Cookies::new();
         // basic value settings should work
         cookies.set("key", "value");
-        assert_eq!(1, cookies.len());
+        let mut correct_cookies = HashMap::new();
+        correct_cookies.insert("key".to_owned(), "value".to_owned());
+        assert_eq!(cookies.cookies, correct_cookies);
     }
 
     #[test]
     pub fn cookie_parsing() {
         // basic parsing should work
-        let cookie_string = "Cookie: first_key=value; second_key=value; third_value=value";
+        let cookie_string = "Set-Cookie: first_key=value1; second_key=value2; third_value=value3";
         let cookies = Cookies::parse(cookie_string);
-        assert_eq!(3, cookies.len());
+        let mut correct_cookies = HashMap::new();
+        correct_cookies.insert("first_key".to_owned(), "value1".to_owned());
+        correct_cookies.insert("second_key".to_owned(), "value2".to_owned());
+        correct_cookies.insert("third_key".to_owned(), "value3".to_owned());
+        assert_eq!(cookies.cookies, correct_cookies);
     }
 
     #[test]
@@ -112,10 +119,19 @@ mod test {
         // basic serializing should work
         let cookie_string = "first_key=value; second_key=value; third_key=value";
         let mut cookies = Cookies::parse(cookie_string);
-        cookies.set("forth_key", "value");
-        // we cannot know the order of the cookies so we put in the len
-        // the string should be like
-        // Set-Cookie:forth_key=value\r\nSet-Cookie:first_key=value\r\nSet-Cookie:third_key=value\r\nSet-Cookie:second_key=value\r\n
-        assert_eq!(113, cookies.serialise().len());
+        cookies.set("fourth_key", "value");
+        // Serialised cookies should be something like
+        // Set-Cookie:fourth_key=value\r\nSet-Cookie:first_key=value\r\nSet-Cookie:third_key=value\r\nSet-Cookie:second_key=value\r\n
+        let mut cookies_serialisation = HashSet::new();
+        let serialised = cookies.serialise();
+        for cookie in serialised.lines() {
+            cookies_serialisation.insert(cookie);
+        }
+        let mut correct_serialisation = HashSet::new();
+        correct_serialisation.insert("Set-Cookie:first_key=value");
+        correct_serialisation.insert("Set-Cookie:second_key=value");
+        correct_serialisation.insert("Set-Cookie:third_key=value");
+        correct_serialisation.insert("Set-Cookie:fourth_key=value");
+        assert_eq!(cookies_serialisation, correct_serialisation);
     }
 }

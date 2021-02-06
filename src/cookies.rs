@@ -43,7 +43,12 @@ impl Cookies {
     pub(crate) fn parse(header: &str) -> Self {
         let header = {
             if header.contains(":") {
-                header.split(":").collect::<Vec<&str>>().last().unwrap().trim()
+                header
+                    .split(":")
+                    .collect::<Vec<&str>>()
+                    .last()
+                    .unwrap()
+                    .trim()
             } else {
                 header
             }

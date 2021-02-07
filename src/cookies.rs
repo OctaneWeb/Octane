@@ -105,7 +105,7 @@ mod test {
     #[test]
     pub fn cookie_parsing() {
         // basic parsing should work
-        let cookie_string = "Set-Cookie: first_key=value1; second_key=value2; third_key=value3";
+        let cookie_string = "first_key=value1; second_key=value2; third_key=value3";
         let cookies = Cookies::parse(cookie_string);
         let mut correct_cookies = HashMap::new();
         correct_cookies.insert("first_key".to_owned(), "value1".to_owned());

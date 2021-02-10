@@ -502,7 +502,14 @@ impl<'a> Response<'a> {
         // push cookies
         #[cfg(feature = "cookies")]
         {
-            headers_str.push_str(&self.cookies.iter().map(|cookie| cookie.serialise()).collect::<Vec<String>>().join(CRLF));
+            headers_str.push_str(
+                &self
+                    .cookies
+                    .iter()
+                    .map(|cookie| cookie.serialise())
+                    .collect::<Vec<String>>()
+                    .join(CRLF),
+            );
         }
         headers_str
     }

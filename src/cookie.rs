@@ -32,7 +32,7 @@ pub struct Cookie<'a> {
 
 impl Cookie<'_> {
     /// Creates a new `Cookie` instance with the given `name` and `value`.
-    /// 
+    ///
     /// # Example
     ///
     /// ```
@@ -47,7 +47,7 @@ impl Cookie<'_> {
         }
     }
     /// Creates a new `cookie` instance from a `cookie` in the `cookie-rs` library.
-    /// 
+    ///
     /// # Example
     ///
     /// ```
@@ -59,12 +59,10 @@ impl Cookie<'_> {
     /// println!("{:?}", octane_cookie);
     /// ```
     pub fn from<'a>(cookie: CookieRs<'a>) -> Cookie<'a> {
-        Cookie {
-            cookie,
-        }
+        Cookie { cookie }
     }
     /// Returns a `CookieBuilder` from the `cookie-rs` library to build a `Cookie`.
-    /// 
+    ///
     /// # Example
     ///
     /// ```
@@ -81,14 +79,14 @@ impl Cookie<'_> {
     pub fn build<'a>(name: &'a str, value: &'a str) -> CookieBuilder<'a> {
         CookieRs::build(name, value)
     }
-    // Parse a Cookie header value and create a Vec with all the 
+    // Parse a Cookie header value and create a Vec with all the
     // cookies in the header
     pub(crate) fn parse<'a>(header: &'a str) -> Vec<Cookie<'a>> {
         let mut cookies_vec = Vec::new();
         let header_cookies = header.split("; ");
         for tok in header_cookies {
             cookies_vec.push(Cookie {
-                cookie: CookieRs::parse(tok).unwrap()
+                cookie: CookieRs::parse(tok).unwrap(),
             });
         }
         cookies_vec
@@ -120,12 +118,8 @@ mod test {
         let cookie_string = "name1=value1; name2=value2";
         let cookies = Cookie::parse(cookie_string);
         let correct_cookies = vec![
-            Cookie::from(
-                Cookie::build("name1", "value1").finish(),
-            ),
-            Cookie::from(
-                Cookie::build("name2", "value2").finish(),
-            )
+            Cookie::from(Cookie::build("name1", "value1").finish()),
+            Cookie::from(Cookie::build("name2", "value2").finish()),
         ];
         assert!(cookies == correct_cookies);
     }
@@ -133,11 +127,7 @@ mod test {
     #[test]
     pub fn cookie_serialize() {
         // basic serializing should work
-        let cookie = Cookie::from(
-            Cookie::build("name", "value")
-                .http_only(true)
-                .finish()
-        );
+        let cookie = Cookie::from(Cookie::build("name", "value").http_only(true).finish());
         assert_eq!("Set-Cookie: name=value; HttpOnly", cookie.serialise());
     }
 }

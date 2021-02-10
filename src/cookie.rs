@@ -46,21 +46,6 @@ impl Cookie<'_> {
             cookie: CookieRs::new(name, value),
         }
     }
-    /// Creates a new `cookie` instance from a `cookie` in the `cookie-rs` library.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    /// use cookie::Cookie as CookieRs;
-    ///
-    /// let cookie_rs_cookie = CookieRs::new("name", "value");
-    /// let octane_cookie = octane::cookie::Cookie::from(cookie_rs_cookie);
-    /// println!("{:?}", octane_cookie);
-    /// ```
-    pub fn from<'a>(cookie: CookieRs<'a>) -> Cookie<'a> {
-        Cookie { cookie }
-    }
     /// Returns a `CookieBuilder` from the `cookie-rs` library to build a `Cookie`.
     ///
     /// # Example
@@ -95,6 +80,12 @@ impl Cookie<'_> {
     // in the HashMap
     pub(crate) fn serialise(&self) -> String {
         format!("Set-Cookie: {}", self.cookie.to_string())
+    }
+}
+
+impl<'a> From<CookieRs<'a>> for Cookie<'a> {
+    fn from<'b>(cookie: CookieRs<'b>) -> Cookie<'b> {
+        Cookie { cookie }
     }
 }
 

@@ -72,7 +72,7 @@ pub mod config;
 pub(crate) mod constants;
 #[cfg(feature = "cookies")]
 /// Module for cookie parsing and handling
-pub mod cookies;
+pub mod cookie;
 pub(crate) mod error;
 pub(crate) mod file_handler;
 pub(crate) mod http;

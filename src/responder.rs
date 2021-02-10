@@ -1,6 +1,6 @@
 use crate::constants::*;
 #[cfg(feature = "cookies")]
-use crate::cookies::Cookies;
+use crate::cookie::Cookie;
 use crate::file_handler::FileHandler;
 use crate::request::HttpVersion;
 use crate::time::Time;
@@ -50,7 +50,7 @@ impl ResBody {
 ///     }),
 /// );
 /// ```
-pub struct Response {
+pub struct Response<'a> {
     body: ResBody,
     /// The status code the response will contain
     pub status_code: StatusCode,
@@ -64,10 +64,10 @@ pub struct Response {
     pub charset: Option<String>,
     #[cfg(feature = "cookies")]
     /// Cookies that will be sent with the response
-    pub cookies: Cookies,
+    pub cookies: Vec<Cookie<'a>>,
 }
 
-impl Response {
+impl<'a> Response<'a> {
     /// Adds appends a custom header with the headers
     /// that will be sent.
     ///
@@ -400,17 +400,16 @@ impl Response {
     /// app.get(
     ///     "/",
     ///     route!(|req, res| {
-    ///         res.cookie("name", "value").send("Cookie has been set!");
-    ///         if let Some(value) = req.request.cookies.get("name") {
-    ///             println!("{:?}", value); // value
-    ///         }
+    ///         res.cookie(octane::cookie::Cookie::new("name", "value")).send("Cookie has been set!");
+    ///         let sent_cookie = &req.request.cookies;
+    ///         // Do stuff with cookies
     ///         Flow::Stop
     ///     }),
     /// );
     /// ```
     #[cfg(feature = "cookies")]
-    pub fn cookie(&mut self, name: &str, value: &str) -> &mut Self {
-        self.cookies.set(name, value);
+    pub fn cookie(&mut self, cookie: Cookie<'a>) -> &mut Response<'a> {
+        self.cookies.push(cookie);
         self
     }
     /// Sets the content type charset
@@ -454,7 +453,7 @@ impl Response {
             headers: HashMap::new(),
             charset: None,
             #[cfg(feature = "cookies")]
-            cookies: Cookies::new(),
+            cookies: Vec::new(),
         }
     }
     // Generates a new empty response
@@ -473,7 +472,7 @@ impl Response {
             headers: HashMap::new(),
             charset: None,
             #[cfg(feature = "cookies")]
-            cookies: Cookies::new(),
+            cookies: Vec::new(),
         }
     }
     fn reason_phrase(&self) -> String {
@@ -503,7 +502,7 @@ impl Response {
         // push cookies
         #[cfg(feature = "cookies")]
         {
-            headers_str.push_str(&self.cookies.serialise());
+            headers_str.push_str(&self.cookies.iter().map(|cookie| cookie.serialise()).collect::<Vec<String>>().join(CRLF));
         }
         headers_str
     }
@@ -587,13 +586,13 @@ impl fmt::Display for StatusCode {
     }
 }
 
-impl Default for Response {
+impl Default for Response<'_> {
     fn default() -> Self {
         Self::new_from_slice(b"")
     }
 }
 
-impl fmt::Debug for Response {
+impl fmt::Debug for Response<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Response")
             .field("status_code", &self.status_code)

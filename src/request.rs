@@ -1,6 +1,6 @@
 use crate::constants::*;
 #[cfg(feature = "cookies")]
-use crate::cookies::Cookies;
+use crate::cookie::Cookie;
 use crate::deref;
 use crate::path::is_ctl;
 use crate::path::PathBuf;
@@ -318,7 +318,7 @@ pub struct Request<'a> {
     pub body: &'a [u8],
     #[cfg(feature = "cookies")]
     /// Cookies in the request
-    pub cookies: Cookies,
+    pub cookies: Vec<Cookie<'a>>,
 }
 
 impl<'a> Request<'a> {
@@ -326,20 +326,20 @@ impl<'a> Request<'a> {
     /// and body and return a Request struct
     pub(crate) fn parse(
         request_line: RequestLine,
-        headers: Headers,
+        headers: &'a Headers,
         body: &'a [u8],
     ) -> Option<Self> {
         #[cfg(feature = "cookies")]
-        let cookies: Cookies;
+        let cookies: Vec<Cookie<'a>>;
         #[cfg(feature = "cookies")]
         if let Some(v) = headers.get("cookie") {
-            cookies = Cookies::parse(v);
+            cookies = Cookie::parse(v);
         } else {
             cookies = Default::default();
         }
         Some(Self {
             request_line,
-            headers,
+            headers: headers.clone(),
             #[cfg(feature = "cookies")]
             cookies,
             body,

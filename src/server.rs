@@ -242,7 +242,7 @@ impl Octane {
         } else {
             body = &[];
         }
-        if let Some(request) = Request::parse(request_line, headers, body) {
+        if let Some(request) = Request::parse(request_line, &headers, body) {
             let request_line = &request.request_line;
             let mut res = Response::new_empty();
             // Detect http version and validate

@@ -121,4 +121,4 @@ pub mod prelude {
 }
 
 #[cfg(all(feature = "openSSL", feature = "rustls"))]
-compile_error!("openSSL and rustls are both enabled, you may want to one of those");
+compile_error!("openSSL and rustls are both enabled, you may want to remove one of them");

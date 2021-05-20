@@ -31,7 +31,7 @@ pub struct Cookie<'a> {
     cookie: CookieRs<'a>,
 }
 
-impl Cookie<'_> {
+impl<'a> Cookie<'a> {
     /// Creates a new `Cookie` instance with the given `name` and `value`.
     ///
     /// # Example
@@ -42,7 +42,7 @@ impl Cookie<'_> {
     /// let cookie = octane::cookie::Cookie::new("name", "value");
     /// println!("{:?}", cookie);
     /// ```
-    pub fn new<'a>(name: &'a str, value: &'a str) -> Cookie<'a> {
+    pub fn new(name: &str, value: &str) -> Cookie<'a> {
         Cookie {
             cookie: CookieRs::new(name, value),
         }
@@ -62,12 +62,12 @@ impl Cookie<'_> {
     /// );
     /// println!("{:?}", cookie);
     /// ```
-    pub fn build<'a>(name: &'a str, value: &'a str) -> CookieBuilder<'a> {
+    pub fn build(name: &str, value: &str) -> CookieBuilder<'a> {
         CookieRs::build(name, value)
     }
     // Parse a Cookie header value and create a Vec with all the
     // cookies in the header
-    pub(crate) fn parse<'a>(header: &'a str) -> Vec<Cookie<'a>> {
+    pub(crate) fn parse(header: &str) -> Vec<Cookie<'a>> {
         let mut cookies_vec = Vec::new();
         let header_cookies = header.split("; ");
         for tok in header_cookies {

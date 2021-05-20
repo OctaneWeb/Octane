@@ -27,7 +27,6 @@
 //! #[octane::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
 //!     let mut app = Octane::new();
-//!     app.add(Octane::static_dir(path!("/templates")))?; // serve a static directory
 //!     app.get("/",
 //!         route_stop!(
 //!             |req, res| {
@@ -93,14 +92,12 @@ pub(crate) mod time;
 pub(crate) mod tls;
 pub(crate) mod util;
 
-// convenient aliasing for octane_json
-pub use octane_json as json;
 // re exports
 #[cfg(feature = "extended_queries")]
 pub use crate::query::QueryValue;
+pub use octane_http::StatusCode;
 pub use octane_macros::main;
 pub use octane_macros::test;
-
 /// Prelude here brings in scope, the [`Route`](router/trait.Route.html) and
 /// [`Config`](config/trait.Config.html) trait, [`Octane`](struct.Octane.html) main server
 /// and [`Router`](router/struct.Router.html) struct with the [`Flow`](router/enum.Flow.html)
@@ -110,13 +107,11 @@ pub use octane_macros::test;
 /// /[`FromJSON`](../octane_json/convert/trait.FromJSON.html) derive macros
 pub mod prelude {
     pub use crate::config::Config;
-    pub use crate::json::{FromJSON, ToJSON};
     pub use crate::Octane;
     pub use crate::{
         route, route_next, route_stop,
         router::{Flow, Route, Router},
     };
-    pub use octane_json::Value;
     pub use octane_macros::path;
 }
 

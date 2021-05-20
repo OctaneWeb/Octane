@@ -1,3 +1,4 @@
+use crate::constants::*;
 use crate::deref;
 use cookie::Cookie as CookieRs;
 use cookie::CookieBuilder;
@@ -79,7 +80,7 @@ impl Cookie<'_> {
     // Prepare the `Set-Cookie` Header string from the values
     // in the HashMap
     pub(crate) fn serialise(&self) -> String {
-        format!("Set-Cookie: {}", self.cookie.to_string())
+        format!("Set-Cookie:{}{}", SP, self.cookie.to_string())
     }
 }
 

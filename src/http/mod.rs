@@ -1,9 +1,9 @@
-use crate::request::{HttpVersion, Request};
-use crate::responder::StatusCode;
-use std::time::Duration;
-
+use crate::request::Request;
 use http10::*;
 use http11::*;
+use octane_http::HttpVersion;
+use octane_http::StatusCode;
+use std::time::Duration;
 
 pub mod http10;
 pub mod http11;

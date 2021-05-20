@@ -1,29 +1,10 @@
+use octane_http::http1x::find_in_slice;
 use std::io::Read;
 use std::iter::FusedIterator;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, ReadBuf, Result};
-
-pub fn find_in_slice<T: Eq>(haystack: &[T], needle: &[T]) -> Option<usize> {
-    // naive algorithm only meant for small needles
-    if needle.len() > haystack.len() {
-        return None;
-    }
-    for i in 0..=haystack.len() - needle.len() {
-        let mut matching = true;
-        for j in 0..needle.len() {
-            if haystack[i + j] != needle[j] {
-                matching = false;
-                break;
-            }
-        }
-        if matching {
-            return Some(i);
-        }
-    }
-    None
-}
 
 pub struct Spliterator<'a, T: Eq> {
     pub string: &'a [T],

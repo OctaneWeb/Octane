@@ -20,6 +20,7 @@ pub fn acceptor(settings: &OctaneConfig) -> Result<TlsAcceptor, Box<dyn Error>> 
         );
     }
     config.set_single_cert(settings.get_cert()?, key.remove(0))?;
+    // config.set_protocols(&[b"h2".to_vec()]);
     let acceptor = TlsAcceptor::from(Arc::new(config));
     Ok(acceptor)
 }

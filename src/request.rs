@@ -8,12 +8,15 @@ use crate::query::parse_query;
 #[cfg(feature = "extended_queries")]
 use crate::query::{parse_extended_query, QueryValue};
 use crate::util::Spliterator;
+use octane_http::HttpVersion;
 use std::cfg;
 use std::collections::HashMap;
 #[cfg(not(feature = "raw_headers"))]
 use std::marker::PhantomData;
 use std::str;
 use std::string::ToString;
+use tokio::io::ReadHalf;
+use tokio::prelude::*;
 
 /// Holds the type of request method, like GET,
 /// POST etc.
@@ -49,53 +52,7 @@ impl RequestMethod {
         !matches!(self, Self::None)
     }
 }
-/// Holds the http versions. You can match the
-/// variants by doing a comparison with the version
-/// in the request_line
-///
-/// # Example
-///
-/// ```
-/// use octane::prelude::*;
-/// use octane::request::HttpVersion;
-///
-/// let mut app = Octane::new();
-/// app
-/// .get("/",
-///     route!(|req, res| {
-///        if req.request_line.version == HttpVersion::Http11 {
-///            // do something
-///         }
-///         Flow::Stop
-///     }),
-/// );
-/// ```
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum HttpVersion {
-    #[doc(hidden)]
-    Http11,
-    #[doc(hidden)]
-    Http10,
-    #[doc(hidden)]
-    Http02,
-    #[doc(hidden)]
-    Http09,
-    #[doc(hidden)]
-    HttpInvalid,
-}
 
-impl ToString for HttpVersion {
-    fn to_string(&self) -> std::string::String {
-        match self {
-            Self::Http11 => "1.1",
-            Self::Http10 => "1.0",
-            Self::Http09 => "0.9",
-            Self::Http02 => "0.2",
-            _ => "",
-        }
-        .to_owned()
-    }
-}
 /// The RequestLine struct represents the first
 /// line of the http request, which contains
 /// the http version, path and method of request
@@ -273,15 +230,6 @@ impl Headers {
     }
 }
 
-// Helper function for extracting some headers
-pub(crate) fn parse_without_body(data: &str) -> Option<(RequestLine, Headers)> {
-    let n = data.find("\r\n")?;
-    let (line, rest) = data.split_at(n);
-    let request_line = RequestLine::parse(line)?;
-    let headers = Headers::parse((&rest[2..]).to_owned())?;
-    Some((request_line, headers))
-}
-
 /// Represents a single request
 ///
 /// # Example
@@ -344,6 +292,34 @@ impl<'a> Request<'a> {
             cookies,
             body,
         })
+    }
+    pub(crate) async fn from_raw<T: AsyncRead + Unpin>(
+        headers: &'a Headers,
+        request_line: RequestLine,
+        mut body: &'a [u8],
+        body_vec: &'a mut Vec<u8>,
+        body_remainder: &'a [u8],
+        mut reader: ReadHalf<T>,
+    ) -> Option<Request<'a>> {
+        let body_len = headers
+            .get("content-length")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        if body_len > 0 {
+            if body_remainder.len() < body_len {
+                let mut temp: Vec<u8> = vec![0; body_len - body_remainder.len()];
+                reader.read_exact(&mut temp[..]).await.ok().unwrap();
+                *body_vec = Vec::with_capacity(body_len);
+                body_vec.extend_from_slice(body_remainder);
+                body_vec.extend_from_slice(&temp[..]);
+                body = &body_vec[..];
+            } else {
+                body = body_remainder;
+            }
+        } else {
+            body = &[];
+        }
+        Self::parse(request_line, headers, body)
     }
 
     /// Parse the query and return the key value pairs in the form

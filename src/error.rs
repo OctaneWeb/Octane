@@ -1,7 +1,7 @@
 use crate::constants::NOT_FOUND;
 use crate::responder::Response;
-use crate::responder::StatusCode;
 use crate::Octane;
+use octane_http::StatusCode;
 use std::error;
 use std::fmt;
 use std::fmt::{Display, Formatter};

@@ -19,7 +19,8 @@ pub struct ServerBuilder {
 impl ServerBuilder {
     pub fn new(port: u16) -> Result<Self> {
         let stream = Type::stream();
-        let socket = Socket::new(Domain::ipv4(), stream.non_blocking(), Some(Protocol::tcp()))?;
+        let socket = Socket::new(Domain::ipv4(), stream, None)?;
+        socket.set_nonblocking(true)?;
         let bind_add = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
         socket.bind(&SockAddr::from(bind_add))?;
         socket.listen(2048)?;
@@ -82,11 +83,11 @@ impl ServerBuilder {
     {
         let mut ssl_listener = self.socket;
         let acceptor = crate::tls::rustls::acceptor(&server.settings)?;
-
         while let Some(stream) = ssl_listener.next().await {
             let acceptor = acceptor.clone();
 
             let server = Arc::clone(&server);
+
             let tcp_stream = stream?;
             task!({
                 let stream = acceptor.accept(tcp_stream).await;

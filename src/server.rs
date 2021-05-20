@@ -1,16 +1,16 @@
 use crate::config::{Config, OctaneConfig, Ssl};
-use crate::constants::*;
 use crate::error::Error;
 use crate::http::Http;
 use crate::middlewares::Closures;
-use crate::request::{parse_without_body, Headers, Request, RequestLine};
-use crate::responder::{BoxReader, Response, StatusCode};
-use crate::route;
-use crate::router::{Closure, Flow, Route, Router, RouterResult};
+use crate::request::{Headers, Request, RequestLine};
+use crate::responder::{BoxReader, Response};
+use crate::router::{Closure, Route, Router, RouterResult};
 use crate::server_builder::ServerBuilder;
 use crate::tls::AsMutStream;
-use crate::util::find_in_slice;
-use crate::{declare_error, default, route_next};
+use crate::{declare_error, default};
+use octane_http::http1x::raw_request::RawRequest1x;
+use octane_http::http1x::Http1xReader;
+use octane_http::StatusCode;
 use std::error::Error as StdError;
 use std::marker::Unpin;
 use std::str;
@@ -104,33 +104,6 @@ impl Octane {
     pub fn with_router(&mut self, router: Router) {
         self.router.append(router);
     }
-    /// Returns a closure which can be used with the add or add_route method
-    /// to serve a static directory.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    ///
-    /// app.add(Octane::static_dir(path!(
-    ///    "/templates"
-    /// )));
-    /// ```
-    pub fn static_dir(dir: &'static str) -> Closure {
-        route_next!(|req, res| {
-            let static_dir_name = std::path::PathBuf::from(dir);
-            let final_url = static_dir_name.join(req.request_line.path.to_std_pathbuf());
-            let final_string = final_url.to_str().unwrap();
-            if &final_string[final_string.len() - 1..] == "/" {
-                let stripped = &final_string[..final_string.len() - 1];
-                res.send_file(stripped).ok();
-            } else {
-                res.send_file(final_string).ok();
-            };
-        })
-    }
     /// Start listening on the port specified, the listen
     /// function also starts the Ssl server if the features
     /// are enabled and the key/certs are provided
@@ -195,74 +168,45 @@ impl Octane {
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
-        let (mut reader, writer) = split(stream_async);
-        let mut data = Vec::<u8>::new();
-        let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
-        let body: &[u8];
-        let request_line: RequestLine;
-        let headers: Headers;
-        let body_remainder: &[u8];
+        let (reader, writer) = split(stream_async);
+        let mut data = Vec::new();
+        let parsed = Http1xReader::new(RawRequest1x::new(reader), &mut data).await;
+        if let Ok((raw_headers, raw_request_line, body_remainder, reader_left)) = parsed {
+            let headers = Headers::parse(raw_headers).unwrap();
+            let request_line = RequestLine::parse(raw_request_line).unwrap();
+            if let Some(request) = Request::from_raw(
+                &headers,
+                request_line,
+                Default::default(),
+                &mut Default::default(),
+                body_remainder,
+                reader_left,
+            )
+            .await
+            {
+                let request_line = &request.request_line;
+                let mut res = Response::new_empty();
+                // Detect http version and validate
+                let checker = Http::validate(&request);
+                if checker.is_malformed() {
+                    declare_error!(writer, checker.err_code.unwrap());
+                }
+                if request_line.method.is_some() {
+                    // run closures
+                    server.router.run(request.clone(), &mut res);
+                    if !res.has_body() {
+                        declare_error!(writer, StatusCode::NotFound);
+                    }
 
-        loop {
-            let read = reader.read(&mut buf).await?;
-            if read == 0 {
+                    Octane::send(res.get_data(), writer).await?;
+                } else {
+                    declare_error!(writer, StatusCode::NotImplemented);
+                }
+            } else {
                 declare_error!(writer, StatusCode::BadRequest);
             }
-            let cur = &buf[..read];
-
-            data.extend_from_slice(cur);
-            if let Some(i) = find_in_slice(&data[..], b"\r\n\r\n") {
-                let first = &data[..i];
-                body_remainder = &data[i + 4..];
-                if let Ok(Some((rl, heads))) = str::from_utf8(first).map(parse_without_body) {
-                    request_line = rl;
-                    headers = heads;
-                    break;
-                } else {
-                    declare_error!(writer, StatusCode::BadRequest);
-                }
-            }
-        }
-        let body_len = headers
-            .get("content-length")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0);
-        let mut body_vec: Vec<u8>;
-        if body_len > 0 {
-            if body_remainder.len() < body_len {
-                let mut temp: Vec<u8> = vec![0; body_len - body_remainder.len()];
-                reader.read_exact(&mut temp[..]).await?;
-                body_vec = Vec::with_capacity(body_len);
-                body_vec.extend_from_slice(body_remainder);
-                body_vec.extend_from_slice(&temp[..]);
-                body = &body_vec[..];
-            } else {
-                body = body_remainder;
-            }
         } else {
-            body = &[];
-        }
-        if let Some(request) = Request::parse(request_line, &headers, body) {
-            let request_line = &request.request_line;
-            let mut res = Response::new_empty();
-            // Detect http version and validate
-            let checker = Http::validate(&request);
-            if checker.is_malformed() {
-                declare_error!(writer, checker.err_code.unwrap());
-            }
-            if request_line.method.is_some() {
-                // run closures
-                server.router.run(request.clone(), &mut res);
-                if !res.has_body() {
-                    declare_error!(writer, StatusCode::NotFound);
-                }
-
-                Octane::send(res.get_data(), writer).await?;
-            } else {
-                declare_error!(writer, StatusCode::NotImplemented);
-            }
-        } else {
-            declare_error!(writer, StatusCode::BadRequest);
+            declare_error!(writer, parsed.err().unwrap());
         }
         Ok(())
     }

@@ -14,25 +14,28 @@ tokio-rustls = { version = "0.20", optional = true }
 openssl = { version = "0.10.30", optional = true }
 tokio-openssl = { version = "0.5", optional = true }
 tokio = { version = "0.3", features = ["net", "io-util", "stream", "rt-multi-thread"] }
-socket2 = "0.3.15"
-cookie = "0.14.3"
+socket2 = "0.3.19"
+cookie = { version = "0.14.3", optional = true }
+serde = { version = "1.0.123", optional = true }
+serde_json = { version = "1.0.59", optional = true }
 
 [dependencies.octane_macros]
 path = "octane_macros"
 version = "0.1.2"
 
-[dependencies.octane_json]
-path = "octane_json"
-version = "0.2.0"
+[dependencies.octane_http]
+path = "octane_http"
+version = "0.1"
 
 [features]
-default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers"]
+default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers", "rustls"]
 faithful = []
 test_crate = []
 raw_headers = []
 query_strings = []
 extended_queries = []
-cookies = []
+cookies = ["cookie"]
+json = ["serde", "serde_json"]
 url_variables = []
 rustls = ["tokio-rustls"]
 openSSL = ["openssl", "tokio-openssl"]
@@ -45,5 +48,5 @@ curl = "0.4.33"
 [workspace]
 members = [
     "octane_macros",
-    "octane_json"
+    "octane_http"
 ]

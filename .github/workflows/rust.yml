@@ -23,5 +23,3 @@ jobs:
       run: cargo test --no-fail-fast --features openSSL
     - name: Test with no features
       run: cargo test --no-fail-fast --no-default-features
-    - name: Test octane_json
-      run: cargo test --no-fail-fast -p octane_json

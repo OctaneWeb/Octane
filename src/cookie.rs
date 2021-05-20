@@ -42,7 +42,7 @@ impl<'a> Cookie<'a> {
     /// let cookie = octane::cookie::Cookie::new("name", "value");
     /// println!("{:?}", cookie);
     /// ```
-    pub fn new(name: &str, value: &str) -> Cookie<'a> {
+    pub fn new(name: &'a str, value: &'a str) -> Cookie<'a> {
         Cookie {
             cookie: CookieRs::new(name, value),
         }
@@ -62,12 +62,12 @@ impl<'a> Cookie<'a> {
     /// );
     /// println!("{:?}", cookie);
     /// ```
-    pub fn build(name: &str, value: &str) -> CookieBuilder<'a> {
+    pub fn build(name: &'a str, value: &'a str) -> CookieBuilder<'a> {
         CookieRs::build(name, value)
     }
     // Parse a Cookie header value and create a Vec with all the
     // cookies in the header
-    pub(crate) fn parse(header: &str) -> Vec<Cookie<'a>> {
+    pub(crate) fn parse(header: &'a str) -> Vec<Cookie<'a>> {
         let mut cookies_vec = Vec::new();
         let header_cookies = header.split("; ");
         for tok in header_cookies {

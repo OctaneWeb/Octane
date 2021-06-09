@@ -1,5 +1,5 @@
+use tokio::io::AsyncRead;
 use tokio::io::ReadHalf;
-use tokio::prelude::*;
 
 pub struct RawRequest1x<'a, T> {
     pub headers: String,

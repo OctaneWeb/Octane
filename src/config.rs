@@ -105,6 +105,8 @@ pub struct OctaneConfig {
     pub keep_alive: Option<Duration>,
     /// An instance of the `Ssl` struct to store the values of key and certificates.
     pub ssl: Ssl,
+    /// Accept only http2 connections, false by default
+    pub h2_only: bool,
     worker_threads: Option<usize>,
 }
 
@@ -205,6 +207,7 @@ impl OctaneConfig {
         OctaneConfig {
             ssl: Ssl::new(),
             keep_alive: Some(Duration::from_secs(5)),
+            http2_only: false,
             worker_threads: None,
         }
     }
@@ -220,6 +223,12 @@ impl OctaneConfig {
     /// [tokio's core_threads](https://docs.rs/tokio/0.2.13/tokio/runtime/struct.Builder.html#method.core_threads)
     pub fn worker_threads(&mut self, threads: usize) -> &mut Self {
         self.worker_threads = Some(threads);
+        self
+    }
+
+    /// If set to true then only accept connections that are http2
+    pub fn h2_only(&mut self, h2_only: bool) -> &mut Self {
+        self.h2_only = h2_only;
         self
     }
 

@@ -11,5 +11,5 @@ path = "../octane_macros"
 version = "0.1.2"
 
 [dependencies]
-tokio = { version = "0.3", features = ["net", "io-util", "stream", "rt-multi-thread"] }
-
+tokio = { version = "1.6", features = ["net", "io-util", "rt-multi-thread"] }
+socket2 = "0.4.0"

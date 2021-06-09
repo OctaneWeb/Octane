@@ -1,8 +1,6 @@
 use crate::http1x::raw_request::RawRequest1x;
 use crate::StatusCode;
-use tokio::io::ReadHalf;
-
-use tokio::prelude::*;
+use tokio::io::{AsyncRead, AsyncReadExt, ReadHalf};
 
 pub mod raw_request;
 

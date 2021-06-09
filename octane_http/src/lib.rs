@@ -1,6 +1,7 @@
 use octane_macros::status_codes;
 use std::fmt;
 
+mod con;
 pub mod http1x;
 /// Holds the http versions. You can match the
 /// variants by doing a comparison with the version

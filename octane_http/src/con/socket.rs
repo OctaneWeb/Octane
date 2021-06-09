@@ -1,49 +1,60 @@
-use crate::server::Octane;
-use crate::task;
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use std::future::Future;
+use socket2::{Domain, Protocol, Socket, Type};
+
 use std::io::Result;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Arc;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener as StdTcpListener};
+
 use tokio::net::{TcpListener, TcpStream};
-use tokio::stream::StreamExt;
 #[cfg(feature = "openSSL")]
 use tokio_openssl::SslStream;
 #[cfg(feature = "rustls")]
 use tokio_rustls::server::TlsStream;
 
-pub struct ServerBuilder {
-    socket: TcpListener,
+pub struct TcpListenerBuilder {
+    port: u16,
+    addr: SocketAddr,
+    domain: Domain,
+    stream_type: Type,
+    proto: Option<Protocol>,
 }
 
-impl ServerBuilder {
-    pub fn new(port: u16) -> Result<Self> {
-        let stream = Type::stream();
-        let socket = Socket::new(Domain::ipv4(), stream, None)?;
-        socket.set_nonblocking(true)?;
-        let bind_add = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
-        socket.bind(&SockAddr::from(bind_add))?;
-        socket.listen(2048)?;
-        socket.set_reuse_address(true)?;
-        Ok(ServerBuilder {
-            socket: TcpListener::from_std(socket.into_tcp_listener())?,
-        })
+impl TcpListenerBuilder {
+    pub fn new(port: u16) -> Self {
+        Self {
+            addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+            port,
+            domain: Domain::IPV4,
+            stream_type: Type::STREAM,
+            proto: None,
+        }
     }
 
-    pub async fn listen<C, T>(mut self, exec: C, server: Arc<Octane>) -> Result<()>
-    where
-        T: Future + Send,
-        C: FnOnce(TcpStream, Arc<Octane>) -> T + Send + 'static + Copy,
-    {
-        while let Some(stream) = self.socket.next().await {
-            stream.map(|stream| {
-                let server = Arc::clone(&server);
-                task!({
-                    exec(stream, server).await;
-                })
-            })?;
+    pub fn ipv6(&mut self, addr: SocketAddr) -> &mut Self {
+        if addr.is_ipv6() {
+            self.addr = addr;
+            self.domain = Domain::IPV6;
+            self
+        } else {
+            // Early exit
+            panic!("{:?}",);
         }
-        Ok(())
+    }
+
+    pub fn ipv4(&mut self, addr: SocketAddr) -> &mut Self {
+        if addr.is_ipv4() {
+            self.addr = addr;
+            self.domain = Domain::IPV4;
+            self
+        } else {
+            // Early exit
+            panic!("{:?}",);
+        }
+    }
+
+    pub fn bind(self) -> Result<StdTcpListener> {
+        let socket = Socket::new(self.domain, self.stream_type, self.proto)?;
+        socket.bind(&self.addr.into())?;
+        socket.listen(128)?;
+        Ok(socket.into())
     }
 
     #[cfg(feature = "openSSL")]

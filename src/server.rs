@@ -26,7 +26,7 @@ use tokio::prelude::*;
 /// ```no_run
 /// use octane::prelude::*;
 ///
-/// #[octane::main]
+/// #[tokio::main]
 /// async fn main() {
 ///     let mut app = Octane::new();
 ///     app.get(
@@ -113,7 +113,7 @@ impl Octane {
     /// ```no_run
     /// use octane::Octane;
     ///
-    /// #[octane::main]
+    /// #[tokio::main]
     /// async fn main() {
     ///     let mut app = Octane::new();
     ///     let port = 80;
@@ -170,7 +170,7 @@ impl Octane {
     {
         let (reader, writer) = split(stream_async);
         let mut data = Vec::new();
-        let parsed = Http1xReader::new(RawRequest1x::new(reader), &mut data).await;
+        let parsed = Http1xReader::new(reader, &mut data).await;
         if let Ok((raw_headers, raw_request_line, body_remainder, reader_left)) = parsed {
             let headers = Headers::parse(raw_headers).unwrap();
             let request_line = RequestLine::parse(raw_request_line).unwrap();

@@ -31,7 +31,7 @@ Create an octane instance, and then you can register your methods on it using `a
 use octane::prelude::*;
 use std::error::Error;
 
-#[octane::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mut app = Octane::new();
     app.ssl(8001)
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }),
     )?;
 
-    app.add(Octane::static_dir(path!("/templates/")))?;
+    app.add(Octane::static_dir("templates"))?;
     app.listen(8000, || println!("Server Started!")).await
 }
 ```

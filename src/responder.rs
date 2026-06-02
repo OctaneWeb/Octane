@@ -546,14 +546,14 @@ mod test {
         ret
     }
 
-    #[crate::test]
+    #[tokio::test]
     async fn success_standard() {
         // default response should provide OK 200 Code
         let req = data_to_string(Response::new_from_slice(b"").get_data()).await;
         assert_eq!(req, "HTTP/1.1 200 OK\r\n\r\n");
     }
 
-    #[crate::test]
+    #[tokio::test]
     async fn response_with_status_code_different() {
         // Reponse with different status codes should work
         let mut req = Response::new_from_slice(b"");
@@ -565,7 +565,7 @@ mod test {
         );
     }
 
-    #[crate::test]
+    #[tokio::test]
     async fn response_with_different_http_version() {
         // Reponse with different status codes should work
         let mut req = Response::new_from_slice(b"");

@@ -1,6 +1,14 @@
 use octane_macros::status_codes;
 use std::fmt;
 
+pub const SP: char = ' ';
+pub const HT: char = '\t';
+pub const CR: char = '\r';
+pub const LF: char = '\n';
+pub const CRLF: &[u8; 2] = b"\r\n";
+pub const DOUBLE_CRLF: &[u8; 4] = b"\r\n\r\n";
+
+mod eater;
 pub mod http1x;
 /// Holds the http versions. You can match the
 /// variants by doing a comparison with the version
@@ -8,7 +16,7 @@ pub mod http1x;
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use octane::prelude::*;
 /// use octane::request::HttpVersion;
 ///

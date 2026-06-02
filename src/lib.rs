@@ -24,7 +24,7 @@
 //! use octane::prelude::*;
 //! use std::error::Error;
 //!
-//! #[octane::main]
+//! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
 //!     let mut app = Octane::new();
 //!     app.get("/",
@@ -96,15 +96,11 @@ pub(crate) mod util;
 #[cfg(feature = "extended_queries")]
 pub use crate::query::QueryValue;
 pub use octane_http::StatusCode;
-pub use octane_macros::main;
-pub use octane_macros::test;
 /// Prelude here brings in scope, the [`Route`](router/trait.Route.html) and
 /// [`Config`](config/trait.Config.html) trait, [`Octane`](struct.Octane.html) main server
 /// and [`Router`](router/struct.Router.html) struct with the [`Flow`](router/enum.Flow.html)
-/// and the [`Value`](../octane_json/enum.Value.html) enum, the [`route`](macro.route.html),
-/// [`route_next`](macro.route_next.html), [`path`](macro.path.html), [`route_stop`](macro.route_stop.html)
-/// macros with the [`ToJSON`](../octane_json/convert/trait.ToJSON.html)
-/// /[`FromJSON`](../octane_json/convert/trait.FromJSON.html) derive macros
+/// enum, and the [`route`](macro.route.html), [`route_next`](macro.route_next.html),
+/// [`route_stop`](macro.route_stop.html) macros
 pub mod prelude {
     pub use crate::config::Config;
     pub use crate::Octane;
@@ -112,7 +108,6 @@ pub mod prelude {
         route, route_next, route_stop,
         router::{Flow, Route, Router},
     };
-    pub use octane_macros::path;
 }
 
 #[cfg(all(feature = "openSSL", feature = "rustls"))]

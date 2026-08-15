@@ -124,6 +124,20 @@ impl RequestLine {
     }
 }
 
+/// Helper method to Parse request line from method url version parts
+pub(crate) fn request_line_parse(method: &[u8], url: &[u8], version: &[u8]) -> Option<RequestLine> {
+    match (
+        str::from_utf8(method),
+        str::from_utf8(url),
+        str::from_utf8(version),
+    ) {
+        (Ok(method), Ok(url), Ok(version)) => {
+            RequestLine::parse(&format!("{} {} {}", method, url, version))
+        }
+        _ => None,
+    }
+}
+
 /// The header structure represents a parsed value
 /// of unit header that looks like `key: value`
 /// and holds both the key and value. You

@@ -168,19 +168,37 @@ impl Octane {
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
-        let (reader, writer) = split(stream_async);
+        let (mut reader, writer) = split(stream_async);
+
         let mut data = Vec::new();
-        let parsed = Http1xReader::new(reader, &mut data).await;
-        if let Ok((raw_headers, raw_request_line, body_remainder, reader_left)) = parsed {
-            let headers = Headers::parse(raw_headers).unwrap();
-            let request_line = RequestLine::parse(raw_request_line).unwrap();
+        let mut body_vec = Vec::new();
+
+        // only http1.1x path for now :)
+        let raw = match Http1xReader::new(&mut reader, &mut data).await {
+            Ok(raw) => raw,
+            Err(code) => {
+                declare_error!(writer, code);
+            }
+        };
+
+        let request_line = crate::request::request_line_parse(
+            raw.request_method,
+            raw.request_url,
+            raw.request_version,
+        );
+
+        // headers in htt1.1x are valid utf8 strs
+        let headers = str::from_utf8(raw.headers)
+            .ok()
+            .and_then(|h| Headers::parse(h.to_owned()));
+
+        if let (Some(request_line), Some(headers)) = (request_line, headers) {
             if let Some(request) = Request::from_raw(
                 &headers,
                 request_line,
-                Default::default(),
-                &mut Default::default(),
-                body_remainder,
-                reader_left,
+                raw.body_remainder,
+                &mut body_vec,
+                reader,
             )
             .await
             {

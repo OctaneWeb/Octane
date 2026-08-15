@@ -206,9 +206,14 @@ impl Octane {
                 declare_error!(writer, StatusCode::BadRequest);
             }
         } else {
-            declare_error!(writer, parsed.err().unwrap());
+            declare_error!(writer, StatusCode::BadRequest);
         }
         Ok(())
+    }
+    /// Run the router for a parsed request, filling `res`. Exposed for the
+    /// HTTP/2 driver (a separate module) which cannot reach the private router.
+    pub(crate) fn route(&self, request: Request<'_>, res: &mut Response) {
+        self.router.run(request, res);
     }
     pub(crate) async fn send<S>(
         mut response: (String, BoxReader),

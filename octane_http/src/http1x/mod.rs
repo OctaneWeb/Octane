@@ -19,11 +19,14 @@ const MAX_HEAD_SIZE: usize = 64 * 1024;
 /// `CRLFCRLF` head terminator is seen (or the peer hangs up). The returned
 /// [`RawRequest1x`] then borrows directly from `data` — the method, url,
 /// version, header block and already-buffered body are all sub-slices of it.
+///
+/// The reader is borrowed rather than consumed, so the caller still owns it
+/// afterwards and can stream the rest of the body off the same source.
 pub struct Http1xReader;
 
 impl Http1xReader {
     pub async fn new<'a, R>(
-        mut reader: R,
+        reader: &mut R,
         data: &'a mut Vec<u8>,
     ) -> Result<RawRequest1x<'a>, StatusCode>
     where
@@ -59,7 +62,7 @@ impl Http1xReader {
 /// Free-function form of [`Http1xReader::new`], kept for call sites that read
 /// a request without holding onto a reader type.
 pub async fn http_1x_reader<'a, R>(
-    reader: R,
+    reader: &mut R,
     data: &'a mut Vec<u8>,
 ) -> Result<RawRequest1x<'a>, StatusCode>
 where
@@ -114,8 +117,9 @@ mod tests {
         // this exercises the multi-`read` accumulation loop.
         let raw = b"GET /hi HTTP/1.1\r\nHost: a\r\n\r\nbody-bytes";
         let mut data = Vec::new();
+        let mut reader = &raw[..];
 
-        let req = block_on(Http1xReader::new(&raw[..], &mut data)).unwrap();
+        let req = block_on(Http1xReader::new(&mut reader, &mut data)).unwrap();
 
         assert_eq!(req.request_method, b"GET");
         assert_eq!(req.request_url, b"/hi");
@@ -127,8 +131,9 @@ mod tests {
     fn errors_when_peer_hangs_up_before_head_completes() {
         let raw = b"GET / HTTP/1.1\r\nHost: a\r\n"; // no terminating CRLFCRLF
         let mut data = Vec::new();
+        let mut reader = &raw[..];
 
-        let result = block_on(Http1xReader::new(&raw[..], &mut data));
+        let result = block_on(Http1xReader::new(&mut reader, &mut data));
 
         assert_eq!(result, Err(StatusCode::BadRequest));
     }

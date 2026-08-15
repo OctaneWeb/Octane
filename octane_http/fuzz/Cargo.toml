@@ -1,0 +1,57 @@
+[package]
+name = "octane_http-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tokio = { version = "0.3", features = ["io-util", "rt"] }
+
+[dependencies.octane_http]
+path = ".."
+
+# Keep this crate out of the parent workspace so cargo-fuzz can build it
+# with its own (sanitizer-instrumented) profile.
+[workspace]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "http1x_parse"
+path = "fuzz_targets/http1x_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http1x_read"
+path = "fuzz_targets/http1x_read.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http2_frame"
+path = "fuzz_targets/http2_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http2_hpack"
+path = "fuzz_targets/http2_hpack.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "quic"
+path = "fuzz_targets/quic.rs"
+test = false
+doc = false
+bench = false

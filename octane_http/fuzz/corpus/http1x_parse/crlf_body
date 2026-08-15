@@ -1,0 +1,6 @@
+PUT /x HTTP/1.0
+A: b
+C: d
+
+line1
+line2

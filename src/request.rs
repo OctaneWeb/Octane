@@ -124,6 +124,20 @@ impl RequestLine {
     }
 }
 
+/// Helper method to Parse request line from method url version parts
+pub(crate) fn request_line_parse(method: &[u8], url: &[u8], version: &[u8]) -> Option<RequestLine> {
+    match (
+        str::from_utf8(method),
+        str::from_utf8(url),
+        str::from_utf8(version),
+    ) {
+        (Ok(method), Ok(url), Ok(version)) => {
+            RequestLine::parse(&format!("{} {} {}", method, url, version))
+        }
+        _ => None,
+    }
+}
+
 /// The header structure represents a parsed value
 /// of unit header that looks like `key: value`
 /// and holds both the key and value. You
@@ -228,6 +242,36 @@ impl Headers {
             raw: PhantomData,
         })
     }
+
+    /// Build `Headers` from already-decoded name/value pairs, as produced by
+    /// the HTTP/2 HPACK decoder. Names are lowercased and duplicates are joined
+    /// (with `; ` for `cookie` per RFC 9113 §8.2.3, `, ` otherwise); no header
+    /// block is re-serialized.
+    pub(crate) fn from_pairs(pairs: &[(String, String)]) -> Self {
+        let mut parsed: HashMap<String, String> = HashMap::new();
+        #[cfg(feature = "raw_headers")]
+        let mut raw: Vec<Header> = Vec::new();
+        for (name, value) in pairs {
+            let lower = name.to_ascii_lowercase();
+            let sep = if lower == "cookie" { "; " } else { ", " };
+            parsed
+                .entry(lower)
+                .and_modify(|v| *v = format!("{}{}{}", v, sep, value))
+                .or_insert_with(|| value.clone());
+            #[cfg(feature = "raw_headers")]
+            raw.push(Header {
+                name: name.clone(),
+                value: value.clone(),
+            });
+        }
+        Self {
+            parsed,
+            #[cfg(feature = "raw_headers")]
+            raw,
+            #[cfg(not(feature = "raw_headers"))]
+            raw: PhantomData,
+        }
+    }
 }
 
 /// Represents a single request
@@ -293,32 +337,37 @@ impl<'a> Request<'a> {
             body,
         })
     }
+    /// Build a [`Request`] from an already-parsed request line and header set,
+    /// reading any body bytes that weren't already buffered alongside the head.
+    ///
+    /// `body_remainder` is the slice of the body that arrived in the same read
+    /// as the head; if `Content-Length` calls for more, the rest is streamed
+    /// off `reader` into `body_vec`.
     pub(crate) async fn from_raw<T: AsyncRead + Unpin>(
         headers: &'a Headers,
         request_line: RequestLine,
-        mut body: &'a [u8],
-        body_vec: &'a mut Vec<u8>,
         body_remainder: &'a [u8],
+        body_vec: &'a mut Vec<u8>,
         mut reader: ReadHalf<T>,
     ) -> Option<Request<'a>> {
         let body_len = headers
             .get("content-length")
             .and_then(|s| s.parse().ok())
             .unwrap_or(0);
-        if body_len > 0 {
+        let body: &'a [u8] = if body_len > 0 {
             if body_remainder.len() < body_len {
                 let mut temp: Vec<u8> = vec![0; body_len - body_remainder.len()];
-                reader.read_exact(&mut temp[..]).await.ok().unwrap();
+                reader.read_exact(&mut temp[..]).await.ok()?;
                 *body_vec = Vec::with_capacity(body_len);
                 body_vec.extend_from_slice(body_remainder);
                 body_vec.extend_from_slice(&temp[..]);
-                body = &body_vec[..];
+                &body_vec[..]
             } else {
-                body = body_remainder;
+                body_remainder
             }
         } else {
-            body = &[];
-        }
+            &[]
+        };
         Self::parse(request_line, headers, body)
     }
 

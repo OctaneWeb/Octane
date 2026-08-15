@@ -68,9 +68,15 @@ mod tests {
         assert_eq!(eat_till_two_bytes(b"abc\r\nxyz", CRLF), Ok(3));
         assert_eq!(eat_till_two_bytes(b"\r\nrest", CRLF), Ok(0));
         // a lone CR with no following LF is not a match
-        assert_eq!(eat_till_two_bytes(b"abc\rxyz", CRLF), Err(StatusCode::BadRequest));
+        assert_eq!(
+            eat_till_two_bytes(b"abc\rxyz", CRLF),
+            Err(StatusCode::BadRequest)
+        );
         // a trailing CR at the very end has no room for the LF
-        assert_eq!(eat_till_two_bytes(b"abc\r", CRLF), Err(StatusCode::BadRequest));
+        assert_eq!(
+            eat_till_two_bytes(b"abc\r", CRLF),
+            Err(StatusCode::BadRequest)
+        );
     }
 
     #[test]

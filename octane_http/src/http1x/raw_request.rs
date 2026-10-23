@@ -46,6 +46,19 @@ impl<'a> RawRequest1x<'a> {
     /// terminated by `CRLFCRLF`; any bytes after that terminator are exposed
     /// through [`RawRequest1x::body_remainder`]. No bytes are copied.
     pub fn parse(buf: &'a [u8]) -> Result<Self, StatusCode> {
+        Self::parse_inner(buf, None)
+    }
+
+    /// Parse using a CRLFCRLF end position already found by the streaming
+    /// reader. Valid requests avoid searching the complete head a second time.
+    pub(super) fn parse_with_head_end(
+        buf: &'a [u8],
+        complete_head_end: usize,
+    ) -> Result<Self, StatusCode> {
+        Self::parse_inner(buf, Some(complete_head_end))
+    }
+
+    fn parse_inner(buf: &'a [u8], complete_head_end: Option<usize>) -> Result<Self, StatusCode> {
         // METHOD SP ...
         let method_end = eat_till(buf, SP)?;
         let request_method = &buf[..method_end];
@@ -74,7 +87,28 @@ impl<'a> RawRequest1x<'a> {
         // request with zero headers (where the request-line CRLF is itself the
         // first half of the terminator) parse without a special case.
         let after_version = &after_url[version_end..];
-        let head_end = eat_till_four_bytes(after_version, DOUBLE_CRLF)?;
+        let after_version_start = buf.len() - after_version.len();
+        let head_end = match complete_head_end {
+            Some(complete_head_end) => {
+                let terminator_start = complete_head_end
+                    .checked_sub(DOUBLE_CRLF.len())
+                    .ok_or(StatusCode::BadRequest)?;
+
+                if buf.get(terminator_start..complete_head_end) != Some(&DOUBLE_CRLF[..]) {
+                    return Err(StatusCode::BadRequest);
+                }
+
+                if terminator_start >= after_version_start {
+                    terminator_start - after_version_start
+                } else {
+                    // Preserve `parse`'s behavior for structurally malformed
+                    // request-lines containing an earlier CRLFCRLF. Normal
+                    // requests always take the zero-rescan branch above.
+                    eat_till_four_bytes(after_version, DOUBLE_CRLF)?
+                }
+            }
+            None => eat_till_four_bytes(after_version, DOUBLE_CRLF)?,
+        };
 
         // Skip the request-line CRLF (2 bytes) to reach the header block, which
         // runs up to the start of the terminating CRLFCRLF. When there are no

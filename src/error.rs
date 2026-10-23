@@ -49,12 +49,12 @@ impl Error {
     where
         S: AsyncWrite + Unpin,
     {
-        let mut res = Response::new_from_slice(NOT_FOUND.as_bytes());
+        let mut res = Response::new_from_static(NOT_FOUND.as_bytes());
         res.status(self.kind)
             .default_headers()
             .set("Content-Type", "text/html");
 
-        let response = res.get_data();
+        let response = res.into_parts();
         Octane::send(response, stream).await?;
         Ok(())
     }

@@ -2,22 +2,34 @@ use crate::config::{Config, OctaneConfig, Ssl};
 use crate::error::Error;
 use crate::http::Http;
 use crate::middlewares::Closures;
-use crate::request::{Headers, Request, RequestLine};
-use crate::responder::{BoxReader, Response};
+use crate::request::{Headers, Request};
+use crate::responder::{ResBody, Response};
 use crate::router::{Closure, Route, Router, RouterResult};
 use crate::server_builder::ServerBuilder;
 use crate::tls::AsMutStream;
 use crate::{declare_error, default};
-use octane_http::http1x::raw_request::RawRequest1x;
 use octane_http::http1x::Http1xReader;
 use octane_http::StatusCode;
 use std::error::Error as StdError;
+use std::io;
 use std::marker::Unpin;
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{copy, split, AsyncWriteExt};
-use tokio::prelude::*;
+use tokio::io::{copy, split, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::sync::Semaphore;
+
+fn checked_connection_limit(configured: usize) -> io::Result<usize> {
+    let configured = configured.max(1);
+    if configured > Semaphore::MAX_PERMITS {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "max_connections exceeds the supported semaphore limit",
+        ))
+    } else {
+        Ok(configured)
+    }
+}
 
 /// The Octane server
 ///
@@ -108,6 +120,10 @@ impl Octane {
     /// function also starts the Ssl server if the features
     /// are enabled and the key/certs are provided
     ///
+    /// The default connection deadline uses Tokio's time driver. A custom
+    /// runtime must call `enable_time` or `enable_all`; runtimes created by
+    /// `#[tokio::main]` already enable it.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -126,28 +142,35 @@ impl Octane {
     where
         F: FnOnce(),
     {
+        let max_connections = checked_connection_limit(self.settings.max_connections)?;
         let server = Arc::new(self);
+        let connections = Arc::new(Semaphore::new(max_connections));
         let mut _ssl = false;
 
         #[cfg(any(feature = "openSSL", feature = "rustls"))]
         {
             use crate::task;
             let clone = Arc::clone(&server);
+            let tls_connections = Arc::clone(&connections);
             _ssl = true;
 
-            async fn listen_ssl(server: Arc<Octane>) -> Result<(), Box<dyn StdError>> {
+            async fn listen_ssl(
+                server: Arc<Octane>,
+                connections: Arc<Semaphore>,
+            ) -> Result<(), Box<dyn StdError>> {
                 let server_builder = ServerBuilder::new(server.settings.ssl.port);
                 server_builder?
                     .listen_ssl(
                         |stream, server| async { Octane::serve(stream, server).await },
                         server,
+                        connections,
                     )
                     .await?;
                 Ok(())
             }
 
             task!({
-                if let Err(x) = listen_ssl(clone).await {
+                if let Err(x) = listen_ssl(clone, tls_connections).await {
                     println!("WARNING: {}", x);
                 }
             });
@@ -158,6 +181,7 @@ impl Octane {
             .listen(
                 move |stream, server| async move { Octane::serve(stream, server).await },
                 server,
+                connections,
             )
             .await?;
 
@@ -182,33 +206,36 @@ impl Octane {
         let (mut reader, writer) = split(stream_async);
 
         let mut data = Vec::new();
-        let mut body_vec = Vec::new();
 
         // only http1.1x path for now :)
-        let raw = match Http1xReader::new(&mut reader, &mut data).await {
-            Ok(raw) => raw,
-            Err(code) => {
-                declare_error!(writer, code);
-            }
+        let (request_line, headers, buffered_body_len) = {
+            let raw = match Http1xReader::new(&mut reader, &mut data).await {
+                Ok(raw) => raw,
+                Err(code) => {
+                    declare_error!(writer, code);
+                }
+            };
+
+            let buffered_body_len = raw.body_remainder.len();
+            let request_line = crate::request::request_line_parse(
+                raw.request_method,
+                raw.request_url,
+                raw.request_version,
+            );
+            // Headers are owned after parsing, so the raw view can end before
+            // the request body grows `data`.
+            let headers = str::from_utf8(raw.headers).ok().and_then(Headers::parse);
+            (request_line, headers, buffered_body_len)
         };
-
-        let request_line = crate::request::request_line_parse(
-            raw.request_method,
-            raw.request_url,
-            raw.request_version,
-        );
-
-        // headers in htt1.1x are valid utf8 strs
-        let headers = str::from_utf8(raw.headers)
-            .ok()
-            .and_then(|h| Headers::parse(h.to_owned()));
+        // The raw view has ended, so `data` can be borrowed mutably again.
+        let body_start = data.len() - buffered_body_len;
 
         if let (Some(request_line), Some(headers)) = (request_line, headers) {
             let request = match Request::from_raw(
-                &headers,
+                headers,
                 request_line,
-                raw.body_remainder,
-                &mut body_vec,
+                &mut data,
+                body_start,
                 reader,
                 server.settings.max_body_size,
             )
@@ -219,21 +246,22 @@ impl Octane {
                     declare_error!(writer, code);
                 }
             };
-            let request_line = &request.request_line;
             let mut res = Response::new_empty();
             // Detect http version and validate
-            let checker = Http::validate(&request);
-            if checker.is_malformed() {
-                declare_error!(writer, checker.err_code.unwrap());
+            {
+                let checker = Http::validate(&request);
+                if checker.is_malformed() {
+                    declare_error!(writer, checker.err_code.unwrap());
+                }
             }
-            if request_line.method.is_some() {
+            if request.request_line.method.is_some() {
                 // run closures
-                server.router.run(request.clone(), &mut res);
+                server.router.run(request, &mut res);
                 if !res.has_body() {
                     declare_error!(writer, StatusCode::NotFound);
                 }
 
-                Octane::send(res.get_data(), writer).await?;
+                Octane::send(res.into_parts(), writer).await?;
             } else {
                 declare_error!(writer, StatusCode::NotImplemented);
             }
@@ -248,14 +276,22 @@ impl Octane {
         self.router.run(request, res);
     }
     pub(crate) async fn send<S>(
-        mut response: (String, BoxReader),
+        response: (String, ResBody),
         mut stream_async: S,
     ) -> Result<(), Box<dyn StdError>>
     where
         S: AsyncWrite + Unpin,
     {
         stream_async.write_all(response.0.as_bytes()).await?;
-        copy(&mut response.1, &mut stream_async).await?;
+        match response.1 {
+            ResBody::None => {}
+            ResBody::Bytes(body) => stream_async.write_all(&body).await?,
+            ResBody::Static(body) => stream_async.write_all(body).await?,
+            ResBody::Sized(len, reader) => {
+                let mut reader = reader.take(len as u64);
+                copy(&mut reader, &mut stream_async).await?;
+            }
+        }
         Ok(())
     }
 }
@@ -305,5 +341,21 @@ impl Config for Octane {
     fn ssl(&mut self, port: u16) -> &mut Ssl {
         self.settings.ssl.port = port;
         &mut self.settings.ssl
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::checked_connection_limit;
+    use tokio::sync::Semaphore;
+
+    #[test]
+    fn connection_limit_is_validated_before_building_the_semaphore() {
+        assert_eq!(checked_connection_limit(0).unwrap(), 1);
+        assert_eq!(
+            checked_connection_limit(Semaphore::MAX_PERMITS).unwrap(),
+            Semaphore::MAX_PERMITS
+        );
+        assert!(checked_connection_limit(usize::MAX).is_err());
     }
 }

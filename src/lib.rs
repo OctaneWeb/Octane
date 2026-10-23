@@ -15,7 +15,7 @@
 //!
 //! ```toml
 //! octane = "0.1.1"
-//! tokio = "0.2.22"
+//! tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 //! ```
 //!
 //! and then in your main.rs,
@@ -64,8 +64,6 @@
 //! The rust code you would use to setup openssl will be same as rustls (not including certs and keys).
 //! If you want to switch between any of them, its just the matter of editing your cargo.toml
 //! to enable the feature.
-#[macro_use]
-extern crate lazy_static;
 /// Configurations for Octane web server
 pub mod config;
 pub(crate) mod constants;

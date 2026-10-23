@@ -1,8 +1,17 @@
 use crate::constants::{
     DAYS_IN_MONTH, DAYS_PER_100Y, DAYS_PER_400Y, DAYS_PER_4Y, LEAPOCH, MONTHS, SP, WEEKS,
 };
+use std::cell::RefCell;
 use std::convert::TryInto;
+use std::fmt::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+thread_local! {
+    // HTTP dates have one-second precision. Keeping the formatted value per
+    // worker thread avoids recalculating the calendar for every response and
+    // needs neither a lock nor another dependency.
+    static HTTP_DATE_CACHE: RefCell<Option<(u64, String)>> = RefCell::new(None);
+}
 
 pub(crate) struct Time {
     min: i64,
@@ -14,86 +23,67 @@ pub(crate) struct Time {
     day: i64,
 }
 
-trait Padding {
-    fn pad_zero(self) -> String;
-}
-
-impl Padding for i64 {
-    fn pad_zero(self) -> String {
-        let day_string = format!("{}{}", 0, self);
-        (&day_string[day_string.len() - 2..]).to_owned()
-    }
-}
-
 impl Time {
-    pub(crate) fn now() -> Option<Self> {
-        let stamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(n) => {
-                if let Ok(x) = n.as_secs().try_into() {
-                    x
-                } else {
-                    return None;
+    pub(crate) fn now_http_date() -> Option<String> {
+        let stamp = Self::unix_timestamp()?;
+        HTTP_DATE_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if let Some((cached_stamp, cached_date)) = cache.as_ref() {
+                if *cached_stamp == stamp {
+                    return Some(cached_date.clone());
                 }
             }
-            Err(m) => panic!("Got time error: {}", m),
-        };
-        Self::time(stamp)
+            let stamp_i64 = stamp.try_into().ok()?;
+            let date = Self::time(stamp_i64)?.format();
+            *cache = Some((stamp, date.clone()));
+            Some(date)
+        })
+    }
+    fn unix_timestamp() -> Option<u64> {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .map(|duration| duration.as_secs())
     }
     pub(crate) fn format(&self) -> String {
-        if let Some(month_day) = self.month_day() {
-            if let Some(week_day) = self.week_day() {
-                let date = format!(
-                    "{}{}{}{}{}",
-                    self.day.pad_zero(),
-                    SP,
-                    month_day,
-                    SP,
-                    self.year
-                );
-                let time = format!(
-                    "{}:{}:{}",
-                    self.hour.pad_zero(),
-                    self.min.pad_zero(),
-                    self.sec.pad_zero()
-                );
-                format!("{},{}{}{}{}{}GMT", week_day, SP, date, SP, time, SP)
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        }
+        let (month_day, week_day) = match (self.month_day(), self.week_day()) {
+            (Some(month_day), Some(week_day)) => (month_day, week_day),
+            _ => return String::new(),
+        };
+        // An IMF-fixdate is always 29 ASCII bytes. Reserving it once avoids the
+        // temporary strings previously created for every individual field.
+        let mut output = String::with_capacity(29);
+        write!(
+            &mut output,
+            "{},{}{:02}{}{}{}{}{}{:02}:{:02}:{:02}{}GMT",
+            week_day,
+            SP,
+            self.day,
+            SP,
+            month_day,
+            SP,
+            self.year,
+            SP,
+            self.hour,
+            self.min,
+            self.sec,
+            SP
+        )
+        .expect("writing a date to a String cannot fail");
+        output
     }
     /*
     pub fn with_stamp(self, stamp: i64) -> Option<Self> {
         Self::time(stamp)
     }
     */
-    fn week_day(&self) -> Option<String> {
-        if let Some(week) = WEEKS.iter().enumerate().find(|(i, _)| {
-            if let Ok(week_day) = self.week.try_into() {
-                *i == week_day
-            } else {
-                false
-            }
-        }) {
-            Some(week.1.to_string())
-        } else {
-            None
-        }
+    fn week_day(&self) -> Option<&'static str> {
+        let week: usize = self.week.try_into().ok()?;
+        WEEKS.get(week).copied()
     }
-    fn month_day(&self) -> Option<String> {
-        if let Some(month) = MONTHS.iter().enumerate().find(|(i, _)| {
-            if let Ok(month_day) = self.month.try_into() {
-                *i == month_day
-            } else {
-                false
-            }
-        }) {
-            Some(month.1.to_string())
-        } else {
-            None
-        }
+    fn month_day(&self) -> Option<&'static str> {
+        let month: usize = self.month.try_into().ok()?;
+        MONTHS.get(month).copied()
     }
 
     pub(crate) fn time(stamp: i64) -> Option<Self> {

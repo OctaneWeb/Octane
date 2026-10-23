@@ -1,7 +1,7 @@
 use crate::default;
 use crate::error::InvalidPathError;
 use crate::middlewares::Closures;
-use crate::path::{MatchedPath, PathNode};
+use crate::path::PathNode;
 use crate::request::{MatchedRequest, Request, RequestMethod};
 use crate::responder::Response;
 use std::collections::HashMap;
@@ -256,59 +256,83 @@ impl Router {
 
     // Fetch the closure according to the request path, run that
     // specific closure.
-    pub(crate) fn run(&self, parsed_request: Request<'_>, mut res: &mut Response) {
-        let req = &parsed_request.request_line;
+    pub(crate) fn run(&self, parsed_request: Request<'_>, res: &mut Response) {
+        let method = parsed_request.request_line.method;
+        // `MatchedPath` values borrow their input path when URL variables are
+        // enabled. A path-only clone lets the router move the much larger
+        // request (including all headers) into `MatchedRequest` unchanged.
+        let match_path = parsed_request.request_line.path.clone();
 
-        let mut matches: Vec<Vec<MatchedPath<Closures>>> = Vec::new();
-        if let Some(functions) = self.paths.get(&req.method) {
-            let mut routes = functions.get(&req.path);
-            routes.sort_by_key(|v| v.index);
-            matches.push(routes);
-        };
-        // run RequestMethod::All regardless of the request method
-        if let Some(functions) = self.paths.get(&RequestMethod::All) {
-            let mut routes = functions.get(&req.path);
-            routes.sort_by_key(|v| v.index);
-            matches.push(routes);
-        }
+        let mut method_routes = self
+            .paths
+            .get(&method)
+            .map_or_else(Vec::new, |functions| {
+                let mut routes = functions.get(&match_path);
+                routes.sort_unstable_by_key(|route| route.index);
+                routes
+            })
+            .into_iter()
+            .peekable();
+        // Run RequestMethod::All regardless of the request method.
+        let mut all_routes = self
+            .paths
+            .get(&RequestMethod::All)
+            .map_or_else(Vec::new, |functions| {
+                let mut routes = functions.get(&match_path);
+                routes.sort_unstable_by_key(|route| route.index);
+                routes
+            })
+            .into_iter()
+            .peekable();
+        let mut middlewares = self.middlewares.iter().peekable();
 
-        matches.push(
-            self.middlewares
-                .iter()
-                .map(|c| MatchedPath {
-                    data: c,
-                    #[cfg(feature = "url_variables")]
-                    vars: HashMap::new(),
-                })
-                .collect(),
-        );
-
-        let mut indices = vec![0_usize; matches.len()];
-        let total: usize = matches.iter().map(Vec::len).sum();
         #[cfg(feature = "url_variables")]
         let mut matched = MatchedRequest {
-            request: parsed_request.clone(),
+            request: parsed_request,
             vars: HashMap::new(),
         };
         #[cfg(not(feature = "url_variables"))]
         let matched = MatchedRequest {
-            request: parsed_request.clone(),
+            request: parsed_request,
         };
-        for _ in 0..total {
-            let mut minind = 0;
-            let mut minval = usize::MAX;
-            for (n, (v, i)) in matches.iter().zip(indices.iter()).enumerate() {
-                if *i < v.len() && v[*i].index < minval {
-                    minval = v[*i].index;
-                    minind = n;
-                }
-            }
-            #[cfg(feature = "url_variables")]
+
+        loop {
+            let method_index = method_routes.peek().map_or(usize::MAX, |route| route.index);
+            let all_index = all_routes.peek().map_or(usize::MAX, |route| route.index);
+            let middleware_index = middlewares
+                .peek()
+                .map_or(usize::MAX, |middleware| middleware.index);
+
+            if method_index == usize::MAX
+                && all_index == usize::MAX
+                && middleware_index == usize::MAX
             {
-                matched.vars = matches[minind][indices[minind]].vars.clone();
+                break;
             }
-            let flow = (matches[minind][indices[minind]].closure)(&matched, &mut res);
-            indices[minind] += 1;
+
+            // Registration indexes are globally ordered. Merge the three
+            // already-sorted streams directly instead of allocating a vector
+            // for middleware matches plus bookkeeping vectors on every request.
+            let flow = if method_index <= all_index && method_index <= middleware_index {
+                let route = method_routes.next().unwrap();
+                #[cfg(feature = "url_variables")]
+                {
+                    matched.vars = route.vars;
+                }
+                (&route.data.closure)(&matched, res)
+            } else if all_index <= middleware_index {
+                let route = all_routes.next().unwrap();
+                #[cfg(feature = "url_variables")]
+                {
+                    matched.vars = route.vars;
+                }
+                (&route.data.closure)(&matched, res)
+            } else {
+                let middleware = middlewares.next().unwrap();
+                #[cfg(feature = "url_variables")]
+                matched.vars.clear();
+                (&middleware.closure)(&matched, res)
+            };
             if !flow.should_continue() {
                 break;
             }
@@ -412,7 +436,6 @@ macro_rules! route_stop {
 
 default!(Router);
 
-#[macro_use]
 macro_rules! inject_method {
     ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
         use crate::middlewares::Closures;
@@ -475,6 +498,15 @@ impl Route for Router {
 mod test {
     use super::*;
     use crate::path::PathBuf;
+    use crate::request::{Headers, RequestLine};
+    use std::sync::{Arc, Mutex};
+
+    fn record(seen: Arc<Mutex<Vec<usize>>>, value: usize) -> Closure {
+        Box::new(move |_, _| {
+            seen.lock().unwrap().push(value);
+            Flow::Next
+        })
+    }
 
     #[test]
     pub fn router_test() {
@@ -580,5 +612,65 @@ mod test {
                 .get(&PathBuf::parse("/").unwrap())
                 .len()
         );
+    }
+
+    #[test]
+    fn run_merges_routes_and_middleware_in_registration_order() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut router = Router::new();
+        router.add(record(Arc::clone(&seen), 0)).unwrap();
+        router.add_route("/", record(Arc::clone(&seen), 1)).unwrap();
+        router.get("/", record(Arc::clone(&seen), 2)).unwrap();
+        router.add(record(Arc::clone(&seen), 3)).unwrap();
+
+        let request = Request::parse(
+            RequestLine::parse("GET / HTTP/1.1").unwrap(),
+            Headers::parse("").unwrap(),
+            b"",
+        )
+        .unwrap();
+        router.run(request, &mut Response::new_empty());
+
+        assert_eq!(*seen.lock().unwrap(), vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    #[cfg(feature = "url_variables")]
+    fn run_moves_route_variables_and_clears_them_for_middleware() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut router = Router::new();
+        let route_seen = Arc::clone(&seen);
+        router
+            .get(
+                "/thing/:id",
+                Box::new(move |request, _| {
+                    route_seen
+                        .lock()
+                        .unwrap()
+                        .push(request.vars.get("id").map(|value| value.to_string()));
+                    Flow::Next
+                }),
+            )
+            .unwrap();
+        let middleware_seen = Arc::clone(&seen);
+        router
+            .add(Box::new(move |request, _| {
+                middleware_seen
+                    .lock()
+                    .unwrap()
+                    .push(request.vars.get("id").map(|value| value.to_string()));
+                Flow::Next
+            }))
+            .unwrap();
+
+        let request = Request::parse(
+            RequestLine::parse("GET /thing/42 HTTP/1.1").unwrap(),
+            Headers::parse("").unwrap(),
+            b"",
+        )
+        .unwrap();
+        router.run(request, &mut Response::new_empty());
+
+        assert_eq!(*seen.lock().unwrap(), vec![Some("42".to_owned()), None]);
     }
 }

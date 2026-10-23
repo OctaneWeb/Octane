@@ -1,0 +1,4 @@
+GET /cookies?=x HTTP/11
+Host: a
+Cookie: a=;2=1" b"
+

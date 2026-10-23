@@ -105,6 +105,10 @@ pub struct OctaneConfig {
     pub keep_alive: Option<Duration>,
     /// An instance of the `Ssl` struct to store the values of key and certificates.
     pub ssl: Ssl,
+    /// The largest request body in bytes the server will read, requests
+    /// with a longer `Content-Length` get a `413 Payload Too Large`. It is
+    /// 2 MiB by default
+    pub max_body_size: usize,
     worker_threads: Option<usize>,
 }
 
@@ -205,6 +209,7 @@ impl OctaneConfig {
         OctaneConfig {
             ssl: Ssl::new(),
             keep_alive: Some(Duration::from_secs(5)),
+            max_body_size: 2 * 1024 * 1024,
             worker_threads: None,
         }
     }
@@ -212,6 +217,7 @@ impl OctaneConfig {
     pub(crate) fn append(&mut self, settings: Self) {
         self.ssl = settings.ssl;
         self.keep_alive = settings.keep_alive;
+        self.max_body_size = settings.max_body_size;
     }
 
     /// Sets the number of worker threads, this is settings

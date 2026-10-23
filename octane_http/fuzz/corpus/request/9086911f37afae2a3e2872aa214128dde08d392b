@@ -1,0 +1,5 @@
+GET /cookies?set=x HTTP/2.1
+Host: a
+Cookie:;a b=st: a
+Cookie:;a2"
+

@@ -1,0 +1,4 @@
+GET setx= HTTP/1.1
+Host: a
+Cookie: a=2; b)"2"
+

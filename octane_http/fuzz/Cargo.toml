@@ -14,6 +14,16 @@ tokio = { version = "0.3", features = ["io-util", "rt"] }
 [dependencies.octane_http]
 path = ".."
 
+# the second-stage parsers and the full request path, built with octane's
+# default features
+[dependencies.octane]
+path = "../.."
+features = ["fuzzing", "extended_queries"]
+
+[features]
+# the http2 targets need octane_http's http2 module, which isn't committed yet
+http2 = []
+
 # Keep this crate out of the parent workspace so cargo-fuzz can build it
 # with its own (sanitizer-instrumented) profile.
 [workspace]
@@ -41,6 +51,7 @@ path = "fuzz_targets/http2_frame.rs"
 test = false
 doc = false
 bench = false
+required-features = ["http2"]
 
 [[bin]]
 name = "http2_hpack"
@@ -48,10 +59,53 @@ path = "fuzz_targets/http2_hpack.rs"
 test = false
 doc = false
 bench = false
+required-features = ["http2"]
 
 [[bin]]
 name = "quic"
 path = "fuzz_targets/quic.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "request_line"
+path = "fuzz_targets/request_line.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "headers"
+path = "fuzz_targets/headers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "path"
+path = "fuzz_targets/path.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "query"
+path = "fuzz_targets/query.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cookie"
+path = "fuzz_targets/cookie.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "request"
+path = "fuzz_targets/request.rs"
 test = false
 doc = false
 bench = false

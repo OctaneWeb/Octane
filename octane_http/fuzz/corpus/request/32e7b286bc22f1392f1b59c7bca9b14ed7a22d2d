@@ -1,0 +1,4 @@
++GET /cookx HTTP/1.1
+Host: a
+Cookie:;a=1; b="2=; b="2=e:;a=1; b="2; b="2"
+

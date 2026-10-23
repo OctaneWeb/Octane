@@ -74,6 +74,9 @@ pub(crate) mod constants;
 pub mod cookie;
 pub(crate) mod error;
 pub(crate) mod file_handler;
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzzing;
 pub(crate) mod http;
 pub(crate) mod middlewares;
 pub(crate) mod path;

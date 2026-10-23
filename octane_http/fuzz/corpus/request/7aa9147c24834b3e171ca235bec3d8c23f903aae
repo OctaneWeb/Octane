@@ -1,0 +1,5 @@
+GET /et=x HTTP/1.1
+Host:b=E
+Host: a
+Cookie:;a61; b=																EEEEEE23"
+

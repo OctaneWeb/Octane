@@ -1,0 +1,13 @@
+PT /echo HTTP/1.1
+Host: a
+Iontent: a
+Iontent-Length: 3
+s: a
+Xt: t: a
+Iontent-Le-Length: 3
+st: a
+X-EcLngth: 3
+st: a
+X-EcLenho: ki
+
+hel

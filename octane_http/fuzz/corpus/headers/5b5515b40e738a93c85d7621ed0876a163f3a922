@@ -1,0 +1,57 @@
+C:5,s 5
+X:-L 1
+X:-L:
+X:: 5,s 4
+X:-L: 5
+X:-L:
+X:
+X:,s 4
+X:-L: 
+X:-L: 5
+X:-L:
+X:: 5,sN: 5,s 4
+X:-L: 6
+ength: 8
+X-L: 5
+X:-L: 5
+X:-L5,s 5
+X:-L 1
+X:-L:
+X:: 5,:: 5,s 8
+X:
+X:
+X:: 5,s 4
+X:-L: 6
+ength: :-D5,s 5
+X:-L 1
+X:-L:
+X:: 5,s 4
+X:-L: 5
+X:-L:
+X:
+X:: 5,s 4:-L:
+X:: 5,sN: 5,s 4
+X:-L: 6
+ength: 8
+X-L: 5
+X:-L: 5
+X:-L5,s 5
+X:-L 1
+X:-L:
+X:: 5: 5,s 4
+X:-L: 5
+X:-L:
+X:
+X:: 5,s 4
+X:-L5,s 5
+X:-L:
+X:: 5,s 4
+X: 8:
+X:: 5,s 4
+X: 8
+X-L: 5
+X:-L: 5
+X:-L5,s 5
+X:-L:
+X::-L:X:س:
+X:2

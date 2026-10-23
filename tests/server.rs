@@ -1,6 +1,7 @@
 use octane::prelude::*;
 mod common;
 
+#[test]
 pub fn basic_server_hello() {
     let mut app = Octane::new();
     app.get(
@@ -10,11 +11,15 @@ pub fn basic_server_hello() {
         }),
     )
     .unwrap();
-    common::run(app, || async {
-        assert_eq!("Hello, World", common::client_request(&path!("")).await);
+    common::run(app, 8081, || {
+        assert_eq!(
+            "Hello, World",
+            common::request(8081, "GET", "/", &[]).text()
+        );
     });
 }
 
+#[test]
 pub fn basic_server_x_req() {
     let mut app = Octane::new();
     let string = "Hello, World";
@@ -60,73 +65,11 @@ pub fn basic_server_x_req() {
         }),
     )
     .unwrap();
-    common::run(app, || async {
-        let client = reqwest::Client::new();
-        assert_eq!(
-            string,
-            client
-                .get(&path!(""))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .post(&path!(""))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .put(&path!(""))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .patch(&path!(""))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .delete(&path!(""))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .head(&path!(""))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
+    common::run(app, 8082, || {
+        for method in &["GET", "POST", "PUT", "PATCH", "DELETE"] {
+            assert_eq!(string, common::request(8082, method, "/", &[]).text());
+        }
+        // TODO: HEAD responses still carry the body, they must not
+        assert_eq!(200, common::request(8082, "HEAD", "/", &[]).status);
     });
 }

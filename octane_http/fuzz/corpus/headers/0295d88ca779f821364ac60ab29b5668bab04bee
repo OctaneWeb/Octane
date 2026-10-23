@@ -1,0 +1,35 @@
+C: /5,s :-
+X:5,s 4
+X:-L: 5
+X:-L5,s 4
+X:-L: 5
+X:-L:
+X::X:
+X:: 5,s 4
+X:-L: 6
+ength: 8
+X-L: 5
+X:-L: 5
+X:-L5,s 5
+X:-L 1
+X:-L:
+X*: 5,s 4
+X:- 5
+X:-L:
+X:
+X:: 5,s 4
+X:-L: 6
+ength: 8
+X-L: 5
+X:-L: 5
+X:-L5,s 5
+X:-L:
+X:: 5,s 4
+X: 8:
+X:: 4
+X: 8
+X-L: 5
+X:-L: 5
+X:-L5,s 5
+X-L:X:-L:
+X:2

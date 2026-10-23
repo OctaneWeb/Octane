@@ -1,0 +1,4 @@
+GET /cx HTTP/1.1
+Ho: a
+Cookie: a=; a=; b"
+

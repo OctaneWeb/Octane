@@ -1,0 +1,26 @@
+G /cookies?set=x HTTP/1.1
+Host: g/txa
+Cookie: a=okies?set=x HTTP/1.1
+Host: a
+Cookie: a=1T /cook; b=x HTTP/1.1
+Cookie: a=1T /cook; b=1T /cook; b=ie: a=1T /cook; bo=1c/T ok; b=x HTTP/1.1
+Host: a
+Cookie: a=1T /cook; b=1Took; b=x 1TTP/1.1
+Host: a
+Cookie: a=1T /cook; b=1ToHost: set=x HTTP/1.1
+Host: a
+Cookie: a=okies?set=x HTTP/1.1
+Host: a
+Cookie: a=1T /cook; b=1T /cook; b=x HTTP/1.1
+Cookie: a=1T /cook; b=1T /cook; b=ie: a=1T /cook; bo=1c/T ok; b=x HTTP/1.1
+Host: a
+Cookie: a=1T /cook; b=1ToHost: a
+Cookie: a=1T /cookx HTTP/1.1
+Host: a
+Cookie: a=1T /cook; b=1ToHost: a
+Cookie: a
+Cookie: a=1T /cookx HTTP/1.1
+Host: a
+Cookie: a=1T?/cook; b=1ToHost: a
+Cookie: a=1T /cook; b=1T /cook; b="2"
+

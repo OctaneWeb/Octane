@@ -21,10 +21,12 @@ impl ServerBuilder {
         let stream = Type::stream();
         let socket = Socket::new(Domain::ipv4(), stream, None)?;
         socket.set_nonblocking(true)?;
+        // must come before bind, or a restart fails while old connections
+        // are still in TIME_WAIT
+        socket.set_reuse_address(true)?;
         let bind_add = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
         socket.bind(&SockAddr::from(bind_add))?;
         socket.listen(2048)?;
-        socket.set_reuse_address(true)?;
         Ok(ServerBuilder {
             socket: TcpListener::from_std(socket.into_tcp_listener())?,
         })

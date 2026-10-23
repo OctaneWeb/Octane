@@ -1,0 +1,16 @@
+G /cookies?set=x HTTP/1.1
+Host: l/txa
+Cost: a
+Content-Length: 0
+X: a
+Content-Length: 0
+XHost: a
+Content-Length: 0
+X-Echo: 
+Content-Length: 0
+X-Echo: ki
+
+hellki
+
+he0000ook; b=x HTTP/Host: a
+CTTP/1.1ook

@@ -1,0 +1,7 @@
+GET kikies?set=x HTTP/5.1
+%:.a
+Cookie: =a1; bes?set=a
+Cookie: =a1; b: =Host:.a
+Cookie: =a9; bes?set=a
+Cookie: =a1; b= 2"
+

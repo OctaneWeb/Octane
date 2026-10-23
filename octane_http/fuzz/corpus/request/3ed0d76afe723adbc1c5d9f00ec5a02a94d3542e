@@ -1,0 +1,4 @@
+GET /cook>es?x HTTP/1.1
+H:
+Cookie:;; b="1"
+

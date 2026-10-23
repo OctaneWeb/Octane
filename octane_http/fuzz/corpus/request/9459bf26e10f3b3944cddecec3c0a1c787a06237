@@ -1,0 +1,6 @@
+GET /cookies?set=x HTTP/1.1
+Host: a
+Cookie:;
+Host: a
+Cookie:;a61; b=xtoh2"
+

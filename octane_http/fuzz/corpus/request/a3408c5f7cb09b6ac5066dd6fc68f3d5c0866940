@@ -1,0 +1,4 @@
+ET /cookiex HTTP/1.1
+Host: a
+Cookie:T /cooes?setHost: :  ;a?1b="2 a=1;b=""2"
+

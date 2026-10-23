@@ -1,0 +1,66 @@
+GET /cookies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Hoct: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=																											61;e:;a61; b=GET /cookaes?a
+Cookie:;a61; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=																									xt=/h;a6a611; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a																								61;e:;a61; b=GET /cookies?a
+Cookie:;a61; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; ?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Hoct: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=																											61;e:;a61; b=GET /cookaes?a
+Cookie:;a61; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=																									xt=/h;a6a611; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a																								61;e:;a61; b=GET /cookies?a
+Cookie:;a61; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=																									xt=/h;a6a611; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=																											62;e:;a61; b=xt=/h;a6a61; b=xt=/homeb=E
+Host: a
+Cookie:;a61; b=																									xt=/h;a6a611; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=																											62;e:;a61; b=xt=/h;a6a61; b=xt=/home; b=xt=/home%03"23"
+

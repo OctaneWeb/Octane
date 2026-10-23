@@ -1,0 +1,6 @@
+GET /cookies?sx HTTP/1.1
+Ho: a
+Cookie:;a=1; b="2=x .1
+Host: a
+Cookie:;a=1; b="2; b="2"
+

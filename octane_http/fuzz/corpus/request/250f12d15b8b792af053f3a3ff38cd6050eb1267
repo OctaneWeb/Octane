@@ -1,0 +1,3 @@
+GET /redirect?ne%03333d%0%0aX:%20y HTTP/.1
+Host: a
+

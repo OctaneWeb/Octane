@@ -1,0 +1,6 @@
+HaE
+GET /cookies%set=x HTTP/1.1
+Host: *a
+Cookie:
+Cookie:uEa=1;[:Ea=1;[b="2"
+

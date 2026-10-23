@@ -2,6 +2,7 @@ use crate::constants::*;
 #[cfg(feature = "cookies")]
 use crate::cookie::Cookie;
 use crate::file_handler::FileHandler;
+use crate::path::is_ctl;
 use crate::time::Time;
 use octane_http::{HttpVersion, StatusCode};
 use std::collections::HashMap;
@@ -10,7 +11,7 @@ use std::fmt;
 use std::io::Cursor;
 use std::marker::PhantomData;
 use std::path::PathBuf;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub(crate) type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 
@@ -23,7 +24,8 @@ pub(crate) enum ResBody {
 impl ResBody {
     pub fn get_reader(self) -> BoxReader {
         match self {
-            ResBody::Sized(_, reader) => reader,
+            // never send more than the Content-Length we announced
+            ResBody::Sized(len, reader) => Box::new(reader.take(len as u64)) as BoxReader,
             ResBody::Unsized(reader) => reader,
             ResBody::None => Box::new(Cursor::new(Vec::new())) as BoxReader,
         }
@@ -389,6 +391,9 @@ impl<'a> Response<'a> {
     /// and value. This method requires `cookies`
     /// feature, which is enabled in default feature
     ///
+    /// Cookies that fail [`Cookie::validate`](../cookie/struct.Cookie.html#method.validate)
+    /// are not sent.
+    ///
     /// # Example
     ///
     /// ```
@@ -406,8 +411,8 @@ impl<'a> Response<'a> {
     /// );
     /// ```
     #[cfg(feature = "cookies")]
-    pub fn cookie(&mut self, cookie: Cookie<'a>) -> &mut Response<'a> {
-        self.cookies.push(cookie);
+    pub fn cookie<C: Into<Cookie<'a>>>(&mut self, cookie: C) -> &mut Response<'a> {
+        self.cookies.push(cookie.into());
         self
     }
     /// Sets the content type charset
@@ -498,19 +503,34 @@ impl<'a> Response<'a> {
         // push normal headers
         self.headers
             .iter()
-            .for_each(|data| headers_str.push_str(&format!("{}:{}{}{}", data.0, SP, data.1, CRLF)));
-        // push cookies
+            .for_each(|data| push_header(&mut headers_str, data.0, data.1));
+        // push cookies, one Set-Cookie line each, leaving out the ones
+        // that would make an invalid header (see `Cookie::validate`)
         #[cfg(feature = "cookies")]
-        headers_str.push_str(
-            &self
-                .cookies
-                .iter()
-                .map(|cookie| cookie.serialise())
-                .collect::<Vec<String>>()
-                .join(CRLF),
-        );
+        self.cookies
+            .iter()
+            .filter_map(|cookie| cookie.serialise().ok())
+            .for_each(|cookie| push_header(&mut headers_str, "Set-Cookie", &cookie));
         headers_str
     }
+}
+
+// Push a `name: value` line. A name that isn't a token is skipped and control
+// characters in the value, CR and LF included, are replaced by spaces, so no
+// value can start another header line or end the head early.
+fn push_header(headers_str: &mut String, name: &str, value: &str) {
+    if name.is_empty() || !name.chars().all(|c| TOKEN_CHARS.contains(&c)) {
+        return;
+    }
+    headers_str.push_str(name);
+    headers_str.push(':');
+    headers_str.push(SP);
+    headers_str.extend(
+        value
+            .chars()
+            .map(|c| if is_ctl(c) && c != HT { SP } else { c }),
+    );
+    headers_str.push_str(CRLF);
 }
 
 #[cfg(feature = "cookies")]
@@ -576,5 +596,40 @@ mod test {
             data_to_string(req.get_data()).await,
             "HTTP/1.0 201 CREATED\r\n\r\n"
         );
+    }
+
+    #[test]
+    fn header_values_cannot_add_lines() {
+        // CR and LF in values become spaces, invalid names are skipped
+        let mut res = Response::new_empty();
+        res.redirect("/home\r\nX-Injected: yes")
+            .set("Bad Name", "x")
+            .send("");
+        let (head, _) = res.get_data();
+        assert!(head.contains("\r\nLocation: /home  X-Injected: yes\r\n"));
+        assert!(!head.contains("\r\nX-Injected"));
+        assert!(!head.contains("Bad Name"));
+    }
+
+    #[tokio::test]
+    async fn body_never_exceeds_content_length() {
+        let mut res = Response::new_empty();
+        res.send("hello");
+        res.body = ResBody::Sized(2, Box::new(Cursor::new(b"hello".to_vec())));
+        assert!(data_to_string(res.get_data()).await.ends_with("\r\n\r\nhe"));
+    }
+
+    #[cfg(feature = "cookies")]
+    #[tokio::test]
+    async fn cookies_get_their_own_header_lines() {
+        let mut res = Response::new_empty();
+        res.cookie(Cookie::new("a", "1"))
+            .cookie(Cookie::new("b", "x\r\ny"))
+            .send("body");
+        let data = data_to_string(res.get_data()).await;
+        assert!(data.contains("\r\nSet-Cookie: a=1\r\n"));
+        // an invalid cookie is left out
+        assert!(!data.contains("Set-Cookie: b="));
+        assert!(data.ends_with("\r\n\r\nbody"));
     }
 }

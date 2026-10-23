@@ -1,10 +1,5 @@
 use octane_http::http1x::find_in_slice;
-use std::io::Read;
 use std::iter::FusedIterator;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, ReadBuf, Result};
 
 pub struct Spliterator<'a, T: Eq> {
     pub string: &'a [T],
@@ -48,29 +43,3 @@ impl<'a, T: Eq> Iterator for Spliterator<'a, T> {
 }
 
 impl<'a, T: Eq> FusedIterator for Spliterator<'a, T> {}
-
-#[derive(Debug, Clone, Default)]
-pub struct AsyncReader<T: Read> {
-    pub reader: T,
-}
-
-impl<T: Read + Unpin> Deref for AsyncReader<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.reader
-    }
-}
-
-impl<T: Read + Unpin> AsyncRead for AsyncReader<T> {
-    fn poll_read(mut self: Pin<&mut Self>, _: &mut Context, buf: &mut ReadBuf) -> Poll<Result<()>> {
-        self.reader.read(buf.initialized_mut())?;
-        Poll::Ready(Ok(()))
-    }
-}
-
-impl<T: Read + Unpin> AsyncReader<T> {
-    pub fn new(reader: T) -> Self {
-        Self { reader }
-    }
-}

@@ -1,0 +1,3 @@
+GET /redirect?next=/home%0d%0aX:%20y HTTP/1.1
+Host: a
+

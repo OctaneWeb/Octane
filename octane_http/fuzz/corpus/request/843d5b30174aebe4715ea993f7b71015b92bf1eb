@@ -1,0 +1,7 @@
+POST /echo HTTP/0.9
+Host: a
+Contt: HTTP/0.9
+Host: a
+Content-Length: 7777777ho: ki
+
+hello

@@ -8,7 +8,7 @@ use crate::query::parse_query;
 #[cfg(feature = "extended_queries")]
 use crate::query::{parse_extended_query, QueryValue};
 use crate::util::Spliterator;
-use octane_http::HttpVersion;
+use octane_http::{HttpVersion, StatusCode};
 use std::cfg;
 use std::collections::HashMap;
 #[cfg(not(feature = "raw_headers"))]
@@ -77,6 +77,9 @@ pub struct RequestLine {
     pub method: RequestMethod,
     /// The path of the request
     pub path: PathBuf,
+    /// The query string of the request, without the leading `?`. It is
+    /// empty if the request had none
+    pub query: String,
     /// Http version of the request
     pub version: HttpVersion,
 }
@@ -87,12 +90,18 @@ impl RequestLine {
     pub(crate) fn parse(request_line: &str) -> Option<Self> {
         let mut toks = request_line.split(SP);
         let method = toks.next()?;
-        let path = match PathBuf::parse(toks.next()?) {
-            Ok(val) => val,
-            Err(e) => panic!("{:?}", e),
-        };
+        // only the path is used for routing, the query is kept apart
+        let target = toks.next()?;
+        let (path, query) = target.split_once('?').unwrap_or((target, ""));
+        let path = PathBuf::parse(path).ok()?;
         let version = toks.next()?;
-        let (first, ver) = version.split_at(5);
+        // `split_at` panics on a version shorter than 5 bytes or with a
+        // multi-byte character over byte 5
+        let (first, ver) = if version.is_char_boundary(5) {
+            version.split_at(5)
+        } else {
+            (version, "")
+        };
         let enum_ver = match ver {
             "1.1" => HttpVersion::Http11,
             "1.0" => HttpVersion::Http10,
@@ -119,6 +128,7 @@ impl RequestLine {
         Some(Self {
             method: request_method,
             path,
+            query: query.to_owned(),
             version: enum_ver,
         })
     }
@@ -166,8 +176,10 @@ impl Header {
                 TOKEN_CHARS.get(&c)?;
             }
         }
-        let value = toks.next()?.trim_start_matches(|c| c == SP || c == HT);
-        if cfg!(feature = "faithful") && value.chars().any(is_ctl) {
+        // whitespace around a field value isn't part of it, and HTAB is the
+        // only control character allowed inside one
+        let value = toks.next()?.trim_matches(|c| c == SP || c == HT);
+        if cfg!(feature = "faithful") && value.chars().any(|c| is_ctl(c) && c != HT) {
             return None;
         }
         Some(Self {
@@ -218,7 +230,9 @@ pub struct Headers {
 impl Headers {
     /// Parse all the headers on a request
     pub(crate) fn parse(request: String) -> Option<Self> {
-        let toks = Spliterator::new(request.as_bytes(), B_CRLF);
+        let mut toks = Spliterator::new(request.as_bytes(), B_CRLF);
+        // an empty block is a request without any header lines
+        toks.finished = request.is_empty();
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
@@ -227,9 +241,15 @@ impl Headers {
                 Ok(s) => s.to_owned(),
                 Err(_) => return None,
             })?;
+            let name = parsed.name.to_ascii_lowercase();
+            // cookie pairs are joined with "; " (RFC 6265 section 5.4)
+            let sep = if name == "cookie" { "; " } else { ", " };
             headers
-                .entry(parsed.name.to_ascii_lowercase())
-                .and_modify(|v| *v = format!("{}, {}", v, parsed.value))
+                .entry(name)
+                .and_modify(|v| {
+                    v.push_str(sep);
+                    v.push_str(&parsed.value);
+                })
                 .or_insert_with(|| parsed.value.to_owned());
             #[cfg(feature = "raw_headers")]
             raw_headers.push(parsed);
@@ -241,6 +261,38 @@ impl Headers {
             #[cfg(not(feature = "raw_headers"))]
             raw: PhantomData,
         })
+    }
+
+    /// The body length declared by the `Content-Length` header, 0 if it
+    /// isn't present (RFC 9112 section 6.3). Repeated identical values like
+    /// `5, 5` are accepted. A value that isn't a decimal number or values
+    /// that disagree give a `400`, a length over `max` gives a `413`.
+    pub(crate) fn content_length(&self, max: usize) -> Result<usize, StatusCode> {
+        let value = match self.get("content-length") {
+            Some(value) => value,
+            None => return Ok(0),
+        };
+        let mut digits: Option<&str> = None;
+        for member in value.split(',') {
+            let member = member.trim_matches(|c| c == SP || c == HT);
+            if member.is_empty() || !member.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(StatusCode::BadRequest);
+            }
+            // compare numbers rather than spellings, "05" and "5" agree
+            let member = member.trim_start_matches('0');
+            if digits.map_or(false, |digits| digits != member) {
+                return Err(StatusCode::BadRequest);
+            }
+            digits = Some(member);
+        }
+        // anything past usize::MAX is too large anyway
+        let length = digits.unwrap_or("").bytes().fold(0usize, |n, b| {
+            n.saturating_mul(10).saturating_add(usize::from(b - b'0'))
+        });
+        if length > max {
+            return Err(StatusCode::PayloadTooLarge);
+        }
+        Ok(length)
     }
 
     /// Build `Headers` from already-decoded name/value pairs, as produced by
@@ -342,33 +394,56 @@ impl<'a> Request<'a> {
     ///
     /// `body_remainder` is the slice of the body that arrived in the same read
     /// as the head; if `Content-Length` calls for more, the rest is streamed
-    /// off `reader` into `body_vec`.
+    /// off `reader` into `body_vec`. Bodies longer than `max_body_size` are
+    /// refused with a `413` before anything is read.
     pub(crate) async fn from_raw<T: AsyncRead + Unpin>(
         headers: &'a Headers,
         request_line: RequestLine,
         body_remainder: &'a [u8],
         body_vec: &'a mut Vec<u8>,
         mut reader: ReadHalf<T>,
-    ) -> Option<Request<'a>> {
-        let body_len = headers
-            .get("content-length")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0);
-        let body: &'a [u8] = if body_len > 0 {
-            if body_remainder.len() < body_len {
-                let mut temp: Vec<u8> = vec![0; body_len - body_remainder.len()];
-                reader.read_exact(&mut temp[..]).await.ok()?;
-                *body_vec = Vec::with_capacity(body_len);
-                body_vec.extend_from_slice(body_remainder);
-                body_vec.extend_from_slice(&temp[..]);
-                &body_vec[..]
-            } else {
-                body_remainder
-            }
+        max_body_size: usize,
+    ) -> Result<Request<'a>, StatusCode> {
+        let body_len = headers.content_length(max_body_size)?;
+        let body: &'a [u8] = if body_len <= body_remainder.len() {
+            // bytes past the declared length aren't part of this body
+            &body_remainder[..body_len]
         } else {
-            &[]
+            // grow the buffer as bytes arrive instead of allocating the
+            // declared length up front
+            body_vec.extend_from_slice(body_remainder);
+            let missing = (body_len - body_remainder.len()) as u64;
+            (&mut reader)
+                .take(missing)
+                .read_to_end(body_vec)
+                .await
+                .map_err(|_| StatusCode::BadRequest)?;
+            // the client hung up before sending the whole body
+            if body_vec.len() != body_len {
+                return Err(StatusCode::BadRequest);
+            }
+            &body_vec[..]
         };
-        Self::parse(request_line, headers, body)
+        Self::parse(request_line, headers, body).ok_or(StatusCode::BadRequest)
+    }
+
+    /// Get the first cookie with the given name. When several cookies share
+    /// a name, browsers send the most specific one first
+    ///
+    /// ```
+    /// use octane::prelude::*;
+    ///
+    /// let mut app = Octane::new();
+    ///
+    /// app.get("/", route_next!(|req, res| {
+    ///     if let Some(session) = req.cookie("session") {
+    ///         res.send(session.value());
+    ///     }
+    /// }));
+    /// ```
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<&Cookie<'a>> {
+        self.cookies.iter().find(|cookie| cookie.name() == name)
     }
 
     /// Parse the query and return the key value pairs in the form
@@ -385,14 +460,14 @@ impl<'a> Request<'a> {
     /// }));
     /// ```
     pub fn get_query(&self) -> HashMap<String, String> {
-        parse_query(&self.request_line.path.to_string())
+        parse_query(&self.request_line.query)
     }
 
     /// Parse the extended query and return the key value pairs in the form
     /// of an HashMap. See [`QueryValue`](../enum.QueryValue.html)
     #[cfg(feature = "extended_queries")]
     pub fn get_extended_query(&self) -> HashMap<String, QueryValue> {
-        parse_extended_query(&self.request_line.path.to_string())
+        parse_extended_query(&self.request_line.query)
     }
 }
 
@@ -535,6 +610,7 @@ mod test {
 
     #[test]
     #[should_panic]
+    #[cfg_attr(not(feature = "faithful"), ignore)]
     fn fail_extra_2() {
         // Extra clauses should error.
         RequestLine::parse("POST /a /b HTTP/1.1").unwrap();
@@ -649,5 +725,81 @@ mod test {
         let req = KeepAlive::parse("timeout=,test,max=a, timeout=5");
         assert_eq!(req.timeout(), Some(5));
         assert_eq!(req.max(), None);
+    }
+
+    #[test]
+    fn success_query_split() {
+        // The query isn't part of the path.
+        let req = RequestLine::parse("GET /a/b?x=1&y=2?z HTTP/1.1").unwrap();
+        assert_eq!(req.path, PathBuf::parse("/a/b").ok().unwrap());
+        assert_eq!(req.query, "x=1&y=2?z");
+        assert_eq!(RequestLine::parse("GET /a HTTP/1.1").unwrap().query, "");
+    }
+
+    #[test]
+    fn malformed_request_lines_do_not_panic() {
+        // These used to panic: a version shorter than 5 bytes, a character
+        // over byte 5 of the version and a path above the root.
+        let short = RequestLine::parse("GET / X");
+        let split = RequestLine::parse("GET / HTTP\u{e9}1.1");
+        assert!(RequestLine::parse("GET /.. HTTP/1.1").is_none());
+        if cfg!(feature = "faithful") {
+            assert!(short.is_none() && split.is_none());
+        }
+    }
+
+    #[test]
+    fn success_no_headers() {
+        // A request may have no header lines at all.
+        assert!(Headers::parse(String::new()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn success_value_whitespace_and_tabs() {
+        // Whitespace around a value is dropped, tabs inside it are kept.
+        let req = Header::parse("X-Test:  a\tb \t".to_string()).unwrap();
+        assert_eq!(req.value(), "a\tb");
+    }
+
+    #[test]
+    fn success_cookie_headers_joined_with_semicolons() {
+        let headers = Headers::parse("Cookie: a=1\r\nCookie: b=2".to_string()).unwrap();
+        assert_eq!(headers.get("cookie").unwrap(), "a=1; b=2");
+    }
+
+    #[test]
+    fn success_content_length() {
+        let parse = |block: &str| {
+            Headers::parse(block.to_string())
+                .unwrap()
+                .content_length(100)
+        };
+        assert_eq!(parse("Host: a"), Ok(0));
+        assert_eq!(parse("Content-Length: 42"), Ok(42));
+        assert_eq!(parse("Content-Length: 007"), Ok(7));
+        assert_eq!(parse("Content-Length: 5\r\nContent-Length: 5"), Ok(5));
+        assert_eq!(parse("Content-Length: 5, 5"), Ok(5));
+    }
+
+    #[test]
+    fn fail_content_length() {
+        let parse = |block: &str| {
+            Headers::parse(block.to_string())
+                .unwrap()
+                .content_length(100)
+        };
+        let bad = Err(StatusCode::BadRequest);
+        assert_eq!(parse("Content-Length: 5\r\nContent-Length: 6"), bad);
+        assert_eq!(parse("Content-Length: +5"), bad);
+        assert_eq!(parse("Content-Length: -1"), bad);
+        assert_eq!(parse("Content-Length: 0x10"), bad);
+        assert_eq!(parse("Content-Length: "), bad);
+        assert_eq!(parse("Content-Length: 5,"), bad);
+        // too large to represent, but still in disagreement
+        let huge = "Content-Length: 99999999999999999999998, 99999999999999999999999";
+        assert_eq!(parse(huge), bad);
+        let too_large = Err(StatusCode::PayloadTooLarge);
+        assert_eq!(parse("Content-Length: 101"), too_large);
+        assert_eq!(parse("Content-Length: 99999999999999999999999"), too_large);
     }
 }

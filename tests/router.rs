@@ -2,6 +2,7 @@ use octane::prelude::*;
 
 mod common;
 
+#[test]
 pub fn basic_router() {
     let mut app = Octane::new();
     let mut router = Router::new();
@@ -37,117 +38,12 @@ pub fn basic_router() {
     app.head("/route2", route_next!(|req, res| res.send(string)))
         .unwrap();
     app.with_router(router);
-    common::run(app, || async {
-        let client = reqwest::Client::new();
-        assert_eq!(
-            string,
-            client
-                .get(&path!("route1"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .get(&path!("route2"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .post(&path!("route1"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .post(&path!("route2"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .patch(&path!("route1"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .patch(&path!("route2"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .put(&path!("route1"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .put(&path!("route2"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .delete(&path!("route1"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            string,
-            client
-                .delete(&path!("route2"))
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
+    common::run(app, 8084, || {
+        for path in &["/route1", "/route2"] {
+            for method in &["GET", "POST", "PUT", "PATCH", "DELETE"] {
+                let res = common::request(8084, method, path, &[]);
+                assert_eq!(string, res.text(), "{} {}", method, path);
+            }
+        }
     });
 }

@@ -168,6 +168,17 @@ impl Octane {
     where
         S: AsyncRead + AsyncWrite + Unpin + AsMutStream,
     {
+        Octane::serve_http1x(stream_async, server).await
+    }
+    /// Read one HTTP/1.x request off `stream_async` and write its response.
+    /// It only needs a byte stream, so the fuzz targets can run it in memory.
+    pub(crate) async fn serve_http1x<S>(
+        stream_async: S,
+        server: Arc<Octane>,
+    ) -> Result<(), Box<dyn StdError>>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
         let (mut reader, writer) = split(stream_async);
 
         let mut data = Vec::new();
@@ -193,35 +204,38 @@ impl Octane {
             .and_then(|h| Headers::parse(h.to_owned()));
 
         if let (Some(request_line), Some(headers)) = (request_line, headers) {
-            if let Some(request) = Request::from_raw(
+            let request = match Request::from_raw(
                 &headers,
                 request_line,
                 raw.body_remainder,
                 &mut body_vec,
                 reader,
+                server.settings.max_body_size,
             )
             .await
             {
-                let request_line = &request.request_line;
-                let mut res = Response::new_empty();
-                // Detect http version and validate
-                let checker = Http::validate(&request);
-                if checker.is_malformed() {
-                    declare_error!(writer, checker.err_code.unwrap());
+                Ok(request) => request,
+                Err(code) => {
+                    declare_error!(writer, code);
                 }
-                if request_line.method.is_some() {
-                    // run closures
-                    server.router.run(request.clone(), &mut res);
-                    if !res.has_body() {
-                        declare_error!(writer, StatusCode::NotFound);
-                    }
+            };
+            let request_line = &request.request_line;
+            let mut res = Response::new_empty();
+            // Detect http version and validate
+            let checker = Http::validate(&request);
+            if checker.is_malformed() {
+                declare_error!(writer, checker.err_code.unwrap());
+            }
+            if request_line.method.is_some() {
+                // run closures
+                server.router.run(request.clone(), &mut res);
+                if !res.has_body() {
+                    declare_error!(writer, StatusCode::NotFound);
+                }
 
-                    Octane::send(res.get_data(), writer).await?;
-                } else {
-                    declare_error!(writer, StatusCode::NotImplemented);
-                }
+                Octane::send(res.get_data(), writer).await?;
             } else {
-                declare_error!(writer, StatusCode::BadRequest);
+                declare_error!(writer, StatusCode::NotImplemented);
             }
         } else {
             declare_error!(writer, StatusCode::BadRequest);

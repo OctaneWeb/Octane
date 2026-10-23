@@ -1,12 +1,12 @@
 #![cfg(feature = "openSSL")]
 use octane::prelude::*;
-use reqwest::ClientBuilder;
 mod common;
 
+#[test]
 pub fn basic_https_hello_world_openssl() {
     let mut app = Octane::new();
-    app.ssl(8000)
-        .key("templates/key.pem")
+    app.ssl(8444)
+        .key("templates/svr.pem")
         .cert("templates/cert.pem");
     let string = "Hello, World";
     app.get(
@@ -16,21 +16,8 @@ pub fn basic_https_hello_world_openssl() {
         }),
     )
     .unwrap();
-    common::run(app, || async {
-        let client = ClientBuilder::new()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .unwrap();
-        assert_eq!(
-            string,
-            client
-                .get("https://0.0.0.0:8000/")
-                .send()
-                .await
-                .unwrap()
-                .text()
-                .await
-                .unwrap()
-        );
+    common::run(app, 8087, || {
+        common::wait_for(8444);
+        assert_eq!(string, common::https_get(8444, "/"));
     });
 }

@@ -1,0 +1,11 @@
+POST /echo HTTP/0.9
+Host: a
+Content-Length: 6
+X-Echo: kcho HTTP/0.9
+Host: a
+Content-Length: 6
+X-Echo: ki
+
+helloi
+
+hello

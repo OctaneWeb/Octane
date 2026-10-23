@@ -1,102 +1,31 @@
 use std::collections::HashMap;
 
+// Decode a query component the way browsers encode one (the
+// application/x-www-form-urlencoded format): `+` is a space, `%XX` is the
+// byte XX, and the bytes are read as UTF-8 with invalid sequences replaced by
+// U+FFFD. A `%` that isn't followed by two hex digits is kept as it is.
 pub fn unescape_hex(string: &str) -> String {
-    let mut ret = "".to_owned();
-    let mut chars = string.chars();
-    let mut peekable = DoublePeek::new(&mut chars);
-    while let Some(val) = peekable.next() {
-        if val != '%' {
-            ret.push(val);
-        } else {
-            peekable.unpeek = true;
-            let c1 = match peekable.peek() {
-                Some(&v) => v,
-                None => {
-                    ret.push('%');
-                    continue;
+    let bytes = string.as_bytes();
+    let mut ret = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => ret.push(b' '),
+            b'%' => {
+                let hex = |at: usize| bytes.get(at).and_then(|&b| from_hex(b as char));
+                match (hex(i + 1), hex(i + 2)) {
+                    (Some(h1), Some(h2)) => {
+                        ret.push(h1 * 16 + h2);
+                        i += 2;
+                    }
+                    _ => ret.push(b'%'),
                 }
-            };
-            let c2 = match peekable.peek() {
-                Some(&v) => v,
-                None => {
-                    ret.push('%');
-                    continue;
-                }
-            };
-            let (h1, h2) = (from_hex(c1), from_hex(c2));
-            if h1.is_none() || h2.is_none() {
-                ret.push('%');
-                continue;
             }
-            ret.push((h1.unwrap() * 16 + h2.unwrap()) as char);
-            peekable.next();
-            peekable.next();
+            b => ret.push(b),
         }
+        i += 1;
     }
-    ret
-}
-
-pub struct DoublePeek<'a, T>
-where
-    T: Default,
-{
-    pub iter: &'a mut dyn Iterator<Item = T>,
-    pub cache: [T; 2],
-    pub stored: usize,
-    pub unpeek: bool,
-}
-
-impl<'a, T> DoublePeek<'a, T>
-where
-    T: Default,
-{
-    pub fn new(it: &'a mut dyn Iterator<Item = T>) -> Self {
-        let cache: [T; 2] = Default::default();
-        Self {
-            iter: it,
-            cache,
-            stored: 0,
-            unpeek: false,
-        }
-    }
-
-    pub fn peek(&mut self) -> Option<&T> {
-        if self.unpeek && self.stored > 0 {
-            self.unpeek = false;
-            return Some(&self.cache[0]);
-        }
-        self.unpeek = false;
-        if self.stored == 2 {
-            return None;
-        }
-        let item = self.iter.next();
-        match item {
-            None => None,
-            Some(v) => {
-                self.cache[self.stored] = v;
-                self.stored += 1;
-                Some(&self.cache[self.stored - 1])
-            }
-        }
-    }
-}
-
-impl<'a, T> Iterator for DoublePeek<'a, T>
-where
-    T: Default,
-{
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.stored == 1 {
-            self.stored = 0;
-            return Some(std::mem::take(&mut self.cache[0]));
-        } else if self.stored == 2 {
-            self.stored = 1;
-            let dat1 = std::mem::take(&mut self.cache[1]);
-            return Some(std::mem::replace(&mut self.cache[0], dat1));
-        }
-        self.iter.next()
-    }
+    String::from_utf8_lossy(&ret).into_owned()
 }
 
 pub fn from_hex(chr: char) -> Option<u8> {
@@ -321,6 +250,15 @@ mod test {
         assert_eq!(query["b"], "A%0");
         assert_eq!(query["c"], "%A");
         assert_eq!(query["d"], "A%5");
+    }
+
+    #[test]
+    fn success_utf8_and_plus() {
+        // escapes are UTF-8 bytes and `+` is a space, like browsers send them
+        let query = parse_query("q=caf%C3%A9+au+lait&p=%2B1&bad=%FF");
+        assert_eq!(query["q"], "café au lait");
+        assert_eq!(query["p"], "+1");
+        assert_eq!(query["bad"], "\u{FFFD}");
     }
 
     #[test]

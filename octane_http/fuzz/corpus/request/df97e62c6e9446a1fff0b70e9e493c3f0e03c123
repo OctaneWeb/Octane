@@ -1,0 +1,11 @@
+POST /echo HTTP/1.9
+Host: a
+Content-Length: 0
+XHHost: a
+Content-Length: 0
+XHost: aontenttos:a 
+Content-Length: ,9
+Host: a
+Content-LengtEcho: ki
+
+hello

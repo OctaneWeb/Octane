@@ -1,0 +1,5 @@
+GElT x//y HTTP/1.1
+H:os.1
+H:a
+Cookie:Cook2__' a=1; =b"2"
+

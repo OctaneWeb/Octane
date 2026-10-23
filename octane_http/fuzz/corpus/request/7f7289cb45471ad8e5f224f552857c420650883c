@@ -1,0 +1,4 @@
+GET c HTTP/0.1
+Host:.a
+Cookie: =a1; b= 2"
+

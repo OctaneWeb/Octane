@@ -1,4 +1,3 @@
-use crate::util::AsyncReader;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt;
@@ -11,7 +10,7 @@ use std::path::PathBuf;
 /// to decide their mime types accordingly
 pub struct FileHandler {
     pub file_name: String,
-    pub file: AsyncReader<File>,
+    pub file: tokio::fs::File,
     pub extension: String,
     pub meta: Metadata,
 }
@@ -41,7 +40,8 @@ impl FileHandler {
                     .unwrap_or("");
                 Ok(FileHandler {
                     file_name: path.file_name().and_then(OsStr::to_str).unwrap().to_owned(),
-                    file: AsyncReader::new(file),
+                    // reads go through tokio's blocking pool, off the async workers
+                    file: tokio::fs::File::from_std(file),
                     extension: extension.to_owned(),
                     meta,
                 })

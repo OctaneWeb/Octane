@@ -437,8 +437,9 @@ deref!(PathData<T>, T, data);
 deref!(MatchedPath<'a, T>, T, data);
 deref!(PathBuf, Vec<String>, chunks);
 
+// CTL from RFC 5234: %x00-1F / %x7F
 pub fn is_ctl(c: char) -> bool {
-    c < '\x1f' || c == '\x7f'
+    c <= '\x1f' || c == '\x7f'
 }
 
 fn get_second<T>(tup: (PathChunk, PathNode<T>)) -> PathNode<T> {

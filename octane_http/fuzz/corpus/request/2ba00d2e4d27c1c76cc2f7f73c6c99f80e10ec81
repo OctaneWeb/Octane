@@ -1,0 +1,36 @@
+GET /cookies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=xt=/h;1
+Host: a
+Cookie:;a61; b=et=x HTTP/1.1
+Host: a
+Cookie:;a61; b=ET /redirect?neext=/home%03xE
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Hokie:;a61; b=E
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=xt=/h;1
+Host: a
+Cookie:;a61; b=et=x HTTP/1.1
+Host: a
+Cookie:;a61; b=ET /redirect?neext=/home%03xE
+Host: a
+Cookie:kies?set=x HTTP/1.1
+Host: a
+Cookie:;a61; b=E
+Host: a
+Cookie:;a61; b=xt=/h;a6a61; b=xtYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYst: a
+Cookie:;a61; b=xt=/h;a6a61; b=xtYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+

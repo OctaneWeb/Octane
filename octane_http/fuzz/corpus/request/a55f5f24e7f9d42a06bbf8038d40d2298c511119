@@ -1,0 +1,4 @@
+GET /cookies?set=x HTTP/a
+Cookie:aK =      
+Cookie: a=;=; a=; b"
+

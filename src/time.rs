@@ -96,7 +96,7 @@ impl Time {
         }
     }
 
-    fn time(stamp: i64) -> Option<Self> {
+    pub(crate) fn time(stamp: i64) -> Option<Self> {
         let secs = (stamp) - LEAPOCH;
         let mut days = secs / 86400;
         let mut remsecs = secs % 86400;
@@ -175,5 +175,11 @@ mod tests {
     fn some_more_time_stamps() {
         let some_time = Time::time(333452334).unwrap().format();
         assert_eq!(some_time, "Sat, 26 Jul 1980 09:38:54 GMT");
+    }
+
+    #[test]
+    fn september_is_three_letters() {
+        let some_time = Time::time(1789461005).unwrap().format();
+        assert_eq!(some_time, "Tue, 15 Sep 2026 08:30:05 GMT");
     }
 }

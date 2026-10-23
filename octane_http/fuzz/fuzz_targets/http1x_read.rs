@@ -52,15 +52,18 @@ fuzz_target!(|data: &[u8]| {
 
         // The returned request borrows `buffered`, so copy its fields out
         // before inspecting the buffer again.
-        let owned = Http1xReader::new(&mut io, &mut buffered).await.ok().map(|req| {
-            (
-                req.request_method.to_vec(),
-                req.request_url.to_vec(),
-                req.request_version.to_vec(),
-                req.headers.to_vec(),
-                req.body_remainder.to_vec(),
-            )
-        });
+        let owned = Http1xReader::new(&mut io, &mut buffered)
+            .await
+            .ok()
+            .map(|req| {
+                (
+                    req.request_method.to_vec(),
+                    req.request_url.to_vec(),
+                    req.request_version.to_vec(),
+                    req.headers.to_vec(),
+                    req.body_remainder.to_vec(),
+                )
+            });
 
         // The reader only ever buffers bytes the connection produced, in order.
         assert!(wire.starts_with(&buffered));

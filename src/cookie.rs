@@ -5,7 +5,7 @@
 //! through, while serialising is strict so the server never sends a header
 //! that a browser would reject or misread.
 
-use crate::constants::{HT, SP, TOKEN_CHARS};
+use crate::constants::{is_token, HT, SP};
 use crate::path::is_ctl;
 use crate::time::Time;
 use std::borrow::Cow;
@@ -373,10 +373,6 @@ fn unquote(value: &str) -> &str {
     } else {
         value
     }
-}
-
-fn is_token(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| TOKEN_CHARS.contains(&c))
 }
 
 // cookie-octet: printable US-ASCII except `"`, `,`, `;` and `\`

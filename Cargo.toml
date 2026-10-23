@@ -7,14 +7,14 @@ license-file = "LICENSE"
 homepage = "https://github.com/OctaneWeb/Octane"
 readme = "README.md"
 edition = "2018"
+rust-version = "1.85"
 
 [dependencies]
-lazy_static = "1.4.0"
-tokio-rustls = { version = "0.20", optional = true }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"], optional = true }
 openssl = { version = "0.10.30", optional = true }
-tokio-openssl = { version = "0.5", optional = true }
-tokio = { version = "0.3", features = ["net", "io-util", "stream", "rt-multi-thread", "macros", "fs"] }
-socket2 = "0.3.19"
+tokio-openssl = { version = "0.6.5", optional = true }
+tokio = { version = "1.54.1", features = ["net", "io-util", "rt", "fs", "sync", "time"] }
+socket2 = "0.6.5"
 serde = { version = "1.0.123", optional = true }
 serde_json = { version = "1.0.59", optional = true }
 
@@ -42,10 +42,11 @@ openSSL = ["openssl", "tokio-openssl"]
 fuzzing = []
 
 [dev-dependencies]
-tokio = { version = "0.3", features = ["net", "io-util", "rt-multi-thread", "macros"] }
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 curl = "0.4.33"
 
 [workspace]
+resolver = "2"
 members = [
     "octane_macros",
     "octane_http"

@@ -30,7 +30,10 @@ fuzz_target!(|data: &[u8]| {
     // Huffman: decoding arbitrary bytes may fail but must not panic, and
     // anything we encode must decode back to itself.
     let _ = huffman::decode(rest);
-    assert_eq!(huffman::decode(&huffman::encode(rest)).as_deref(), Some(rest));
+    assert_eq!(
+        huffman::decode(&huffman::encode(rest)).as_deref(),
+        Some(rest)
+    );
 
     // Encoder round-trip: a header field encoded by the server must survive a
     // trip through its own decoder byte-for-byte.

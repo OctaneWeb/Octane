@@ -15,8 +15,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::str;
 use std::string::ToString;
-use tokio::io::ReadHalf;
-use tokio::prelude::*;
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// Holds the type of request method, like GET,
 /// POST etc.
@@ -90,18 +89,18 @@ impl RequestLine {
     pub(crate) fn parse(request_line: &str) -> Option<Self> {
         let mut toks = request_line.split(SP);
         let method = toks.next()?;
-        // only the path is used for routing, the query is kept apart
         let target = toks.next()?;
+        let version = toks.next()?;
+        Self::from_parts(method, target, version, toks.next().is_some())
+    }
+
+    fn from_parts(method: &str, target: &str, version: &str, has_extra: bool) -> Option<Self> {
+        // only the path is used for routing, the query is kept apart
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         let path = PathBuf::parse(path).ok()?;
-        let version = toks.next()?;
-        // `split_at` panics on a version shorter than 5 bytes or with a
-        // multi-byte character over byte 5
-        let (first, ver) = if version.is_char_boundary(5) {
-            version.split_at(5)
-        } else {
-            (version, "")
-        };
+        // `get` avoids slicing through a multi-byte character and handles
+        // versions shorter than the `HTTP/` prefix without panicking.
+        let ver = version.get(5..).unwrap_or("");
         let enum_ver = match ver {
             "1.1" => HttpVersion::Http11,
             "1.0" => HttpVersion::Http10,
@@ -110,7 +109,7 @@ impl RequestLine {
             _ => HttpVersion::HttpInvalid,
         };
 
-        if cfg!(feature = "faithful") && (first != "HTTP/" || toks.next().is_some()) {
+        if cfg!(feature = "faithful") && (version.get(..5) != Some("HTTP/") || has_extra) {
             return None;
         }
         let request_method = match method {
@@ -141,6 +140,13 @@ pub(crate) fn request_line_parse(method: &[u8], url: &[u8], version: &[u8]) -> O
         str::from_utf8(url),
         str::from_utf8(version),
     ) {
+        (Ok(method), Ok(url), Ok(version))
+            if !method.contains(SP) && !url.contains(SP) && !version.contains(SP) =>
+        {
+            RequestLine::from_parts(method, url, version, false)
+        }
+        // Keep the exact legacy behavior for malformed fields containing a
+        // space. Valid parser output takes the allocation-free branch above.
         (Ok(method), Ok(url), Ok(version)) => {
             RequestLine::parse(&format!("{} {} {}", method, url, version))
         }
@@ -165,16 +171,15 @@ pub struct Header {
 impl Header {
     /// Parses a `key: value` header string and
     /// returns a Header struct
-    pub(crate) fn parse(header: String) -> Option<Self> {
+    pub(crate) fn parse(header: impl AsRef<str>) -> Option<Self> {
+        let header = header.as_ref();
         let mut toks = header.splitn(2, ':');
         let name = toks.next()?;
         if name.is_empty() {
             return None;
         }
-        if cfg!(feature = "faithful") {
-            for c in name.chars() {
-                TOKEN_CHARS.get(&c)?;
-            }
+        if cfg!(feature = "faithful") && !is_token(name) {
+            return None;
         }
         // whitespace around a field value isn't part of it, and HTAB is the
         // only control character allowed inside one
@@ -229,7 +234,8 @@ pub struct Headers {
 
 impl Headers {
     /// Parse all the headers on a request
-    pub(crate) fn parse(request: String) -> Option<Self> {
+    pub(crate) fn parse(request: impl AsRef<str>) -> Option<Self> {
+        let request = request.as_ref();
         let mut toks = Spliterator::new(request.as_bytes(), B_CRLF);
         // an empty block is a request without any header lines
         toks.finished = request.is_empty();
@@ -237,20 +243,37 @@ impl Headers {
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
         for tok in toks {
-            let parsed = Header::parse(match str::from_utf8(tok) {
-                Ok(s) => s.to_owned(),
-                Err(_) => return None,
-            })?;
-            let name = parsed.name.to_ascii_lowercase();
-            // cookie pairs are joined with "; " (RFC 6265 section 5.4)
-            let sep = if name == "cookie" { "; " } else { ", " };
-            headers
-                .entry(name)
-                .and_modify(|v| {
-                    v.push_str(sep);
-                    v.push_str(&parsed.value);
-                })
-                .or_insert_with(|| parsed.value.to_owned());
+            let parsed = Header::parse(str::from_utf8(tok).ok()?)?;
+            #[cfg(feature = "raw_headers")]
+            {
+                let name = parsed.name.to_ascii_lowercase();
+                // cookie pairs are joined with "; " (RFC 6265 section 5.4)
+                let sep = if name == "cookie" { "; " } else { ", " };
+                headers
+                    .entry(name)
+                    .and_modify(|v| {
+                        v.push_str(sep);
+                        v.push_str(&parsed.value);
+                    })
+                    .or_insert_with(|| parsed.value.to_owned());
+            }
+            #[cfg(not(feature = "raw_headers"))]
+            {
+                // Without raw-header preservation, reuse the allocations made
+                // by `Header::parse` instead of cloning both strings.
+                let Header { mut name, value } = parsed;
+                name.make_ascii_lowercase();
+                let sep = if name == "cookie" { "; " } else { ", " };
+                match headers.entry(name) {
+                    std::collections::hash_map::Entry::Occupied(mut entry) => {
+                        entry.get_mut().push_str(sep);
+                        entry.get_mut().push_str(&value);
+                    }
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        entry.insert(value);
+                    }
+                }
+            }
             #[cfg(feature = "raw_headers")]
             raw_headers.push(parsed);
         }
@@ -308,7 +331,10 @@ impl Headers {
             let sep = if lower == "cookie" { "; " } else { ", " };
             parsed
                 .entry(lower)
-                .and_modify(|v| *v = format!("{}{}{}", v, sep, value))
+                .and_modify(|v| {
+                    v.push_str(sep);
+                    v.push_str(value);
+                })
                 .or_insert_with(|| value.clone());
             #[cfg(feature = "raw_headers")]
             raw.push(Header {
@@ -370,20 +396,19 @@ impl<'a> Request<'a> {
     /// and body and return a Request struct
     pub(crate) fn parse(
         request_line: RequestLine,
-        headers: &'a Headers,
+        headers: Headers,
         body: &'a [u8],
     ) -> Option<Self> {
         #[cfg(feature = "cookies")]
-        let cookies: Vec<Cookie<'a>>;
-        #[cfg(feature = "cookies")]
-        if let Some(v) = headers.get("cookie") {
-            cookies = Cookie::parse(v);
-        } else {
-            cookies = Default::default();
-        }
+        let cookies: Vec<Cookie<'static>> = headers.get("cookie").map_or_else(Vec::new, |value| {
+            Cookie::parse(value)
+                .into_iter()
+                .map(|cookie| Cookie::new(cookie.name().to_owned(), cookie.value().to_owned()))
+                .collect()
+        });
         Some(Self {
             request_line,
-            headers: headers.clone(),
+            headers,
             #[cfg(feature = "cookies")]
             cookies,
             body,
@@ -392,38 +417,47 @@ impl<'a> Request<'a> {
     /// Build a [`Request`] from an already-parsed request line and header set,
     /// reading any body bytes that weren't already buffered alongside the head.
     ///
-    /// `body_remainder` is the slice of the body that arrived in the same read
-    /// as the head; if `Content-Length` calls for more, the rest is streamed
-    /// off `reader` into `body_vec`. Bodies longer than `max_body_size` are
-    /// refused with a `413` before anything is read.
+    /// `body_start` is the offset in `data` immediately after the request head.
+    /// If `Content-Length` calls for more bytes than are already buffered, the
+    /// rest is streamed off `reader` into that same allocation. Bodies longer
+    /// than `max_body_size` are refused with a `413` before anything is read.
     pub(crate) async fn from_raw<T: AsyncRead + Unpin>(
-        headers: &'a Headers,
+        headers: Headers,
         request_line: RequestLine,
-        body_remainder: &'a [u8],
-        body_vec: &'a mut Vec<u8>,
-        mut reader: ReadHalf<T>,
+        data: &'a mut Vec<u8>,
+        body_start: usize,
+        mut reader: T,
         max_body_size: usize,
     ) -> Result<Request<'a>, StatusCode> {
         let body_len = headers.content_length(max_body_size)?;
-        let body: &'a [u8] = if body_len <= body_remainder.len() {
-            // bytes past the declared length aren't part of this body
-            &body_remainder[..body_len]
-        } else {
+        let buffered_body_len = data
+            .len()
+            .checked_sub(body_start)
+            .ok_or(StatusCode::BadRequest)?;
+        let body_end = body_start
+            .checked_add(body_len)
+            .ok_or(StatusCode::PayloadTooLarge)?;
+
+        if body_len > buffered_body_len {
             // grow the buffer as bytes arrive instead of allocating the
             // declared length up front
-            body_vec.extend_from_slice(body_remainder);
-            let missing = (body_len - body_remainder.len()) as u64;
+            let missing = (body_len - buffered_body_len) as u64;
             (&mut reader)
                 .take(missing)
-                .read_to_end(body_vec)
+                .read_to_end(data)
                 .await
                 .map_err(|_| StatusCode::BadRequest)?;
             // the client hung up before sending the whole body
-            if body_vec.len() != body_len {
+            if data.len() != body_end {
                 return Err(StatusCode::BadRequest);
             }
-            &body_vec[..]
-        };
+        }
+
+        // Bytes already buffered or sent after the declared length are not
+        // part of this request body.
+        let body = data
+            .get(body_start..body_end)
+            .ok_or(StatusCode::BadRequest)?;
         Self::parse(request_line, headers, body).ok_or(StatusCode::BadRequest)
     }
 
@@ -592,6 +626,25 @@ mod test {
     }
 
     #[test]
+    fn byte_request_line_parser_matches_string_parser() {
+        let cases = [
+            ("GET", "/", "HTTP/1.1"),
+            ("PATCH", "/a/b?x=1", "HTTP/1.0"),
+            ("UNKNOWN", "/resource", "HTTP/9.9"),
+            // Inputs containing spaces take the compatibility fallback.
+            ("GET extra", "/", "HTTP/1.1"),
+            ("GET", "/two paths", "HTTP/1.1"),
+        ];
+        for (method, target, version) in cases {
+            let combined = format!("{} {} {}", method, target, version);
+            assert_eq!(
+                request_line_parse(method.as_bytes(), target.as_bytes(), version.as_bytes()),
+                RequestLine::parse(&combined)
+            );
+        }
+    }
+
+    #[test]
     fn sucess_non_documented() {
         // Non-documented methods should also work.
         let req = RequestLine::parse("XYZ /abc/def HTTP/1.1").unwrap();
@@ -755,6 +808,14 @@ mod test {
     }
 
     #[test]
+    fn headers_accept_borrowed_blocks() {
+        let block = String::from("Host: localhost\r\nX-Test: value");
+        let headers = Headers::parse(block.as_str()).unwrap();
+        assert_eq!(headers.get("host").unwrap(), "localhost");
+        assert_eq!(headers.get("x-test").unwrap(), "value");
+    }
+
+    #[test]
     fn success_value_whitespace_and_tabs() {
         // Whitespace around a value is dropped, tabs inside it are kept.
         let req = Header::parse("X-Test:  a\tb \t".to_string()).unwrap();
@@ -801,5 +862,77 @@ mod test {
         let too_large = Err(StatusCode::PayloadTooLarge);
         assert_eq!(parse("Content-Length: 101"), too_large);
         assert_eq!(parse("Content-Length: 99999999999999999999999"), too_large);
+    }
+
+    #[tokio::test]
+    async fn from_raw_appends_missing_body_to_the_request_buffer() {
+        let mut data = Vec::with_capacity(16);
+        data.extend_from_slice(b"HEADhe");
+        let request = Request::from_raw(
+            Headers::parse("Content-Length: 5").unwrap(),
+            RequestLine::parse("POST / HTTP/1.1").unwrap(),
+            &mut data,
+            4,
+            &b"lloignored"[..],
+            16,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(request.body, b"hello");
+        let body_pointer = request.body.as_ptr() as usize;
+        drop(request);
+        assert_eq!(body_pointer, data.as_ptr() as usize + 4);
+        assert_eq!(data, b"HEADhello");
+    }
+
+    #[tokio::test]
+    async fn from_raw_excludes_already_buffered_trailing_bytes() {
+        let mut data = b"HEADhello".to_vec();
+        let request = Request::from_raw(
+            Headers::parse("Content-Length: 2").unwrap(),
+            RequestLine::parse("POST / HTTP/1.1").unwrap(),
+            &mut data,
+            4,
+            &b""[..],
+            16,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(request.body, b"he");
+        drop(request);
+        assert_eq!(data, b"HEADhello");
+    }
+
+    #[tokio::test]
+    async fn from_raw_rejects_oversized_and_incomplete_bodies() {
+        let mut oversized_data = b"HEAD".to_vec();
+        let oversized = Request::from_raw(
+            Headers::parse("Content-Length: 6").unwrap(),
+            RequestLine::parse("POST / HTTP/1.1").unwrap(),
+            &mut oversized_data,
+            4,
+            &b"unused"[..],
+            5,
+        )
+        .await;
+        assert!(matches!(oversized, Err(StatusCode::PayloadTooLarge)));
+        drop(oversized);
+        assert_eq!(oversized_data, b"HEAD");
+
+        let mut incomplete_data = b"HEADhe".to_vec();
+        let incomplete = Request::from_raw(
+            Headers::parse("Content-Length: 5").unwrap(),
+            RequestLine::parse("POST / HTTP/1.1").unwrap(),
+            &mut incomplete_data,
+            4,
+            &b"l"[..],
+            5,
+        )
+        .await;
+        assert!(matches!(incomplete, Err(StatusCode::BadRequest)));
+        drop(incomplete);
+        assert_eq!(incomplete_data, b"HEADhel");
     }
 }

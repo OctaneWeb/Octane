@@ -126,7 +126,10 @@ fuzz_target!(|data: &[u8]| {
         let mut full = Vec::with_capacity(PREFACE.len() + wire.len());
         full.extend_from_slice(PREFACE);
         full.extend_from_slice(wire);
-        let mut io = ChunkedIo { input: &full, chunk };
+        let mut io = ChunkedIo {
+            input: &full,
+            chunk,
+        };
 
         if Http2FrameReader::read_preface(&mut io).await.is_err() {
             return;

@@ -1,7 +1,4 @@
 #![allow(dead_code)]
-use std::collections::HashSet;
-use std::iter::FromIterator;
-
 pub const SP: char = ' ';
 pub const HT: char = '\t';
 pub const CR: char = '\r';
@@ -21,10 +18,32 @@ pub const DAYS_PER_4Y: i64 = 365 * 4 + 1;
 pub static DAYS_IN_MONTH: [i64; 12] = [31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29];
 pub const NOT_FOUND: &str = r#"<!DOCTYPE html><html><head><title>404 NOT FOUND - OCTANE</title></head><body style="padding: 20px;"><h2 style="text-align: center;">404 NOT FOUND</h2><hr><h5>OCTANE - 0.1</h2></body></html>"#;
 
-lazy_static! {
-    pub static ref TOKEN_CHARS: HashSet<char> = HashSet::from_iter(
-        "!#$%&'*+-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ^_`abcdefghijklmnopqrstuvwxyz|~".chars()
-    );
+#[inline]
+pub(crate) fn is_token(value: &str) -> bool {
+    !value.is_empty()
+        && value.bytes().all(|byte| {
+            matches!(
+                byte,
+                b'0'..=b'9'
+                    | b'A'..=b'Z'
+                    | b'a'..=b'z'
+                    | b'!'
+                    | b'#'
+                    | b'$'
+                    | b'%'
+                    | b'&'
+                    | b'\''
+                    | b'*'
+                    | b'+'
+                    | b'-'
+                    | b'.'
+                    | b'^'
+                    | b'_'
+                    | b'`'
+                    | b'|'
+                    | b'~'
+            )
+        })
 }
 
 #[macro_export]

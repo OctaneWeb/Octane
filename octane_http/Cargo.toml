@@ -3,6 +3,7 @@ name = "octane_http"
 version = "0.1.0"
 authors = ["Daksh14 <41485688+Daksh14@users.noreply.github.com>"]
 edition = "2018"
+rust-version = "1.85"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,5 +12,8 @@ path = "../octane_macros"
 version = "0.1.2"
 
 [dependencies]
-tokio = { version = "0.3", features = ["net", "io-util", "stream", "rt-multi-thread"] }
+tokio = "1.54.1"
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["rt"] }
 

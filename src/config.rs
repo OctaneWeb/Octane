@@ -1,11 +1,12 @@
 use crate::default;
 use core::time::Duration;
+#[cfg(feature = "rustls")]
+use std::fs::File;
+#[cfg(feature = "rustls")]
+use std::io;
 use std::path::PathBuf;
 #[cfg(feature = "rustls")]
-use tokio_rustls::rustls::{
-    internal::pemfile::{certs, rsa_private_keys},
-    Certificate, PrivateKey,
-};
+use tokio_rustls::rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
 
 /// Ssl struct contains the key and cert
 /// required to setup SSL with the selected
@@ -28,7 +29,7 @@ use tokio_rustls::rustls::{
 /// ```
 #[derive(Clone)]
 pub struct Ssl {
-    /// Location of the private key file, should be an `RSA_PRIVATE_KEY`.
+    /// Location of a PEM-encoded private key file.
     pub key: PathBuf,
     /// Location of the certificate file.
     pub cert: PathBuf,
@@ -103,6 +104,16 @@ impl Ssl {
 pub struct OctaneConfig {
     /// The duration for keep alive requests. It is 5 seconds by default
     pub keep_alive: Option<Duration>,
+    /// Maximum number of connections being served at once. Once the limit is
+    /// reached, each listener stops draining the operating system's backlog
+    /// while it waits for capacity. It is 1024 by default; zero is treated as
+    /// one, and values too large for the runtime return an error from `listen`.
+    pub max_connections: usize,
+    /// Maximum total time spent on one connection after it acquires serving
+    /// capacity, including a TLS handshake when TLS is enabled. `None`
+    /// disables the deadline. It is 30 seconds by default. Custom Tokio
+    /// runtimes must enable the time driver with `enable_time` or `enable_all`.
+    pub connection_timeout: Option<Duration>,
     /// An instance of the `Ssl` struct to store the values of key and certificates.
     pub ssl: Ssl,
     /// The largest request body in bytes the server will read, requests
@@ -209,6 +220,8 @@ impl OctaneConfig {
         OctaneConfig {
             ssl: Ssl::new(),
             keep_alive: Some(Duration::from_secs(5)),
+            max_connections: 1024,
+            connection_timeout: Some(Duration::from_secs(30)),
             max_body_size: 2 * 1024 * 1024,
             worker_threads: None,
         }
@@ -217,33 +230,36 @@ impl OctaneConfig {
     pub(crate) fn append(&mut self, settings: Self) {
         self.ssl = settings.ssl;
         self.keep_alive = settings.keep_alive;
+        self.max_connections = settings.max_connections;
+        self.connection_timeout = settings.connection_timeout;
         self.max_body_size = settings.max_body_size;
     }
 
     /// Sets the number of worker threads, this is settings
     /// which will be applied to the `core_threads` method
     /// on the runtime builder struct. Alias for
-    /// [tokio's core_threads](https://docs.rs/tokio/0.2.13/tokio/runtime/struct.Builder.html#method.core_threads)
+    /// [Tokio's worker_threads](https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.worker_threads)
     pub fn worker_threads(&mut self, threads: usize) -> &mut Self {
         self.worker_threads = Some(threads);
         self
     }
 
-    // Get the certs as a Vec<Certificate>, a user will not have to
+    // Get the certificate chain, a user will not have to
     // use this directly, this is used and done for them
     #[cfg(feature = "rustls")]
-    pub(crate) fn get_cert(&self) -> std::io::Result<Vec<Certificate>> {
-        let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.cert)?);
-        certs(&mut buf)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Certs"))
+    pub(crate) fn get_cert(&self) -> io::Result<Vec<CertificateDer<'static>>> {
+        let file = File::open(&self.ssl.cert)?;
+        CertificateDer::pem_reader_iter(file)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
     }
-    // Get the private key as a Vec<PrivateKey>, a user will not have to
+    // Get the first supported private key, a user will not have to
     // use this directly
     #[cfg(feature = "rustls")]
-    pub(crate) fn get_key(&self) -> std::io::Result<Vec<PrivateKey>> {
-        let mut buf = std::io::BufReader::new(std::fs::File::open(&self.ssl.key)?);
-        rsa_private_keys(&mut buf)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Key"))
+    pub(crate) fn get_key(&self) -> io::Result<PrivateKeyDer<'static>> {
+        let file = File::open(&self.ssl.key)?;
+        PrivateKeyDer::from_pem_reader(file)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
     }
 }
 

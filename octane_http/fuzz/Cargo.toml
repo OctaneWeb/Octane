@@ -3,13 +3,14 @@ name = "octane_http-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2018"
+rust-version = "1.85"
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-tokio = { version = "0.3", features = ["io-util", "rt"] }
+tokio = { version = "1.54.1", features = ["rt"] }
 
 [dependencies.octane_http]
 path = ".."

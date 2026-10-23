@@ -2,12 +2,15 @@ use crate::constants::*;
 #[cfg(feature = "cookies")]
 use crate::cookie::Cookie;
 use crate::file_handler::FileHandler;
-use crate::path::is_ctl;
 use crate::time::Time;
 use octane_http::{HttpVersion, StatusCode};
+#[cfg(feature = "json")]
+use serde::Serialize;
 use std::collections::HashMap;
 use std::error::Error;
+#[cfg(feature = "cookies")]
 use std::fmt;
+use std::fmt::Write;
 use std::io::Cursor;
 use std::marker::PhantomData;
 use std::path::PathBuf;
@@ -17,8 +20,9 @@ pub(crate) type BoxReader = Box<dyn AsyncRead + Unpin + Send>;
 
 pub(crate) enum ResBody {
     None,
+    Bytes(Vec<u8>),
+    Static(&'static [u8]),
     Sized(usize, BoxReader),
-    Unsized(BoxReader),
 }
 
 impl ResBody {
@@ -26,7 +30,8 @@ impl ResBody {
         match self {
             // never send more than the Content-Length we announced
             ResBody::Sized(len, reader) => Box::new(reader.take(len as u64)) as BoxReader,
-            ResBody::Unsized(reader) => reader,
+            ResBody::Bytes(body) => Box::new(Cursor::new(body)) as BoxReader,
+            ResBody::Static(body) => Box::new(Cursor::new(body)) as BoxReader,
             ResBody::None => Box::new(Cursor::new(Vec::new())) as BoxReader,
         }
     }
@@ -95,7 +100,7 @@ impl<'a> Response<'a> {
     /// );
     /// ```
     pub fn set(&mut self, key: &str, value: &str) -> &mut Self {
-        self.headers.insert(key.to_owned(), value.to_owned());
+        self.set_owned(key, value.to_owned());
         self
     }
     /// Get the header value by name
@@ -138,29 +143,30 @@ impl<'a> Response<'a> {
     ///
     /// ```
     pub fn send<T: AsRef<[u8]>>(&mut self, body: T) {
-        let body_slice = body.as_ref();
-        let len = body_slice.len();
-        self.body = ResBody::Sized(len, Box::new(Cursor::new(body_slice.to_vec())) as BoxReader);
-        self.content_len = Some(body_slice.len());
-        self.default_headers();
+        self.set_body(body.as_ref().to_vec());
+    }
+    /// Sets an owned response body without copying it. Prefer this when the
+    /// body is already a `Vec<u8>` or `String`.
+    pub fn send_owned<T: Into<Vec<u8>>>(&mut self, body: T) {
+        self.set_body(body.into());
     }
     /// Automatically set headers like date, content
     /// length, and sent content header to "text/html"
     /// if no content header is sent
     pub fn default_headers(&mut self) -> &mut Self {
-        if let Some(x) = self.content_len {
-            self.headers
-                .insert("Content-Length".to_string(), x.to_string());
+        if let Some(content_len) = self.content_len {
+            self.set_owned("Content-Length", content_len.to_string());
         }
-        if let Some(date) = Time::now() {
-            self.headers.insert("Date".to_string(), date.format());
+        if let Some(date) = Time::now_http_date() {
+            self.set_owned("Date", date);
         }
-        if self.headers.get("Content-Type").is_none() {
+        if !self.headers.contains_key("Content-Type") {
             let mut format = String::from("text/html");
             if let Some(charset) = &self.charset {
-                format.push_str(&format!(" ;charset={:?}", charset));
+                write!(&mut format, " ;charset={:?}", charset)
+                    .expect("writing a charset to a String cannot fail");
             }
-            self.set("Content-Type", &format);
+            self.set_owned("Content-Type", format);
         }
         self
     }
@@ -193,10 +199,8 @@ impl<'a> Response<'a> {
     /// Consume the response and get the final formed http
     /// response that the server will send in bytes
     pub fn get_data(self) -> (String, BoxReader) {
-        (
-            format!("{}{}{}", self.status_line(), self.headers(), CRLF),
-            self.body.get_reader(),
-        )
+        let (head, body) = self.into_parts();
+        (head, body.get_reader())
     }
     /// Send a file as the response, automatically detect the
     /// mime type and set the headers accordingly
@@ -261,10 +265,13 @@ impl<'a> Response<'a> {
     /// ```
     #[cfg(feature = "json")]
     pub fn json<T: Serialize>(&mut self, structure: T) -> serde_json::Result<()> {
-        self.body =
-            ResBody::Unsized(Box::new(Cursor::new(serde_json::to_vec(structure))) as BoxReader);
+        let body = serde_json::to_vec(&structure)?;
+        let len = body.len();
+        self.body = ResBody::Bytes(body);
+        self.content_len = Some(len);
         self.with_type("application/json");
         self.default_headers();
+        Ok(())
     }
     /// Set the status code from the status code enum
     ///
@@ -441,10 +448,11 @@ impl<'a> Response<'a> {
     // Creates a new response from a slice
     pub(crate) fn new_from_slice<T: AsRef<[u8]>>(body: T) -> Self {
         let body_slice = body.as_ref();
-        Self::new(
-            Box::new(Cursor::new(body_slice.to_vec())) as BoxReader,
-            Some(body_slice.len()),
-        )
+        Self::with_body(ResBody::Bytes(body_slice.to_vec()), Some(body_slice.len()))
+    }
+    // Creates a response backed by static bytes without copying the body.
+    pub(crate) fn new_from_static(body: &'static [u8]) -> Self {
+        Self::with_body(ResBody::Static(body), Some(body.len()))
     }
     // Creates a new response with empty body
     pub(crate) fn new_empty() -> Self {
@@ -461,16 +469,10 @@ impl<'a> Response<'a> {
         }
     }
     // Generates a new empty response
-    fn new(body: BoxReader, content_len: Option<usize>) -> Self {
-        let body_res: ResBody;
-        if let Some(x) = content_len {
-            body_res = ResBody::Sized(x, body)
-        } else {
-            body_res = ResBody::Unsized(body)
-        }
+    fn with_body(body: ResBody, content_len: Option<usize>) -> Self {
         Response {
             status_code: StatusCode::Ok,
-            body: body_res,
+            body,
             content_len,
             http_version: "1.1".to_owned(),
             headers: HashMap::new(),
@@ -480,26 +482,38 @@ impl<'a> Response<'a> {
             marker: PhantomData,
         }
     }
-    fn reason_phrase(&self) -> String {
-        self.status_code.to_string().to_uppercase()
+    fn set_body(&mut self, body: Vec<u8>) {
+        let len = body.len();
+        self.body = ResBody::Bytes(body);
+        self.content_len = Some(len);
+        self.default_headers();
     }
-    fn status_code(&self) -> i32 {
-        self.status_code.into()
+    fn set_owned(&mut self, key: &str, value: String) {
+        if let Some(existing) = self.headers.get_mut(key) {
+            *existing = value;
+        } else {
+            self.headers.insert(key.to_owned(), value);
+        }
     }
-    fn status_line(&self) -> String {
-        format!(
-            "{}/{}{}{}{}{}{}",
-            "HTTP",
-            self.http_version,
-            SP,
-            self.status_code(),
-            SP,
-            self.reason_phrase(),
-            CRLF
-        )
-    }
-    fn headers(&self) -> String {
-        let mut headers_str = String::new();
+    pub(crate) fn into_parts(self) -> (String, ResBody) {
+        let header_bytes = self
+            .headers
+            .iter()
+            .map(|(name, value)| name.len() + value.len() + 4)
+            .sum::<usize>();
+        let (status_code, reason_phrase) = self.status_code.fetch();
+        let mut headers_str = String::with_capacity(
+            32 + self.http_version.len() + reason_phrase.len() + header_bytes,
+        );
+        headers_str.push_str("HTTP/");
+        headers_str.push_str(&self.http_version);
+        headers_str.push(SP);
+        write!(&mut headers_str, "{}", status_code)
+            .expect("writing a status code to a String cannot fail");
+        headers_str.push(SP);
+        headers_str.extend(reason_phrase.chars().flat_map(char::to_uppercase));
+        headers_str.push_str(CRLF);
+
         // push normal headers
         self.headers
             .iter()
@@ -511,7 +525,8 @@ impl<'a> Response<'a> {
             .iter()
             .filter_map(|cookie| cookie.serialise().ok())
             .for_each(|cookie| push_header(&mut headers_str, "Set-Cookie", &cookie));
-        headers_str
+        headers_str.push_str(CRLF);
+        (headers_str, self.body)
     }
 }
 
@@ -519,17 +534,26 @@ impl<'a> Response<'a> {
 // characters in the value, CR and LF included, are replaced by spaces, so no
 // value can start another header line or end the head early.
 fn push_header(headers_str: &mut String, name: &str, value: &str) {
-    if name.is_empty() || !name.chars().all(|c| TOKEN_CHARS.contains(&c)) {
+    if !is_token(name) {
         return;
     }
     headers_str.push_str(name);
     headers_str.push(':');
     headers_str.push(SP);
-    headers_str.extend(
-        value
-            .chars()
-            .map(|c| if is_ctl(c) && c != HT { SP } else { c }),
-    );
+    if value
+        .bytes()
+        .any(|byte| (byte <= b'\x1f' && byte != b'\t') || byte == b'\x7f')
+    {
+        headers_str.extend(value.chars().map(|c| {
+            if (c <= '\x1f' && c != HT) || c == '\x7f' {
+                SP
+            } else {
+                c
+            }
+        }));
+    } else {
+        headers_str.push_str(value);
+    }
     headers_str.push_str(CRLF);
 }
 
@@ -617,6 +641,31 @@ mod test {
         res.send("hello");
         res.body = ResBody::Sized(2, Box::new(Cursor::new(b"hello".to_vec())));
         assert!(data_to_string(res.get_data()).await.ends_with("\r\n\r\nhe"));
+    }
+
+    #[cfg(feature = "json")]
+    #[tokio::test]
+    async fn json_body_is_owned_and_sized() {
+        let mut res = Response::new_empty();
+        res.json([1, 2]).unwrap();
+        let data = data_to_string(res.get_data()).await;
+
+        assert!(data.contains("\r\nContent-Length: 5\r\n"));
+        assert!(data.contains("\r\nContent-Type: application/json\r\n"));
+        assert!(data.ends_with("\r\n\r\n[1,2]"));
+    }
+
+    #[test]
+    fn send_owned_reuses_the_body_allocation() {
+        let body = Vec::with_capacity(64);
+        let allocation = body.as_ptr();
+        let mut res = Response::new_empty();
+        res.send_owned(body);
+
+        match &res.body {
+            ResBody::Bytes(body) => assert_eq!(body.as_ptr(), allocation),
+            _ => panic!("owned response body was not stored as bytes"),
+        }
     }
 
     #[cfg(feature = "cookies")]

@@ -230,6 +230,9 @@ pub struct Headers {
     pub raw: Vec<Header>,
     #[cfg(not(feature = "raw_headers"))]
     raw: PhantomData<()>,
+    // how many Host fields were sent, they are joined in `parsed` so a
+    // duplicate can't be told apart from a single comma separated value
+    host_count: usize,
 }
 
 impl Headers {
@@ -242,8 +245,12 @@ impl Headers {
         let mut headers: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw_headers: Vec<Header> = Vec::new();
+        let mut host_count = 0;
         for tok in toks {
             let parsed = Header::parse(str::from_utf8(tok).ok()?)?;
+            if parsed.name.eq_ignore_ascii_case("host") {
+                host_count += 1;
+            }
             #[cfg(feature = "raw_headers")]
             {
                 let name = parsed.name.to_ascii_lowercase();
@@ -283,7 +290,14 @@ impl Headers {
             raw: raw_headers,
             #[cfg(not(feature = "raw_headers"))]
             raw: PhantomData,
+            host_count,
         })
+    }
+
+    /// How many `Host` fields the request had. HTTP/1.1 requests need
+    /// exactly one (RFC 9112 section 3.2)
+    pub(crate) fn host_count(&self) -> usize {
+        self.host_count
     }
 
     /// The body length declared by the `Content-Length` header, 0 if it
@@ -326,8 +340,12 @@ impl Headers {
         let mut parsed: HashMap<String, String> = HashMap::new();
         #[cfg(feature = "raw_headers")]
         let mut raw: Vec<Header> = Vec::new();
+        let mut host_count = 0;
         for (name, value) in pairs {
             let lower = name.to_ascii_lowercase();
+            if lower == "host" {
+                host_count += 1;
+            }
             let sep = if lower == "cookie" { "; " } else { ", " };
             parsed
                 .entry(lower)
@@ -348,6 +366,7 @@ impl Headers {
             raw,
             #[cfg(not(feature = "raw_headers"))]
             raw: PhantomData,
+            host_count,
         }
     }
 }
@@ -820,6 +839,14 @@ mod test {
         // Whitespace around a value is dropped, tabs inside it are kept.
         let req = Header::parse("X-Test:  a\tb \t".to_string()).unwrap();
         assert_eq!(req.value(), "a\tb");
+    }
+
+    #[test]
+    fn counts_host_fields() {
+        let count = |block: &str| Headers::parse(block).unwrap().host_count();
+        assert_eq!(count(""), 0);
+        assert_eq!(count("Host: a"), 1);
+        assert_eq!(count("Host: a\r\nX: 1\r\nhOST: a"), 2);
     }
 
     #[test]

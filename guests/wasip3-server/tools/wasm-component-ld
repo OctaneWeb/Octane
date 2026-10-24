@@ -1,0 +1,8 @@
+#!/bin/sh
+# Link with wasi-sdk's linkers instead of the ones bundled with rustc.
+#
+# rustc ships an older wasm-component-ld, which can't turn the per-task
+# `env::__wasm_{get,set}_{stack_pointer,tls_base}` imports of cooperative
+# threading into component built-ins, and puts its own lld first in PATH.
+: "${WASI_SDK_PATH:?set WASI_SDK_PATH to the wasi-sdk install (34 or newer)}"
+exec "$WASI_SDK_PATH/bin/wasm-component-ld" "$@" --wasm-ld-path "$WASI_SDK_PATH/bin/wasm-ld"

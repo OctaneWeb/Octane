@@ -12,8 +12,17 @@ path = "../octane_macros"
 version = "0.1.2"
 
 [dependencies]
-tokio = "1.54.1"
+tokio = { version = "1.54.1", optional = true }
+
+[features]
+default = ["std"]
+# The protocol core (parsing, encoding, the blocking serve loop) only needs
+# `core`. `std` adds the tokio reader and an adapter for `std::io` streams.
+std = ["tokio"]
 
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["rt"] }
 
+[[example]]
+name = "portable_server"
+required-features = ["std"]

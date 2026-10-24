@@ -1,0 +1,4 @@
+# wasm32-wasip3 is tier 3, its std is built from source with -Zbuild-std
+[toolchain]
+channel = "nightly"
+components = ["rust-src"]

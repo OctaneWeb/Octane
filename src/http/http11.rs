@@ -2,7 +2,9 @@ use crate::http::{Http, KeepAliveState};
 use octane_http::StatusCode;
 
 pub fn http11_check(validator: &mut Http) {
-    if validator.request.headers.get("host").is_none() {
+    // a missing Host and repeated ones (even with the same value) are both
+    // malformed (RFC 9112 section 3.2)
+    if validator.request.headers.host_count() != 1 {
         validator.set(StatusCode::BadRequest)
     }
     if let Some(connection_type) = validator.request.headers.get("connection") {

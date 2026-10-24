@@ -1,6 +1,7 @@
 #![allow(clippy::all)]
 #![allow(clippy::type_complexity)]
 #![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "std"), no_std)]
 //! Octane is a web server that's modelled after express (a very
 //! popular and easy to use web framework) for rust.
 //!
@@ -21,6 +22,8 @@
 //! and then in your main.rs,
 //!
 //! ```no_run
+//! # #[cfg(feature = "std")]
+//! # mod example {
 //! use octane::prelude::*;
 //! use std::error::Error;
 //!
@@ -39,6 +42,8 @@
 //!         println!("Server running on {}", port)
 //!     }).await
 //! }
+//! # }
+//! # fn main() {}
 //! ```
 //! and now you can see the page at [http://localhost:8080](http://localhost:8080).
 //!
@@ -55,8 +60,22 @@
 //! - `raw_headers`: To have access to original, un-normalized headers.
 //! - `rustls`: To use rustls for ssl.
 //! - `openSSL`: To use openssl for ssl.
-//! - `default`: The default set includes faithful, query_strings, cookies,
+//! - `std`: The tokio based server, everything except [`portable`]. All the
+//! features above imply it.
+//! - `default`: The default set includes std, faithful, query_strings, cookies,
 //! url_variables, raw_headers.
+//!
+//! ## `no_std`
+//!
+//! With `default-features = false` the crate is `#![no_std]` and exposes only
+//! [`portable`], the allocation-free HTTP/1.x core: a parser that borrows from
+//! a caller-provided buffer, a response encoder and a serve loop that runs on
+//! any transport implementing [`portable::server::Connection`]. That covers
+//! WASI, bare-metal TCP stacks like smoltcp, or raw sockets without tokio.
+//!
+//! ```toml
+//! octane = { version = "0.1.1", default-features = false }
+//! ```
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
 //! octane will throw a `compile_error!`
@@ -64,44 +83,65 @@
 //! The rust code you would use to setup openssl will be same as rustls (not including certs and keys).
 //! If you want to switch between any of them, its just the matter of editing your cargo.toml
 //! to enable the feature.
+#[cfg(feature = "std")]
 /// Configurations for Octane web server
 pub mod config;
+#[cfg(feature = "std")]
 pub(crate) mod constants;
 #[cfg(feature = "cookies")]
 /// Module for cookie parsing and handling
 pub mod cookie;
+#[cfg(feature = "std")]
 pub(crate) mod error;
+#[cfg(feature = "std")]
 pub(crate) mod file_handler;
 #[cfg(feature = "fuzzing")]
 #[doc(hidden)]
 pub mod fuzzing;
+#[cfg(feature = "std")]
 pub(crate) mod http;
+#[cfg(feature = "std")]
 pub(crate) mod middlewares;
+#[cfg(feature = "std")]
 pub(crate) mod path;
+#[cfg(feature = "std")]
 pub(crate) mod query;
+#[cfg(feature = "std")]
 /// Request module contains the ongoing request and methods to read from it
 pub mod request;
+#[cfg(feature = "std")]
 /// Responder module contains the response which will be sent
 pub mod responder;
+#[cfg(feature = "std")]
 /// The router module has utilities to create routes and custom routers
 pub mod router;
+#[cfg(feature = "std")]
 pub(crate) mod server;
+#[cfg(feature = "std")]
 /// Server struct that manages request/response and allows the routes to enter in
 pub use crate::server::Octane;
+#[cfg(feature = "std")]
 pub(crate) mod server_builder;
+#[cfg(feature = "std")]
 pub(crate) mod time;
+#[cfg(feature = "std")]
 pub(crate) mod tls;
+#[cfg(feature = "std")]
 pub(crate) mod util;
 
 // re exports
 #[cfg(feature = "extended_queries")]
 pub use crate::query::QueryValue;
+/// The allocation-free HTTP/1.x core, available with and without `std`.
+/// See the [`no_std`](index.html#no_std) section.
+pub use octane_http as portable;
 pub use octane_http::StatusCode;
 /// Prelude here brings in scope, the [`Route`](router/trait.Route.html) and
 /// [`Config`](config/trait.Config.html) trait, [`Octane`](struct.Octane.html) main server
 /// and [`Router`](router/struct.Router.html) struct with the [`Flow`](router/enum.Flow.html)
 /// enum, and the [`route`](macro.route.html), [`route_next`](macro.route_next.html),
 /// [`route_stop`](macro.route_stop.html) macros
+#[cfg(feature = "std")]
 pub mod prelude {
     pub use crate::config::Config;
     pub use crate::Octane;

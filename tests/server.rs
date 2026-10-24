@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use octane::prelude::*;
 mod common;
 
@@ -71,5 +72,23 @@ pub fn basic_server_x_req() {
         }
         // TODO: HEAD responses still carry the body, they must not
         assert_eq!(200, common::request(8082, "HEAD", "/", &[]).status);
+    });
+}
+
+#[test]
+pub fn http11_needs_exactly_one_host() {
+    let mut app = Octane::new();
+    app.get("/", route_next!(|req, res| res.send("ok")))
+        .unwrap();
+    common::run(app, 8089, || {
+        let missing = common::raw_request(8089, b"GET / HTTP/1.1\r\n\r\n");
+        assert_eq!(400, missing.status);
+        let repeated = common::raw_request(8089, b"GET / HTTP/1.1\r\nHost: a\r\nHost: a\r\n\r\n");
+        assert_eq!(400, repeated.status);
+        let single = common::raw_request(8089, b"GET / HTTP/1.1\r\nHost: a\r\n\r\n");
+        assert_eq!((200, "ok"), (single.status, single.text()));
+        // HTTP/1.0 predates Host
+        let http10 = common::raw_request(8089, b"GET / HTTP/1.0\r\n\r\n");
+        assert_eq!(200, http10.status);
     });
 }

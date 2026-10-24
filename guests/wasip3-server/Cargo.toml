@@ -1,0 +1,27 @@
+[package]
+name = "wasip3-server"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# A WASIp3 guest serving HTTP/1.1 over wasi:sockets with octane's
+# allocation-free core. See README.md for building and running it.
+
+# the `wasi:cli/run` export comes from `export!` below, not a `main`
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# the no_std core: parsing and encoding only, the guest does the I/O
+octane_http = { path = "../../octane_http", default-features = false }
+# `async-spawn` gives `spawn_local`, one task per connection
+wasip3 = { version = "0.9.0", features = ["async-spawn"] }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+# not part of the octane workspace, it builds for its own target
+[workspace]

@@ -13,8 +13,8 @@ rust-version = "1.85"
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"], optional = true }
 openssl = { version = "0.10.30", optional = true }
 tokio-openssl = { version = "0.6.5", optional = true }
-tokio = { version = "1.54.1", features = ["net", "io-util", "rt", "fs", "sync", "time"] }
-socket2 = "0.6.5"
+tokio = { version = "1.54.1", features = ["net", "io-util", "rt", "fs", "sync", "time"], optional = true }
+socket2 = { version = "0.6.5", optional = true }
 serde = { version = "1.0.123", optional = true }
 serde_json = { version = "1.0.59", optional = true }
 
@@ -25,21 +25,25 @@ version = "0.1.2"
 [dependencies.octane_http]
 path = "octane_http"
 version = "0.1"
+default-features = false
 
 [features]
-default = ["faithful", "query_strings", "cookies", "url_variables", "raw_headers"]
-faithful = []
-test_crate = []
-raw_headers = []
-query_strings = []
-extended_queries = []
-cookies = []
-json = ["serde", "serde_json"]
-url_variables = []
-rustls = ["tokio-rustls"]
-openSSL = ["openssl", "tokio-openssl"]
+default = ["std", "faithful", "query_strings", "cookies", "url_variables", "raw_headers"]
+# The tokio server and everything built on it. Without it the crate is
+# `#![no_std]` and only exposes the allocation-free core, `octane::portable`.
+std = ["tokio", "socket2", "octane_http/std"]
+faithful = ["std"]
+test_crate = ["std"]
+raw_headers = ["std"]
+query_strings = ["std"]
+extended_queries = ["std"]
+cookies = ["std"]
+json = ["std", "serde", "serde_json"]
+url_variables = ["std"]
+rustls = ["std", "tokio-rustls"]
+openSSL = ["std", "openssl", "tokio-openssl"]
 # exposes the parsers to the fuzz targets in octane_http/fuzz, not a stable API
-fuzzing = []
+fuzzing = ["std"]
 
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }

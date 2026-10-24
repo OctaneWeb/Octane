@@ -1,0 +1,28 @@
+[package]
+name = "wasip3-server"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# A WASIp3 guest serving HTTP/1.1 over wasi:sockets with octane's
+# allocation-free core. See README.md for building and running it.
+
+# the `wasi:cli/run` export comes from `export!` below, not a `main`
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# without tokio: `octane::wasip3` serves over wasi:sockets with octane's
+# router, `url_variables` enables routes like `/hello/:name`
+octane = { path = "../..", default-features = false, features = ["wasm", "url_variables"] }
+# the `wasi:cli/run` export and the clock used by `/sleep` and `/stream`
+wasip3 = { version = "0.9.0", default-features = false }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+# not part of the octane workspace, it builds for its own target
+[workspace]

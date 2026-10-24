@@ -1,0 +1,15 @@
+[build]
+target = "wasm32-wasip3"
+
+[unstable]
+# tier 3 target, no prebuilt std
+build-std = ["std", "panic_abort"]
+
+[target.wasm32-wasip3]
+# runs wasi-sdk's wasm-component-ld and wasm-ld, see the script
+linker = "tools/wasm-component-ld"
+rustflags = [
+    # libc and crt1-reactor.o come from wasi-sdk (see build.rs), rustc has
+    # no self-contained copies for this target
+    "-C", "link-self-contained=no",
+]

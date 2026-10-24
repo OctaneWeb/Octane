@@ -1,7 +1,6 @@
 use crate::config::{Config, OctaneConfig, Ssl};
 use crate::error::Error;
 use crate::http::Http;
-use crate::middlewares::Closures;
 use crate::request::{Headers, Request};
 use crate::responder::{ResBody, Response};
 use crate::router::{Closure, Route, Router, RouterResult};
@@ -299,6 +298,8 @@ impl Octane {
 default!(Octane);
 
 impl Route for Octane {
+    type Handler = Closure;
+
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
         self.router.head(path, closure)
     }
@@ -318,12 +319,7 @@ impl Route for Octane {
         self.router.patch(path, closure)
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
-        self.router.middlewares.push(Closures {
-            closure,
-            index: self.router.route_counter,
-        });
-        self.router.route_counter += 1;
-        Ok(())
+        self.router.add(closure)
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
         self.router.add_route(path, closure)

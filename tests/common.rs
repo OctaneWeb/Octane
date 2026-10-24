@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use octane::Octane;
 use std::io::{Read, Write};
 use std::net::TcpStream;

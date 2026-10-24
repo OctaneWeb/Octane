@@ -1,3 +1,4 @@
+#![cfg(feature = "std")]
 use octane::prelude::*;
 
 mod common;

@@ -1,5 +1,29 @@
+//! The HTTP/1.x protocol core of Octane.
+//!
+//! The crate is `#![no_std]` and never allocates: requests are parsed in
+//! place out of a caller-provided buffer and responses are encoded into one.
+//! Only the transport differs between platforms, so the same code serves on
+//! Linux, WASI or a bare-metal TCP stack. See [`config`] for sizing the
+//! buffers, [`server`] for the serve loop and [`server::Connection`] for the
+//! transport trait.
+//!
+//! The `wasm` feature adds the `wasip3` module on `wasm32-wasip3`: a
+//! server over `wasi:sockets` that creates the listener and serves each
+//! connection as a concurrent task.
+//!
+//! The `std` feature (on by default) adds the tokio based
+//! [`http1x::Http1xReader`] used by the `octane` server and
+//! [`server::StdIo`], an adapter for any `std::io::Read + Write` stream.
+#![no_std]
+
+#[cfg(any(feature = "std", test))]
+extern crate std;
+
+#[cfg(all(feature = "wasm", target_os = "wasi", target_env = "p3"))]
+extern crate alloc;
+
+use core::fmt;
 use octane_macros::status_codes;
-use std::fmt;
 
 pub const SP: char = ' ';
 pub const HT: char = '\t';
@@ -8,8 +32,13 @@ pub const LF: char = '\n';
 pub const CRLF: &[u8; 2] = b"\r\n";
 pub const DOUBLE_CRLF: &[u8; 4] = b"\r\n\r\n";
 
+pub mod config;
 mod eater;
 pub mod http1x;
+pub mod response;
+pub mod server;
+#[cfg(all(feature = "wasm", target_os = "wasi", target_env = "p3"))]
+pub mod wasip3;
 /// Holds the http versions. You can match the
 /// variants by doing a comparison with the version
 /// in the request_line
@@ -31,7 +60,7 @@ pub mod http1x;
 ///     }),
 /// );
 /// ```
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum HttpVersion {
     #[doc(hidden)]
     Http11,
@@ -45,8 +74,10 @@ pub enum HttpVersion {
     HttpInvalid,
 }
 
-impl ToString for HttpVersion {
-    fn to_string(&self) -> std::string::String {
+impl HttpVersion {
+    /// The version number as it appears after `HTTP/`, empty for
+    /// [`HttpVersion::HttpInvalid`]
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::Http11 => "1.1",
             Self::Http10 => "1.0",
@@ -54,7 +85,12 @@ impl ToString for HttpVersion {
             Self::Http02 => "0.2",
             _ => "",
         }
-        .to_owned()
+    }
+}
+
+impl fmt::Display for HttpVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 

@@ -3,8 +3,6 @@ use crate::responder::Response;
 use crate::Octane;
 use octane_http::StatusCode;
 use std::error;
-use std::fmt;
-use std::fmt::{Display, Formatter};
 use std::marker::Unpin;
 use tokio::io::AsyncWrite;
 
@@ -21,9 +19,6 @@ pub struct Error {
     kind: StatusCode,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Custom error type for invalid paths
-pub struct InvalidPathError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 // Custom error type for invalid SSL certificates
 pub struct InvalidCertError;
@@ -59,12 +54,3 @@ impl Error {
         Ok(())
     }
 }
-
-impl Display for InvalidPathError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        // TODO: make more informative
-        write!(f, "Invalid path error")
-    }
-}
-
-impl error::Error for InvalidPathError {}

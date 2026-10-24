@@ -12,10 +12,10 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-# the no_std core: parsing and encoding only, the guest does the I/O
-octane_http = { path = "../../octane_http", default-features = false }
-# `async-spawn` gives `spawn_local`, one task per connection
-wasip3 = { version = "0.9.0", features = ["async-spawn"] }
+# without std (no tokio), with `octane::wasip3` serving over wasi:sockets
+octane = { path = "../..", default-features = false, features = ["wasm"] }
+# the `wasi:cli/run` export and the clock used by `/sleep` and `/stream`
+wasip3 = { version = "0.9.0", default-features = false }
 
 [profile.dev]
 panic = "abort"

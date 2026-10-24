@@ -7,6 +7,10 @@
 //! buffers, [`server`] for the serve loop and [`server::Connection`] for the
 //! transport trait.
 //!
+//! The `wasm` feature adds the `wasip3` module on `wasm32-wasip3`: a
+//! server over `wasi:sockets` that creates the listener and serves each
+//! connection as a concurrent task.
+//!
 //! The `std` feature (on by default) adds the tokio based
 //! [`http1x::Http1xReader`] used by the `octane` server and
 //! [`server::StdIo`], an adapter for any `std::io::Read + Write` stream.
@@ -14,6 +18,9 @@
 
 #[cfg(any(feature = "std", test))]
 extern crate std;
+
+#[cfg(all(feature = "wasm", target_os = "wasi", target_env = "p3"))]
+extern crate alloc;
 
 use core::fmt;
 use octane_macros::status_codes;
@@ -30,6 +37,8 @@ mod eater;
 pub mod http1x;
 pub mod response;
 pub mod server;
+#[cfg(all(feature = "wasm", target_os = "wasi", target_env = "p3"))]
+pub mod wasip3;
 /// Holds the http versions. You can match the
 /// variants by doing a comparison with the version
 /// in the request_line

@@ -77,6 +77,14 @@
 //! octane = { version = "0.1.1", default-features = false }
 //! ```
 //!
+//! On `wasm32-wasip3` the `wasm` feature adds `octane::wasip3`, which creates
+//! the listening socket over `wasi:sockets` and serves every connection as a
+//! concurrent task with async handlers:
+//!
+//! ```toml
+//! octane = { version = "0.1.1", default-features = false, features = ["wasm"] }
+//! ```
+//!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
 //! octane will throw a `compile_error!`
 //!
@@ -135,6 +143,10 @@ pub use crate::query::QueryValue;
 /// The allocation-free HTTP/1.x core, available with and without `std`.
 /// See the [`no_std`](index.html#no_std) section.
 pub use octane_http as portable;
+/// Serving from a WASIp3 component, see the [`no_std`](index.html#no_std)
+/// section. Needs the `wasm` feature and the `wasm32-wasip3` target.
+#[cfg(all(feature = "wasm", target_os = "wasi", target_env = "p3"))]
+pub use octane_http::wasip3;
 pub use octane_http::StatusCode;
 /// Prelude here brings in scope, the [`Route`](router/trait.Route.html) and
 /// [`Config`](config/trait.Config.html) trait, [`Octane`](struct.Octane.html) main server

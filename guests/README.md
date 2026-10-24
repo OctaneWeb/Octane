@@ -1,11 +1,12 @@
 # WASI guests
 
-Programs that run octane's allocation-free HTTP core (`octane_http` with
-`default-features = false`) as WebAssembly components inside wasmtime.
+Programs that run octane as WebAssembly components inside wasmtime, using
+`octane` with `default-features = false` (no tokio) and the `wasm` feature,
+which adds `octane::wasip3` on `wasm32-wasip3`.
 
 | Guest | What it is |
 | --- | --- |
-| [`wasip3-server`](wasip3-server) | HTTP/1.1 server as a WASIp3 component over `wasi:sockets@0.3.0`, one async task per connection |
+| [`wasip3-server`](wasip3-server) | HTTP/1.1 server as a WASIp3 component: `octane::wasip3::serve` with an async handler |
 
 Each guest is its own Cargo workspace, so its target and nightly settings
 don't affect the main octane build.

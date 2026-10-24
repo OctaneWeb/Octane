@@ -42,6 +42,10 @@ json = ["std", "serde", "serde_json"]
 url_variables = ["std"]
 rustls = ["std", "tokio-rustls"]
 openSSL = ["std", "openssl", "tokio-openssl"]
+# `octane::wasip3`: serve from a WASIp3 component over wasi:sockets. Only has
+# an effect on wasm32-wasip3, and doesn't need `std` (use it with
+# `default-features = false`)
+wasm = ["octane_http/wasm"]
 # exposes the parsers to the fuzz targets in octane_http/fuzz, not a stable API
 fuzzing = ["std"]
 

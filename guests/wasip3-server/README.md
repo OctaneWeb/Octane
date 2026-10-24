@@ -1,10 +1,17 @@
 # wasip3-server
 
-An HTTP/1.1 server built as a WASIp3 component, using octane's
-allocation-free core (`octane_http` with `default-features = false`) over
-`wasi:sockets@0.3.0`. Each connection is its own task (`spawn_local`), so
-connections are served concurrently on one thread while they wait on
-streams or timers.
+An HTTP/1.1 server built as a WASIp3 component with octane's `wasm`
+feature:
+
+```toml
+octane = { path = "../..", default-features = false, features = ["wasm"] }
+```
+
+`octane::wasip3::serve` creates the listening socket over
+`wasi:sockets@0.3.0`, accepts connections and runs each one as its own
+task, so `src/lib.rs` only has the async handler. Connections are served
+concurrently on one thread while they wait on sockets, timers or streamed
+bodies.
 
 ## Build and run
 

@@ -199,20 +199,52 @@ impl<'o, 'b> Response<'o, 'b> {
     /// and `keep_alive` is whether the request asked for a persistent
     /// connection. No body or `Content-Length` is sent for `204` and `304`.
     pub fn finish(
-        mut self,
+        self,
         head_request: bool,
         keep_alive: bool,
     ) -> Result<Encoded<'o, 'b>, EncodeError> {
+        let body = self.body;
+        let body_len = body.len();
+        let (head, close, bodiless) = self.encode(body_len, keep_alive)?;
+        Ok(Encoded {
+            head,
+            body: if head_request || bodiless { b"" } else { body },
+            close,
+        })
+    }
+
+    /// Encode the head of a response whose body of `body_len` bytes is
+    /// written separately afterwards, ignoring any body set with
+    /// [`body`](Self::body). The caller has to write exactly `body_len`
+    /// bytes, unless the request was `HEAD` or the status is `204` or `304`
+    /// (the returned body is empty then too).
+    pub fn finish_streamed(
+        self,
+        body_len: usize,
+        keep_alive: bool,
+    ) -> Result<Encoded<'o, 'static>, EncodeError> {
+        let (head, close, _) = self.encode(body_len, keep_alive)?;
+        Ok(Encoded {
+            head,
+            body: b"",
+            close,
+        })
+    }
+
+    /// Add the framing headers and encode the head, returning it with
+    /// whether to close and whether the status forbids a body
+    fn encode(
+        mut self,
+        body_len: usize,
+        keep_alive: bool,
+    ) -> Result<(&'o [u8], bool, bool), EncodeError> {
         if let Some(error) = self.error {
             return Err(error);
         }
         let close = self.close || !keep_alive;
-        let bodiless = matches!(
-            self.head.status(),
-            StatusCode::NoContent | StatusCode::NotModified
-        );
+        let bodiless = self.is_bodiless();
         if !bodiless {
-            self.head.content_length(self.body.len())?;
+            self.head.content_length(body_len)?;
         }
         match (self.head.version, close) {
             (HttpVersion::Http10, false) => self.head.push_header(b"Connection", b"keep-alive")?,
@@ -220,15 +252,15 @@ impl<'o, 'b> Response<'o, 'b> {
             (_, true) => self.head.push_header(b"Connection", b"close")?,
             (_, false) => {}
         }
-        Ok(Encoded {
-            head: self.head.finish()?,
-            body: if head_request || bodiless {
-                b""
-            } else {
-                self.body
-            },
-            close,
-        })
+        Ok((self.head.finish()?, close, bodiless))
+    }
+
+    /// Whether the status forbids a body, so none is sent
+    pub fn is_bodiless(&self) -> bool {
+        matches!(
+            self.head.status(),
+            StatusCode::NoContent | StatusCode::NotModified
+        )
     }
 }
 
@@ -343,6 +375,19 @@ mod tests {
             b"HTTP/1.0 204 No Content\r\nConnection: keep-alive\r\n\r\n"
         );
         assert_eq!(encoded.body, b"");
+    }
+
+    #[test]
+    fn streamed_heads_declare_the_length() {
+        let mut out = [0u8; 256];
+        let mut res = Response::new(&mut out, HttpVersion::Http11);
+        res.header("X", b"1").body(b"ignored");
+        let encoded = res.finish_streamed(1000, false).unwrap();
+        assert_eq!(
+            encoded.head,
+            b"HTTP/1.1 200 OK\r\nX: 1\r\nContent-Length: 1000\r\nConnection: close\r\n\r\n"
+        );
+        assert_eq!((encoded.body, encoded.close), (&b""[..], true));
     }
 
     #[test]

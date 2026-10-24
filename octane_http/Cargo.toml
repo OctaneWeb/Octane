@@ -2,6 +2,9 @@
 name = "octane_http"
 version = "0.1.0"
 authors = ["Daksh14 <41485688+Daksh14@users.noreply.github.com>"]
+description = "HTTP/1.x parsing and types for Octane."
+license-file = "../LICENSE"
+homepage = "https://github.com/OctaneWeb/Octane"
 edition = "2018"
 rust-version = "1.85"
 

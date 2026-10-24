@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://raw.githubusercontent.com/OctaneWeb/OctaneSite/develop/docs/assets/logo.png" width="500">
+    <img src="https://avatars.githubusercontent.com/u/65298932" width="500">
 </p>
 <h1 align="center">Octane 🚀</h1>
 <p float="left">

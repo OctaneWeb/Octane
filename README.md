@@ -17,11 +17,17 @@ A high-powered web server aimed at minimizing dependencies while maintaining spe
 - Easy to use, intuitive design 🌱
 - TLS enabled, rustls/openssl ready 🔒
 - Minimal dependencies (working to reduce them more!) 💕
+- no_std wasip3 support using fixed stack sizes! 💕
 
-# Not production ready
+# Road to production
 
-The web server is not production ready yet, there are many things left to do before we are production ready. Use at your own risk!
-Development is being done right now, lots of things are untested in the library. If you would like to report any details, use issues or the chat!
+The initial version of this web server was written by hand, both the parser and router 5 years ago during 2020. Since then there's various fuzzing implementations and tests to test the integrity of 
+the server. The web server also had audits from OpenAI's daybreak models and Claude's capability scanning. Since the web server uses minimal dependencies, the attack vector is also reduced. 
+
+This web server is supposed to be a deterministic set of codes that people can use in production. A web server doesn't need huge dependencies, large binary sizes or build times. When developing for WASM targets, the binary
+size matters even if you are running the guest program on a server using `wasmtime`
+
+Templating frameworks like topcoat should be supported on top of Octane, since Octane is an OS agnostic http implementation.
 
 #  Basic Usage 
 
@@ -57,11 +63,12 @@ Documentation will be available on [docs.rs](https://docs.rs/octane/).
 
 # Roadmap to production
 - [ ] Http2
-- [ ] Stable SSL support
-- [ ] Efficient error handling (using enums instead of `Box<dyn Error>`)
+- [x] Stable SSL support
+- [x] Efficient error handling (using enums instead of `Box<dyn Error>`)
 - [ ] Web socket library
 - [ ] Multipart/json form handling (being worked on)
-- [ ] Logging
+- [ ] Tracing
+- [ ] Topcoat/Dixous support
 - Much more....
 
 # Contribute

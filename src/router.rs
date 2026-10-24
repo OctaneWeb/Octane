@@ -1,221 +1,22 @@
 use crate::default;
-use crate::error::InvalidPathError;
-use crate::middlewares::Closures;
-use crate::path::PathNode;
-use crate::request::{MatchedRequest, Request, RequestMethod};
+use crate::method::RequestMethod;
+use crate::request::{MatchedRequest, Request};
 use crate::responder::Response;
+pub(crate) use crate::routes::RouterResult;
+use crate::routes::Routes;
+pub use crate::routes::{Flow, Route};
+#[cfg(feature = "url_variables")]
 use std::collections::HashMap;
-use std::result::Result;
 
-// The type of HashMap where we will be storing the all the closures
-pub(crate) type Paths = HashMap<RequestMethod, PathNode<Closures>>;
 /// The Closure type is a type alias for the type
 /// that the routes should return
 pub type Closure = Box<dyn for<'a> Fn(&'a MatchedRequest, &'a mut Response) -> Flow + Send + Sync>;
-// RouterResult is the type which the app.METHOD methods return
-pub(crate) type RouterResult = Result<(), InvalidPathError>;
-/// The flow enum works just like the next() callback
-/// in express. The variant returns decides whether
-/// the execution should go to the next similar route
-/// or not
-///
-/// # Example
-///
-/// ```
-/// use octane::prelude::*;
-///
-/// let mut app = Octane::new();
-/// app.get(
-///     "/",
-///     route!(
-///         |req, res| {
-///             res.send("Hello, World");
-///             Flow::Stop
-///         }
-///     ),
-/// );
-/// ```
-#[derive(Copy, Clone, Debug)]
-pub enum Flow {
-    /// Don't execute the next closure which is similar in url with the initial one
-    Stop,
-    /// jump on the next closure which is similar in url with the initial one
-    Next,
-}
-
-impl Flow {
-    /// Returns true if the variant is `Flow::Next`
-    pub fn should_continue(self) -> bool {
-        matches!(self, Self::Next)
-    }
-}
-/// The route trait adds the app.METHOD behaviour
-/// to the router/Octane structures along with some
-/// handful methods that can be used accordingly.
-///
-/// # Example
-///
-/// ```
-/// use octane::prelude::*;
-///
-/// let mut app = Octane::new();
-/// app.get(
-///     "/",
-///     route!(
-///         |req, res| {
-///             res.send("Hello, World");
-///             Flow::Stop
-///         }
-///     ),
-/// );
-/// ```
-/// While you are using these methods directly on your
-/// Octane struct, you can add them on a router instance
-/// which can be appended to your main server (octane)
-/// struct. It's called Router
-///
-/// TODO: Include router example here
-pub trait Route {
-    /// add_route() is a duplicate of add() but with a
-    /// specified url on where it should run.
-    /// It runs on the given path and on all types of requests
-    fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// Part of app.METHOD, runs on when the request is on the
-    /// path given and the request method is HEAD
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    /// app.head(
-    ///     "/",
-    ///     route!(
-    ///         |req, res| {
-    ///             res.send("Hello, World");
-    ///             Flow::Stop
-    ///         }
-    ///     ),
-    /// );
-    /// ```
-    fn head(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// Part of app.METHOD, runs on when the request is on the
-    /// path given and the request method is POST
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    /// app.post(
-    ///     "/",
-    ///     route!(
-    ///         |req, res| {
-    ///             res.send("Hello, World");
-    ///             Flow::Stop
-    ///         }
-    ///     ),
-    /// );
-    /// ```
-    fn post(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// Part of app.METHOD, runs on when the request is on the
-    /// path given and the request method is GET
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    /// app.get(
-    ///     "/",
-    ///     route!(
-    ///         |req, res| {
-    ///             res.send("Hello, World");
-    ///             Flow::Stop
-    ///         }
-    ///     ),
-    /// );
-    /// ```
-    fn get(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// Part of app.METHOD, runs on when the request is on the
-    /// path given and the request method is PUT
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    /// app.put(
-    ///     "/",
-    ///     route!(
-    ///         |req, res| {
-    ///             res.send("Hello, World");
-    ///             Flow::Stop
-    ///         }
-    ///     ),
-    /// );
-    /// ```
-    fn put(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// Part of app.METHOD, runs on when the request is on the
-    /// path given and the request method is DELETE
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    /// app.delete(
-    ///     "/",
-    ///     route!(
-    ///         |req, res| {
-    ///             res.send("Hello, World");
-    ///             Flow::Stop
-    ///         }
-    ///     ),
-    /// );
-    /// ```
-    fn delete(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// Part of app.METHOD, runs on when the request is on the
-    /// path given and the request method is PATCH
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use octane::prelude::*;
-    ///
-    /// let mut app = Octane::new();
-    /// app.patch(
-    ///     "/",
-    ///     route!(
-    ///         |req, res| {
-    ///             res.send("Hello, World");
-    ///             Flow::Stop
-    ///         }
-    ///     ),
-    /// );
-    /// ```
-    fn patch(&mut self, path: &str, closure: Closure) -> RouterResult;
-    /// add() is like `app.use` in express, it runs on all the
-    /// paths and all types of valid methods, the request comes
-    /// on
-    fn add(&mut self, entity: Closure) -> RouterResult;
-}
 
 /// The router structure defines the routes and stores them along with
 /// their indexes. Router methods can be used with this struct and also
 /// the main server structure.
 pub struct Router {
-    /// Holds a counter and increments on new additions of routes
-    pub route_counter: usize,
-    /// A vector of middleware closures
-    pub middlewares: Vec<Closures>,
-    /// The router paths which are to be executed on requests
-    pub paths: Paths,
+    pub(crate) routes: Routes<Closure>,
 }
 
 impl Router {
@@ -225,66 +26,22 @@ impl Router {
     /// instance by doing `app.use_router(router)`.
     pub fn new() -> Self {
         Router {
-            route_counter: 0,
-            middlewares: Vec::new(),
-            paths: HashMap::new(),
+            routes: Routes::new(),
         }
     }
     // append the routes stored in a custom Router to the self Router
     pub(crate) fn append(&mut self, router: Self) {
-        let self_count = self.route_counter;
-        let other_count = router.route_counter;
-        for (methods, paths) in router.paths.into_iter() {
-            let updated_paths = paths.into_iter().map(|mut v| {
-                v.data.index += self_count;
-                v
-            });
-            if let Some(x) = self.paths.get_mut(&methods) {
-                x.extend(updated_paths);
-            } else {
-                self.paths.insert(methods, updated_paths.collect());
-            }
-        }
-
-        self.middlewares
-            .extend(router.middlewares.into_iter().map(|mut v| {
-                v.index += self_count;
-                v
-            }));
-        self.route_counter += other_count;
+        self.routes.append(router.routes);
     }
-
-    // Fetch the closure according to the request path, run that
-    // specific closure.
+    // Fetch the closures matching the request path and run them in
+    // registration order until one returns `Flow::Stop`.
     pub(crate) fn run(&self, parsed_request: Request<'_>, res: &mut Response) {
         let method = parsed_request.request_line.method;
-        // `MatchedPath` values borrow their input path when URL variables are
+        // `Matched` values borrow their input path when URL variables are
         // enabled. A path-only clone lets the router move the much larger
         // request (including all headers) into `MatchedRequest` unchanged.
         let match_path = parsed_request.request_line.path.clone();
-
-        let mut method_routes = self
-            .paths
-            .get(&method)
-            .map_or_else(Vec::new, |functions| {
-                let mut routes = functions.get(&match_path);
-                routes.sort_unstable_by_key(|route| route.index);
-                routes
-            })
-            .into_iter()
-            .peekable();
-        // Run RequestMethod::All regardless of the request method.
-        let mut all_routes = self
-            .paths
-            .get(&RequestMethod::All)
-            .map_or_else(Vec::new, |functions| {
-                let mut routes = functions.get(&match_path);
-                routes.sort_unstable_by_key(|route| route.index);
-                routes
-            })
-            .into_iter()
-            .peekable();
-        let mut middlewares = self.middlewares.iter().peekable();
+        let routes = self.routes.matched(method, &match_path);
 
         #[cfg(feature = "url_variables")]
         let mut matched = MatchedRequest {
@@ -296,80 +53,18 @@ impl Router {
             request: parsed_request,
         };
 
-        loop {
-            let method_index = method_routes.peek().map_or(usize::MAX, |route| route.index);
-            let all_index = all_routes.peek().map_or(usize::MAX, |route| route.index);
-            let middleware_index = middlewares
-                .peek()
-                .map_or(usize::MAX, |middleware| middleware.index);
-
-            if method_index == usize::MAX
-                && all_index == usize::MAX
-                && middleware_index == usize::MAX
+        for route in routes {
+            #[cfg(feature = "url_variables")]
             {
-                break;
+                matched.vars = route.vars;
             }
-
-            // Registration indexes are globally ordered. Merge the three
-            // already-sorted streams directly instead of allocating a vector
-            // for middleware matches plus bookkeeping vectors on every request.
-            let flow = if method_index <= all_index && method_index <= middleware_index {
-                let route = method_routes.next().unwrap();
-                #[cfg(feature = "url_variables")]
-                {
-                    matched.vars = route.vars;
-                }
-                (&route.data.closure)(&matched, res)
-            } else if all_index <= middleware_index {
-                let route = all_routes.next().unwrap();
-                #[cfg(feature = "url_variables")]
-                {
-                    matched.vars = route.vars;
-                }
-                (&route.data.closure)(&matched, res)
-            } else {
-                let middleware = middlewares.next().unwrap();
-                #[cfg(feature = "url_variables")]
-                matched.vars.clear();
-                (&middleware.closure)(&matched, res)
-            };
-            if !flow.should_continue() {
+            if !(route.data)(&matched, res).should_continue() {
                 break;
             }
         }
     }
 }
-/// The route macro makes it easy to pass anonymous
-/// functions to app.METHODs.
-///
-/// # Example
-///
-/// ```
-/// use octane::prelude::*;
-///
-/// let mut app = Octane::new();
-/// app.get(
-///     "/",
-///     route!(
-///         |req, res| {
-///             res.send("Hello, World");
-///             Flow::Stop
-///         }
-///     ),
-/// );
-/// ```
-///
-/// The closure's environment is captured by value explictly,
-/// so you are basically writing (pseudo code below)
-///
-/// ```ignore
-/// use octane::prelude::*;
-///
-/// route!(move |req, res| {
-///     res.send("Hello, World");
-///     Flow::Stop
-/// });
-/// ```
+
 #[macro_export]
 macro_rules! route {
     ( | $req : ident, $res : ident | $body : expr ) => {{
@@ -436,61 +131,33 @@ macro_rules! route_stop {
 
 default!(Router);
 
-macro_rules! inject_method {
-    ( $instance: expr, $path: expr, $closure: expr, $method: expr ) => {
-        use crate::middlewares::Closures;
-        use crate::path::{PathBuf, PathNode};
-        $instance
-            .paths
-            .entry($method)
-            .or_insert(PathNode::new())
-            .insert(
-                PathBuf::parse($path)?,
-                Closures {
-                    closure: $closure,
-                    index: $instance.route_counter,
-                },
-            );
-        $instance.route_counter += 1;
-    };
-}
-
 impl Route for Router {
+    type Handler = Closure;
+
     fn head(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Head);
-        Ok(())
+        self.routes.insert(RequestMethod::Head, path, closure)
     }
     fn put(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Put);
-        Ok(())
+        self.routes.insert(RequestMethod::Put, path, closure)
     }
     fn get(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Get);
-        Ok(())
+        self.routes.insert(RequestMethod::Get, path, closure)
     }
     fn delete(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Delete);
-        Ok(())
+        self.routes.insert(RequestMethod::Delete, path, closure)
     }
     fn post(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Post);
-        Ok(())
+        self.routes.insert(RequestMethod::Post, path, closure)
     }
     fn patch(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::Patch);
-        Ok(())
+        self.routes.insert(RequestMethod::Patch, path, closure)
     }
     fn add(&mut self, closure: Closure) -> RouterResult {
-        self.middlewares.push(Closures {
-            closure,
-            index: self.route_counter,
-        });
-        self.route_counter += 1;
+        self.routes.add(closure);
         Ok(())
     }
     fn add_route(&mut self, path: &str, closure: Closure) -> RouterResult {
-        inject_method!(self, path, closure, RequestMethod::All);
-        Ok(())
+        self.routes.insert(RequestMethod::All, path, closure)
     }
 }
 
@@ -520,9 +187,9 @@ mod test {
             .delete("/", route!(|req, res| { Flow::Next }))
             .unwrap();
         // middleware with path
-        assert_eq!(5, router.paths.len());
+        assert_eq!(5, router.routes.paths.len());
         // middleware without paths
-        assert_eq!(1, router.middlewares.len());
+        assert_eq!(1, router.routes.middlewares.len());
     }
 
     #[test]
@@ -565,10 +232,11 @@ mod test {
             .unwrap();
         first_router.append(second_router);
         // middleware tied without path
-        assert_eq!(2, first_router.middlewares.len());
+        assert_eq!(2, first_router.routes.middlewares.len());
         assert_eq!(
             2,
             first_router
+                .routes
                 .paths
                 .get(&RequestMethod::Get)
                 .unwrap()
@@ -579,6 +247,7 @@ mod test {
         assert_eq!(
             2,
             first_router
+                .routes
                 .paths
                 .get(&RequestMethod::Delete)
                 .unwrap()
@@ -588,6 +257,7 @@ mod test {
         assert_eq!(
             2,
             first_router
+                .routes
                 .paths
                 .get(&RequestMethod::Post)
                 .unwrap()
@@ -597,6 +267,7 @@ mod test {
         assert_eq!(
             2,
             first_router
+                .routes
                 .paths
                 .get(&RequestMethod::Head)
                 .unwrap()
@@ -606,6 +277,7 @@ mod test {
         assert_eq!(
             2,
             first_router
+                .routes
                 .paths
                 .get(&RequestMethod::Put)
                 .unwrap()

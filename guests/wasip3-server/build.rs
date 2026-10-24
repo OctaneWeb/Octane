@@ -15,7 +15,11 @@ fn main() {
     let sdk = env::var("WASI_SDK_PATH")
         .expect("set WASI_SDK_PATH to the wasi-sdk install (34 or newer has WASIp3)");
     let libc = PathBuf::from(sdk).join("share/wasi-sysroot/lib/wasm32-wasip3");
-    assert!(libc.is_dir(), "{} is missing, is wasi-sdk 34+?", libc.display());
+    assert!(
+        libc.is_dir(),
+        "{} is missing, is wasi-sdk 34+?",
+        libc.display()
+    );
     println!("cargo:rustc-link-search=native={}", libc.display());
 
     let crt = libc.join("crt1-reactor.o");

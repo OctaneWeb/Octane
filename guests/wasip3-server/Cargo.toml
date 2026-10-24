@@ -12,8 +12,9 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-# without std (no tokio), with `octane::wasip3` serving over wasi:sockets
-octane = { path = "../..", default-features = false, features = ["wasm"] }
+# without tokio: `octane::wasip3` serves over wasi:sockets with octane's
+# router, `url_variables` enables routes like `/hello/:name`
+octane = { path = "../..", default-features = false, features = ["wasm", "url_variables"] }
 # the `wasi:cli/run` export and the clock used by `/sleep` and `/stream`
 wasip3 = { version = "0.9.0", default-features = false }
 

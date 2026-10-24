@@ -1,7 +1,15 @@
 #![allow(clippy::all)]
 #![allow(clippy::type_complexity)]
 #![forbid(unsafe_code)]
-#![cfg_attr(not(feature = "std"), no_std)]
+// wasm32-wasip3 has std, only tokio is missing there, so the router is
+// available to the WASIp3 server too
+#![cfg_attr(
+    not(any(
+        feature = "std",
+        all(feature = "wasm", target_os = "wasi", target_env = "p3")
+    )),
+    no_std
+)]
 //! Octane is a web server that's modelled after express (a very
 //! popular and easy to use web framework) for rust.
 //!
@@ -77,12 +85,15 @@
 //! octane = { version = "0.1.1", default-features = false }
 //! ```
 //!
-//! On `wasm32-wasip3` the `wasm` feature adds `octane::wasip3`, which creates
-//! the listening socket over `wasi:sockets` and serves every connection as a
-//! concurrent task with async handlers:
+//! On `wasm32-wasip3` the `wasm` feature adds `octane::wasip3`: octane's
+//! router with async handlers, filled through the same
+//! [`Route`](router/trait.Route.html) trait as the tokio server, and a
+//! `serve` that creates the listening socket over `wasi:sockets` and serves
+//! every connection as a concurrent task. tokio isn't used there; add
+//! `url_variables` for routes like `/users/:id`:
 //!
 //! ```toml
-//! octane = { version = "0.1.1", default-features = false, features = ["wasm"] }
+//! octane = { version = "0.1.1", default-features = false, features = ["wasm", "url_variables"] }
 //! ```
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
@@ -94,7 +105,10 @@
 #[cfg(feature = "std")]
 /// Configurations for Octane web server
 pub mod config;
-#[cfg(feature = "std")]
+#[cfg(any(
+    feature = "std",
+    all(feature = "wasm", target_os = "wasi", target_env = "p3")
+))]
 pub(crate) mod constants;
 #[cfg(feature = "cookies")]
 /// Module for cookie parsing and handling
@@ -108,9 +122,15 @@ pub(crate) mod file_handler;
 pub mod fuzzing;
 #[cfg(feature = "std")]
 pub(crate) mod http;
-#[cfg(feature = "std")]
-pub(crate) mod middlewares;
-#[cfg(feature = "std")]
+#[cfg(any(
+    feature = "std",
+    all(feature = "wasm", target_os = "wasi", target_env = "p3")
+))]
+pub(crate) mod method;
+#[cfg(any(
+    feature = "std",
+    all(feature = "wasm", target_os = "wasi", target_env = "p3")
+))]
 pub(crate) mod path;
 #[cfg(feature = "std")]
 pub(crate) mod query;
@@ -123,6 +143,11 @@ pub mod responder;
 #[cfg(feature = "std")]
 /// The router module has utilities to create routes and custom routers
 pub mod router;
+#[cfg(any(
+    feature = "std",
+    all(feature = "wasm", target_os = "wasi", target_env = "p3")
+))]
+pub(crate) mod routes;
 #[cfg(feature = "std")]
 pub(crate) mod server;
 #[cfg(feature = "std")]
@@ -143,10 +168,11 @@ pub use crate::query::QueryValue;
 /// The allocation-free HTTP/1.x core, available with and without `std`.
 /// See the [`no_std`](index.html#no_std) section.
 pub use octane_http as portable;
-/// Serving from a WASIp3 component, see the [`no_std`](index.html#no_std)
-/// section. Needs the `wasm` feature and the `wasm32-wasip3` target.
+/// Serving from a WASIp3 component with octane's router, see the
+/// [`no_std`](index.html#no_std) section. Needs the `wasm` feature and the
+/// `wasm32-wasip3` target.
 #[cfg(all(feature = "wasm", target_os = "wasi", target_env = "p3"))]
-pub use octane_http::wasip3;
+pub mod wasip3;
 pub use octane_http::StatusCode;
 /// Prelude here brings in scope, the [`Route`](router/trait.Route.html) and
 /// [`Config`](config/trait.Config.html) trait, [`Octane`](struct.Octane.html) main server

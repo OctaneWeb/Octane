@@ -17,40 +17,7 @@ use std::str;
 use std::string::ToString;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-/// Holds the type of request method, like GET,
-/// POST etc.
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
-pub enum RequestMethod {
-    #[doc(hidden)]
-    Options,
-    #[doc(hidden)]
-    Get,
-    #[doc(hidden)]
-    Head,
-    #[doc(hidden)]
-    Post,
-    #[doc(hidden)]
-    Put,
-    #[doc(hidden)]
-    Delete,
-    #[doc(hidden)]
-    Trace,
-    #[doc(hidden)]
-    Connect,
-    #[doc(hidden)]
-    Patch,
-    #[doc(hidden)]
-    All,
-    #[doc(hidden)]
-    None,
-}
-
-impl RequestMethod {
-    /// Return false if the RequestMethod is `None`, otherwise it's true
-    pub fn is_some(&self) -> bool {
-        !matches!(self, Self::None)
-    }
-}
+pub use crate::method::RequestMethod;
 
 /// The RequestLine struct represents the first
 /// line of the http request, which contains

@@ -1,11 +1,24 @@
-use crate::error::InvalidPathError;
 use crate::{default, deref};
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
+use std::error;
 use std::fmt;
 use std::iter::{FromIterator, Iterator, Map};
 use std::path::PathBuf as StdPathBuf;
 use std::str::FromStr;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Custom error type for invalid paths
+pub struct InvalidPathError;
+
+impl fmt::Display for InvalidPathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        // TODO: make more informative
+        write!(f, "Invalid path error")
+    }
+}
+
+impl error::Error for InvalidPathError {}
 
 // Custom PathBuf for managing custom url queries and variables,
 // Provides methods to match and check on urls
@@ -273,6 +286,8 @@ impl<T> PathNode<T> {
     }
 }
 
+// nothing walks a trie by reference yet; `Router.paths` used to be public
+#[allow(dead_code)]
 pub struct PathNodeIterator<'a, T> {
     stack: Vec<hash_map::Values<'a, PathChunk, PathNode<T>>>,
     curvec: Option<&'a Vec<PathData<T>>>,
@@ -327,7 +342,8 @@ impl<'a, T> Iterator for PathNodeIterator<'a, T> {
 }
 
 impl<T> PathNode<T> {
-    pub fn iter(&self) -> PathNodeIterator<T> {
+    #[allow(dead_code)]
+    pub fn iter(&self) -> PathNodeIterator<'_, T> {
         match self {
             PathNode::Node(n) => PathNodeIterator {
                 stack: vec![n.values()],
@@ -438,6 +454,8 @@ deref!(MatchedPath<'a, T>, T, data);
 deref!(PathBuf, Vec<String>, chunks);
 
 // CTL from RFC 5234: %x00-1F / %x7F
+// only the tokio request parser uses it
+#[cfg_attr(not(feature = "std"), allow(dead_code))]
 pub fn is_ctl(c: char) -> bool {
     c <= '\x1f' || c == '\x7f'
 }

@@ -16,14 +16,14 @@ fn app() -> Octane {
     app.get(
         "/query",
         route_next!(|req, res| {
-            res.send(req.get_query().get("q").cloned().unwrap_or_default());
+            res.send(req.get_query().get("q").unwrap_or_default().to_owned());
         }),
     )
     .unwrap();
     app.get(
         "/redirect",
         route_next!(|req, res| {
-            let next = req.get_query().get("next").cloned().unwrap_or_default();
+            let next = req.get_query().get("next").unwrap_or_default().to_owned();
             res.redirect(&next).send("");
         }),
     )

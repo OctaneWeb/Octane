@@ -2,7 +2,7 @@
 //!
 //! The input is a header block, the lines between the request line and the
 //! empty line. Parsing must never panic, every accepted field must be well
-//! formed, repeated fields must be merged in order, and the body length must
+//! formed, repeated fields must all be found in order, and the body length must
 //! follow RFC 9112 section 6.3: missing means 0, repeats must agree, anything
 //! but digits is a 400 and a length over the limit is a 413.
 
@@ -33,14 +33,16 @@ fuzz_target!(|data: &[u8]| {
         None => return,
     };
 
-    // every line became one field, in order, holding exactly what was sent
+    // every line is one field, in order, holding exactly what was sent
     let lines: Vec<&str> = if block.is_empty() {
         Vec::new()
     } else {
         block.split("\r\n").collect()
     };
-    assert_eq!(headers.raw.len(), lines.len());
-    for (field, line) in headers.raw.iter().zip(&lines) {
+    let fields: Vec<_> = headers.iter().collect();
+    assert_eq!(fields.len(), lines.len());
+    assert_eq!(headers.len(), lines.len());
+    for (field, line) in fields.iter().zip(&lines) {
         let (name, value) = (field.name(), field.value());
         assert!(!name.is_empty() && name.bytes().all(is_tchar), "{:?}", name);
         assert!(!value
@@ -51,24 +53,23 @@ fuzz_target!(|data: &[u8]| {
         assert_eq!(value, line_value.trim_matches(is_ows));
     }
 
-    // repeated fields are joined in order, cookies with "; "
-    let mut joined: HashMap<String, String> = HashMap::new();
-    for field in &headers.raw {
-        let name = field.name().to_ascii_lowercase();
-        let sep = if name == "cookie" { "; " } else { ", " };
-        joined
-            .entry(name)
-            .and_modify(|v| {
-                v.push_str(sep);
-                v.push_str(&field.value());
-            })
-            .or_insert_with(|| field.value());
+    // every name finds its fields in order, whatever the case it's asked in
+    let mut by_name: HashMap<String, Vec<&str>> = HashMap::new();
+    for field in &fields {
+        by_name
+            .entry(field.name().to_ascii_lowercase())
+            .or_default()
+            .push(field.value());
     }
-    assert_eq!(headers.parsed, joined);
+    for (name, values) in &by_name {
+        assert_eq!(&headers.get_all(&name.to_ascii_uppercase()).collect::<Vec<_>>(), values);
+        assert_eq!(headers.get(name), values.first().copied());
+    }
 
     let length = fuzzing::content_length(&headers, MAX_BODY);
-    let value = match headers.parsed.get("content-length") {
-        Some(value) => value,
+    // the members of every Content-Length field, as one list
+    let value = match by_name.get("content-length") {
+        Some(values) => values.join(","),
         None => return assert_eq!(length, Ok(0)),
     };
     let members: Vec<&str> = value.split(',').map(|m| m.trim_matches(is_ows)).collect();

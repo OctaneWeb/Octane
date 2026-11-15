@@ -1,14 +1,18 @@
 use crate::server::Octane;
+use crate::shutdown::Watch;
 use crate::task;
+#[cfg(any(feature = "openSSL", feature = "rustls"))]
+use crate::util::within;
 use socket2::{Domain, SockAddr, Socket, Type};
-use std::future::Future;
+use std::future::{poll_fn, Future};
 use std::io::Result;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use std::task::Poll;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use tokio::time::{sleep, timeout};
+use tokio::time::sleep;
 #[cfg(feature = "openSSL")]
 use tokio_openssl::SslStream;
 #[cfg(feature = "rustls")]
@@ -27,20 +31,32 @@ async fn reserve_connection(connections: &Arc<Semaphore>) -> OwnedSemaphorePermi
         .expect("connection semaphore is never closed")
 }
 
+// The next connection and the capacity to serve it, `None` once the server
+// is shutting down
 async fn accept_bounded(
     listener: &TcpListener,
     connections: &Arc<Semaphore>,
-) -> (TcpStream, OwnedSemaphorePermit) {
+    shutdown: &Watch,
+) -> Option<(TcpStream, OwnedSemaphorePermit)> {
     loop {
-        match listener.accept().await {
+        let accepted = poll_fn(|cx| match shutdown.poll_started(cx) {
+            Poll::Ready(()) => Poll::Ready(None),
+            Poll::Pending => listener.poll_accept(cx).map(Some),
+        })
+        .await?;
+        match accepted {
             Ok((stream, _)) => {
+                // Responses are written whole, so there is nothing for
+                // Nagle's algorithm to coalesce, only a delayed ACK to wait
+                // on before the end of a response leaves.
+                let _ = stream.set_nodelay(true);
                 // Only one socket per listener can wait here. Further sockets
                 // stay in the kernel backlog until serving capacity returns.
                 // Acquiring after accept also prevents an idle TLS listener
                 // from reserving capacity needed by the plain listener (and
                 // vice versa).
                 let permit = reserve_connection(connections).await;
-                return (stream, permit);
+                return Some((stream, permit));
             }
             Err(_) => {
                 // An intermittent accept error must not take down the server;
@@ -48,17 +64,6 @@ async fn accept_bounded(
                 sleep(ACCEPT_ERROR_BACKOFF).await;
             }
         }
-    }
-}
-
-async fn run_with_timeout<F>(future: F, connection_timeout: Option<Duration>)
-where
-    F: Future,
-{
-    if let Some(duration) = connection_timeout {
-        let _ = timeout(duration, future).await;
-    } else {
-        future.await;
     }
 }
 
@@ -88,15 +93,19 @@ impl ServerBuilder {
         T: Future + Send + 'static,
         C: FnOnce(TcpStream, Arc<Octane>) -> T + Send + 'static + Copy,
     {
-        loop {
-            let (stream, permit) = accept_bounded(&self.socket, &connections).await;
+        let shutdown = server.watch_shutdown();
+        // until the server shuts down, which closes the listening socket
+        while let Some((stream, permit)) =
+            accept_bounded(&self.socket, &connections, &shutdown).await
+        {
             let server = Arc::clone(&server);
-            let connection_timeout = server.settings.connection_timeout;
+            // the connection keeps its own time, see `connection_timeout`
             task!({
                 let _permit = permit;
-                run_with_timeout(exec(stream, server), connection_timeout).await;
+                exec(stream, server).await;
             });
         }
+        Ok(())
     }
 
     #[cfg(feature = "openSSL")]
@@ -111,27 +120,23 @@ impl ServerBuilder {
         C: FnOnce(SslStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
         let acceptor = crate::tls::openssl::acceptor(&server.settings)?;
-        loop {
-            let (tcp_stream, permit) = accept_bounded(&self.socket, &connections).await;
+        let shutdown = server.watch_shutdown();
+        while let Some((tcp_stream, permit)) =
+            accept_bounded(&self.socket, &connections, &shutdown).await
+        {
             let acceptor = acceptor.clone();
             let server = Arc::clone(&server);
             let connection_timeout = server.settings.connection_timeout;
 
             task!({
                 let _permit = permit;
-                run_with_timeout(
-                    async move {
-                        if let Ok(stream_ssl) =
-                            crate::tls::openssl::accept(&acceptor, tcp_stream).await
-                        {
-                            exec(stream_ssl, server).await;
-                        }
-                    },
-                    connection_timeout,
-                )
-                .await;
+                let handshake = crate::tls::openssl::accept(&acceptor, tcp_stream);
+                if let Some(Ok(stream_ssl)) = within(connection_timeout, handshake).await {
+                    exec(stream_ssl, server).await;
+                }
             });
         }
+        Ok(())
     }
 
     #[cfg(feature = "rustls")]
@@ -146,31 +151,30 @@ impl ServerBuilder {
         C: FnOnce(TlsStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
         let acceptor = crate::tls::rustls::acceptor(&server.settings)?;
-        loop {
-            let (tcp_stream, permit) = accept_bounded(&self.socket, &connections).await;
+        let shutdown = server.watch_shutdown();
+        while let Some((tcp_stream, permit)) =
+            accept_bounded(&self.socket, &connections, &shutdown).await
+        {
             let acceptor = acceptor.clone();
             let server = Arc::clone(&server);
             let connection_timeout = server.settings.connection_timeout;
 
             task!({
                 let _permit = permit;
-                run_with_timeout(
-                    async move {
-                        if let Ok(stream_ssl) = acceptor.accept(tcp_stream).await {
-                            exec(stream_ssl, server).await;
-                        }
-                    },
-                    connection_timeout,
-                )
-                .await;
+                let handshake = acceptor.accept(tcp_stream);
+                if let Some(Ok(stream_ssl)) = within(connection_timeout, handshake).await {
+                    exec(stream_ssl, server).await;
+                }
             });
         }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{reserve_connection, run_with_timeout};
+    use super::reserve_connection;
+    use crate::util::within;
     use std::future::pending;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -212,7 +216,9 @@ mod tests {
             pending::<()>().await;
         };
 
-        run_with_timeout(work, Some(Duration::from_millis(10))).await;
+        assert!(within(Some(Duration::from_millis(10)), work)
+            .await
+            .is_none());
         assert!(dropped.load(Ordering::SeqCst));
     }
 }

@@ -39,6 +39,19 @@ impl Time {
             Some(date)
         })
     }
+    /// Call `f` with the current HTTP date, without copying it out of the
+    /// per-thread cache
+    pub(crate) fn with_http_date<R>(f: impl FnOnce(&str) -> R) -> Option<R> {
+        let stamp = Self::unix_timestamp()?;
+        HTTP_DATE_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if cache.as_ref().map_or(true, |(cached, _)| *cached != stamp) {
+                let date = Self::time(stamp.try_into().ok()?)?.format();
+                *cache = Some((stamp, date));
+            }
+            cache.as_ref().map(|(_, date)| f(date))
+        })
+    }
     fn unix_timestamp() -> Option<u64> {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)

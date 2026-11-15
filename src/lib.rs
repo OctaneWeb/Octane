@@ -23,7 +23,7 @@
 //! Get started by adding the lib entry in your cargo.toml file
 //!
 //! ```toml
-//! octane = "0.1.1"
+//! octane = "0.3"
 //! tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 //! ```
 //!
@@ -65,7 +65,8 @@
 //! - `query_strings`: To enable query string parsing, eg. `?foo=bar&bar=foo`
 //! - `cookies`: To enable basic cookie parsing and value handling.
 //! - `url_variables`: To support variables in url.
-//! - `raw_headers`: To have access to original, un-normalized headers.
+//! - `raw_headers`: No longer has an effect, header names are always kept
+//! as they were sent and matched without regard to case.
 //! - `rustls`: To use rustls for ssl.
 //! - `openSSL`: To use openssl for ssl.
 //! - `std`: The tokio based server, everything except [`portable`]. All the
@@ -82,7 +83,7 @@
 //! WASI, bare-metal TCP stacks like smoltcp, or raw sockets without tokio.
 //!
 //! ```toml
-//! octane = { version = "0.1.1", default-features = false }
+//! octane = { version = "0.3", default-features = false }
 //! ```
 //!
 //! On `wasm32-wasip3` the `wasm` feature adds `octane::wasip3`: octane's
@@ -93,7 +94,7 @@
 //! `url_variables` for routes like `/users/:id`:
 //!
 //! ```toml
-//! octane = { version = "0.1.1", default-features = false, features = ["wasm", "url_variables"] }
+//! octane = { version = "0.3", default-features = false, features = ["wasm", "url_variables"] }
 //! ```
 //!
 //! **Note**: If both `rustls` and `openSSL` features are enabled then
@@ -105,6 +106,8 @@
 #[cfg(feature = "std")]
 /// Configurations for Octane web server
 pub mod config;
+#[cfg(feature = "std")]
+pub(crate) mod connection;
 #[cfg(any(
     feature = "std",
     all(feature = "wasm", target_os = "wasi", target_env = "p3")
@@ -156,6 +159,8 @@ pub use crate::server::Octane;
 #[cfg(feature = "std")]
 pub(crate) mod server_builder;
 #[cfg(feature = "std")]
+pub(crate) mod shutdown;
+#[cfg(feature = "std")]
 pub(crate) mod time;
 #[cfg(feature = "std")]
 pub(crate) mod tls;
@@ -177,14 +182,17 @@ pub use octane_http::StatusCode;
 /// Prelude here brings in scope, the [`Route`](router/trait.Route.html) and
 /// [`Config`](config/trait.Config.html) trait, [`Octane`](struct.Octane.html) main server
 /// and [`Router`](router/struct.Router.html) struct with the [`Flow`](router/enum.Flow.html)
-/// enum, and the [`route`](macro.route.html), [`route_next`](macro.route_next.html),
-/// [`route_stop`](macro.route_stop.html) macros
+/// enum, the [`route`](macro.route.html), [`route_next`](macro.route_next.html),
+/// [`route_stop`](macro.route_stop.html) macros and their async counterparts
+/// [`route_async`](macro.route_async.html),
+/// [`route_async_next`](macro.route_async_next.html) and
+/// [`route_async_stop`](macro.route_async_stop.html)
 #[cfg(feature = "std")]
 pub mod prelude {
     pub use crate::config::Config;
     pub use crate::Octane;
     pub use crate::{
-        route, route_next, route_stop,
+        route, route_async, route_async_next, route_async_stop, route_next, route_stop,
         router::{Flow, Route, Router},
     };
 }

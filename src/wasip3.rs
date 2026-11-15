@@ -16,7 +16,7 @@
 //!
 //! let mut router = Router::new();
 //! router.get("/users/:id", handler(async |req, res| {
-//!     let id = req.vars.get("id").copied().unwrap_or("");
+//!     let id = req.vars.get("id").unwrap_or("");
 //!     let _ = res.send(StatusCode::Ok, &[], id.as_bytes()).await;
 //!     Flow::Stop
 //! }))?;
@@ -30,13 +30,13 @@ pub use crate::method::RequestMethod;
 /// The error the [`Route`] methods return for a path that climbs above the root
 pub use crate::path::InvalidPathError;
 use crate::path::PathBuf;
+#[cfg(feature = "url_variables")]
+pub use crate::path::Vars;
 pub use crate::routes::{Flow, Route};
 use crate::routes::{RouterResult, Routes};
 use octane_http::config::Config;
 use octane_http::http1x::Request;
 pub use octane_http::wasip3::{BodyWriter, ErrorCode, Responder, SendError};
-#[cfg(feature = "url_variables")]
-use std::collections::HashMap;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::ops::Deref;
@@ -51,7 +51,7 @@ pub struct MatchedRequest<'r> {
     pub request: &'r Request<'r>,
     /// The url variables of the matched route, empty for middleware
     #[cfg(feature = "url_variables")]
-    pub vars: HashMap<&'r str, &'r str>,
+    pub vars: Vars<'r>,
 }
 
 impl<'r> Deref for MatchedRequest<'r> {
@@ -140,29 +140,33 @@ default!(Router);
 impl Route for Router {
     type Handler = Handler;
 
-    fn add_route(&mut self, path: &str, handler: Handler) -> RouterResult {
-        self.routes.insert(RequestMethod::All, path, handler)
+    fn add_route(&mut self, path: &str, handler: impl Into<Handler>) -> RouterResult {
+        self.routes.insert(RequestMethod::All, path, handler.into())
     }
-    fn head(&mut self, path: &str, handler: Handler) -> RouterResult {
-        self.routes.insert(RequestMethod::Head, path, handler)
+    fn head(&mut self, path: &str, handler: impl Into<Handler>) -> RouterResult {
+        self.routes
+            .insert(RequestMethod::Head, path, handler.into())
     }
-    fn post(&mut self, path: &str, handler: Handler) -> RouterResult {
-        self.routes.insert(RequestMethod::Post, path, handler)
+    fn post(&mut self, path: &str, handler: impl Into<Handler>) -> RouterResult {
+        self.routes
+            .insert(RequestMethod::Post, path, handler.into())
     }
-    fn get(&mut self, path: &str, handler: Handler) -> RouterResult {
-        self.routes.insert(RequestMethod::Get, path, handler)
+    fn get(&mut self, path: &str, handler: impl Into<Handler>) -> RouterResult {
+        self.routes.insert(RequestMethod::Get, path, handler.into())
     }
-    fn put(&mut self, path: &str, handler: Handler) -> RouterResult {
-        self.routes.insert(RequestMethod::Put, path, handler)
+    fn put(&mut self, path: &str, handler: impl Into<Handler>) -> RouterResult {
+        self.routes.insert(RequestMethod::Put, path, handler.into())
     }
-    fn delete(&mut self, path: &str, handler: Handler) -> RouterResult {
-        self.routes.insert(RequestMethod::Delete, path, handler)
+    fn delete(&mut self, path: &str, handler: impl Into<Handler>) -> RouterResult {
+        self.routes
+            .insert(RequestMethod::Delete, path, handler.into())
     }
-    fn patch(&mut self, path: &str, handler: Handler) -> RouterResult {
-        self.routes.insert(RequestMethod::Patch, path, handler)
+    fn patch(&mut self, path: &str, handler: impl Into<Handler>) -> RouterResult {
+        self.routes
+            .insert(RequestMethod::Patch, path, handler.into())
     }
-    fn add(&mut self, handler: Handler) -> RouterResult {
-        self.routes.add(handler);
+    fn add(&mut self, handler: impl Into<Handler>) -> RouterResult {
+        self.routes.add(handler.into());
         Ok(())
     }
 }

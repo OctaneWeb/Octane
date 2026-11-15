@@ -1,0 +1,28 @@
+{
+  "display_name": "octane",
+  "language": "Rust",
+  "type": "emerging",
+  "mode": "standard",
+  "completeness": {
+    "routing": true,
+    "middleware": true,
+    "request": true,
+    "response": true
+  },
+  "engine": "octane",
+  "description": "Octane on the multi-threaded Tokio runtime with its own HTTP/1.x parser, default configuration. Routes and path parameters through the octane router, query parameters through req.get_query(), bodies read whole from req.body (Content-Length or chunked), JSON serialized per request with serde_json through res.json. TLS on :8081 through rustls (ring), ALPN http/1.1. /delay is an async handler waiting on tokio::time::sleep, the rest are synchronous handlers. max_connections raised to 65,536 for the held-connection profiles.",
+  "repo": "https://github.com/OctaneWeb/Octane",
+  "enabled": true,
+  "tests": [
+    "baseline",
+    "async",
+    "latency-1m",
+    "latency-10k",
+    "latency-500k-8cpu",
+    "pipelined",
+    "limited-conn",
+    "json-tls",
+    "8gbit"
+  ],
+  "maintainers": ["Daksh14"]
+}

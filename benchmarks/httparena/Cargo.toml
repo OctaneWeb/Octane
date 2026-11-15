@@ -1,0 +1,22 @@
+# Octane's entry for HttpArena (https://github.com/MDA2AV/HttpArena), where
+# this directory is submitted as frameworks/octane.
+[package]
+name = "httparena-octane"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# keep-alive, chunked request bodies and async handlers are in octane 0.3
+octane = { version = "0.3", features = ["rustls", "json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = "thin"
+
+# not part of the octane workspace while it lives in the octane repository
+[workspace]

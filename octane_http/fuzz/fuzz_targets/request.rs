@@ -8,8 +8,11 @@
 //! cookies, headers, body) back into headers, cookies and bodies.
 //!
 //! Any panic is a crash. The server must always answer with exactly one well
-//! framed response, with a body as long as its `Content-Length` and no header
-//! line the app didn't set, whatever the request smuggled into the values.
+//! framed response, with a body as long as its `Content-Length` (none for a
+//! `HEAD` request) and no header line the app didn't set, whatever the
+//! request smuggled into the values. Keep-alive is off, so the first request
+//! is the only one answered; a client that only ever sends empty lines gets
+//! no answer at all.
 
 #![no_main]
 
@@ -21,6 +24,8 @@ use std::sync::{Arc, OnceLock};
 
 // every header the server or the app below can send
 const HEADERS: &[&str] = &[
+    "Allow",
+    "Connection",
     "Content-Length",
     "Content-Type",
     "Date",
@@ -30,11 +35,16 @@ const HEADERS: &[&str] = &[
     "X-Echo",
 ];
 
+// what a client sending `Expect: 100-continue` may get before the response
+const CONTINUE: &[u8] = b"HTTP/1.1 100 Continue\r\n\r\n";
+
 fn app() -> &'static Arc<Octane> {
     static APP: OnceLock<Arc<Octane>> = OnceLock::new();
     APP.get_or_init(|| {
         let mut app = Octane::new();
         app.settings.max_body_size = 64;
+        // one response per connection
+        app.settings.keep_alive = None;
         app.add(route_next!(|req, res| {
             res.set("X-Path", &req.request_line.path.to_string());
         }))
@@ -46,15 +56,15 @@ fn app() -> &'static Arc<Octane> {
         app.get(
             "/redirect",
             route_stop!(|req, res| {
-                let next = req.get_query().get("next").cloned().unwrap_or_default();
-                res.redirect(&next).send("");
+                let query = req.get_query();
+                res.redirect(query.get("next").unwrap_or_default()).send("");
             }),
         )
         .unwrap();
         app.get(
             "/cookies",
             route_stop!(|req, res| {
-                let set = req.get_query().get("set").cloned().unwrap_or_default();
+                let set = req.get_query().get("set").unwrap_or_default().to_owned();
                 let pairs: Vec<String> = req
                     .cookies
                     .iter()
@@ -69,7 +79,7 @@ fn app() -> &'static Arc<Octane> {
         app.post(
             "/echo",
             route_stop!(|req, res| {
-                let echo = req.headers.get("x-echo").cloned().unwrap_or_default();
+                let echo = req.headers.get("x-echo").unwrap_or_default();
                 res.set("X-Echo", &echo).send(req.body);
             }),
         )
@@ -89,6 +99,18 @@ fuzz_target!(|data: &[u8]| {
         None => return,
     };
     let out = fuzzing::serve(app(), wire, *seed as usize % 17 + 1);
+
+    // empty lines before a request line are skipped, a lone CR could still
+    // become one
+    let mut request = wire;
+    while let Some(rest) = request.strip_prefix(&b"\r\n"[..]) {
+        request = rest;
+    }
+    if request.is_empty() || request == b"\r" {
+        assert!(out.is_empty(), "answered no request: {:?}", out);
+        return;
+    }
+    let out = out.strip_prefix(CONTINUE).unwrap_or(&out);
 
     let end = out
         .windows(4)
@@ -118,10 +140,13 @@ fuzz_target!(|data: &[u8]| {
             assert!(content_length.is_none(), "two Content-Length headers");
             content_length = Some(value.parse::<usize>().expect("bad Content-Length"));
         }
+        if name == "Connection" {
+            assert_eq!(value, "close", "the connection is kept open");
+        }
     }
-    assert_eq!(
-        Some(body.len()),
-        content_length,
-        "body doesn't match Content-Length"
-    );
+    let content_length = content_length.expect("no Content-Length");
+    // the answer to a HEAD request has the length of the body it leaves out
+    if !(request.starts_with(b"HEAD ") && body.is_empty()) {
+        assert_eq!(body.len(), content_length, "body doesn't match Content-Length");
+    }
 });

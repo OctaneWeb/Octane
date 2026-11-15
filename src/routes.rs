@@ -4,8 +4,9 @@
 //! handler is, sync closure or async function, is up to the router.
 
 use crate::method::RequestMethod;
+#[cfg(feature = "url_variables")]
+use crate::path::Vars;
 use crate::path::{InvalidPathError, PathBuf, PathNode};
-use std::collections::HashMap;
 
 // RouterResult is the type which the app.METHOD methods return
 pub(crate) type RouterResult = Result<(), InvalidPathError>;
@@ -71,8 +72,10 @@ impl Flow {
 /// struct. It's called Router
 ///
 /// The tokio [`Router`](crate::router::Router) and [`Octane`](crate::Octane)
-/// take [`Closure`](crate::router::Closure)s, the WASIp3 router takes async
-/// handlers: that's the [`Route::Handler`] type.
+/// take a [`Handler`](crate::router::Handler), either a synchronous
+/// [`Closure`](crate::router::Closure) or an async handler; the WASIp3
+/// router takes async handlers. That's the [`Route::Handler`] type, the
+/// methods take anything that converts into it.
 ///
 /// TODO: Include router example here
 pub trait Route {
@@ -82,7 +85,7 @@ pub trait Route {
     /// add_route() is a duplicate of add() but with a
     /// specified url on where it should run.
     /// It runs on the given path and on all types of requests
-    fn add_route(&mut self, path: &str, closure: Self::Handler) -> RouterResult;
+    fn add_route(&mut self, path: &str, handler: impl Into<Self::Handler>) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is HEAD
     ///
@@ -102,7 +105,7 @@ pub trait Route {
     ///     ),
     /// );
     /// ```
-    fn head(&mut self, path: &str, closure: Self::Handler) -> RouterResult;
+    fn head(&mut self, path: &str, handler: impl Into<Self::Handler>) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is POST
     ///
@@ -122,7 +125,7 @@ pub trait Route {
     ///     ),
     /// );
     /// ```
-    fn post(&mut self, path: &str, closure: Self::Handler) -> RouterResult;
+    fn post(&mut self, path: &str, handler: impl Into<Self::Handler>) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is GET
     ///
@@ -142,7 +145,7 @@ pub trait Route {
     ///     ),
     /// );
     /// ```
-    fn get(&mut self, path: &str, closure: Self::Handler) -> RouterResult;
+    fn get(&mut self, path: &str, handler: impl Into<Self::Handler>) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is PUT
     ///
@@ -162,7 +165,7 @@ pub trait Route {
     ///     ),
     /// );
     /// ```
-    fn put(&mut self, path: &str, closure: Self::Handler) -> RouterResult;
+    fn put(&mut self, path: &str, handler: impl Into<Self::Handler>) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is DELETE
     ///
@@ -182,7 +185,7 @@ pub trait Route {
     ///     ),
     /// );
     /// ```
-    fn delete(&mut self, path: &str, closure: Self::Handler) -> RouterResult;
+    fn delete(&mut self, path: &str, handler: impl Into<Self::Handler>) -> RouterResult;
     /// Part of app.METHOD, runs on when the request is on the
     /// path given and the request method is PATCH
     ///
@@ -202,11 +205,11 @@ pub trait Route {
     ///     ),
     /// );
     /// ```
-    fn patch(&mut self, path: &str, closure: Self::Handler) -> RouterResult;
+    fn patch(&mut self, path: &str, handler: impl Into<Self::Handler>) -> RouterResult;
     /// add() is like `app.use` in express, it runs on all the
     /// paths and all types of valid methods, the request comes
     /// on
-    fn add(&mut self, entity: Self::Handler) -> RouterResult;
+    fn add(&mut self, handler: impl Into<Self::Handler>) -> RouterResult;
 }
 
 /// A handler with the position it was registered at
@@ -218,15 +221,18 @@ pub(crate) struct Indexed<T> {
 /// A handler that matched a request, with the url variables of its path
 pub(crate) struct Matched<'a, T> {
     pub(crate) data: &'a T,
+    // where it was registered, which is the order handlers run in
+    index: usize,
     #[cfg(feature = "url_variables")]
-    pub(crate) vars: HashMap<&'a str, &'a str>,
+    pub(crate) vars: Vars<'a>,
 }
 
 /// Routes per method and the middleware, numbered in registration order
 pub(crate) struct Routes<T> {
     pub(crate) counter: usize,
     pub(crate) middlewares: Vec<Indexed<T>>,
-    pub(crate) paths: HashMap<RequestMethod, PathNode<Indexed<T>>>,
+    // one trie per method, indexed by `RequestMethod::index`
+    paths: [Option<PathNode<Indexed<T>>>; RequestMethod::COUNT],
 }
 
 impl<T> Routes<T> {
@@ -234,16 +240,15 @@ impl<T> Routes<T> {
         Self {
             counter: 0,
             middlewares: Vec::new(),
-            paths: HashMap::new(),
+            paths: std::array::from_fn(|_| None),
         }
     }
 
     pub(crate) fn insert(&mut self, method: RequestMethod, path: &str, data: T) -> RouterResult {
         let path = PathBuf::parse(path)?;
         let index = self.next_index();
-        self.paths
-            .entry(method)
-            .or_insert_with(PathNode::new)
+        self.paths[method.index()]
+            .get_or_insert_with(PathNode::new)
             .insert(path, Indexed { data, index });
         Ok(())
     }
@@ -256,15 +261,15 @@ impl<T> Routes<T> {
     /// Append `other`'s routes, which run after the ones already here
     pub(crate) fn append(&mut self, other: Self) {
         let offset = self.counter;
-        for (method, paths) in other.paths.into_iter() {
+        let tries = IntoIterator::into_iter(other.paths).enumerate();
+        for (method, paths) in tries.filter_map(|(i, paths)| Some((i, paths?))) {
             let updated_paths = paths.into_iter().map(|mut v| {
                 v.data.index += offset;
                 v
             });
-            if let Some(x) = self.paths.get_mut(&method) {
-                x.extend(updated_paths);
-            } else {
-                self.paths.insert(method, updated_paths.collect());
+            match &mut self.paths[method] {
+                Some(x) => x.extend(updated_paths),
+                none => *none = Some(updated_paths.collect()),
             }
         }
         self.middlewares
@@ -283,52 +288,54 @@ impl<T> Routes<T> {
         method: RequestMethod,
         path: &'a PathBuf,
     ) -> Vec<Matched<'a, T>> {
-        let routes = |method| {
-            self.paths.get(&method).map_or_else(Vec::new, |node| {
-                let mut routes = node.get(path);
-                routes.sort_unstable_by_key(|route| route.index);
-                routes
-            })
-        };
-        let mut method_routes = routes(method).into_iter().peekable();
-        // RequestMethod::All runs regardless of the request method
-        let mut all_routes = routes(RequestMethod::All).into_iter().peekable();
-        let mut middlewares = self.middlewares.iter().peekable();
-
         let mut matched = Vec::new();
-        loop {
-            let method_index = method_routes.peek().map_or(usize::MAX, |r| r.index);
-            let all_index = all_routes.peek().map_or(usize::MAX, |r| r.index);
-            let middleware_index = middlewares.peek().map_or(usize::MAX, |m| m.index);
-            if method_index == usize::MAX
-                && all_index == usize::MAX
-                && middleware_index == usize::MAX
-            {
-                break;
-            }
-            // registration indexes are globally ordered, so merging the three
-            // already sorted lists gives the order to run them in
-            let route = if method_index <= all_index && method_index <= middleware_index {
-                method_routes.next()
-            } else if all_index <= middleware_index {
-                all_routes.next()
-            } else {
-                let middleware = middlewares.next().unwrap();
-                matched.push(Matched {
-                    data: &middleware.data,
-                    #[cfg(feature = "url_variables")]
-                    vars: HashMap::new(),
-                });
-                continue;
-            };
-            let route = route.unwrap();
-            matched.push(Matched {
-                data: &route.data.data,
-                #[cfg(feature = "url_variables")]
-                vars: route.vars,
-            });
+        let mut methods = [Some(method), Some(RequestMethod::All)];
+        if method == RequestMethod::All {
+            methods[1] = None;
         }
+        for method in methods.iter().flatten() {
+            if let Some(node) = self.node(*method) {
+                node.find(path, &mut |route| {
+                    matched.push(Matched {
+                        data: &route.data.data,
+                        index: route.data.index,
+                        #[cfg(feature = "url_variables")]
+                        vars: route.vars,
+                    })
+                });
+            }
+        }
+        matched.extend(self.middlewares.iter().map(|middleware| Matched {
+            data: &middleware.data,
+            index: middleware.index,
+            #[cfg(feature = "url_variables")]
+            vars: Vars::new(),
+        }));
+        // registration indexes are unique and globally ordered
+        matched.sort_unstable_by_key(|m| m.index);
         matched
+    }
+
+    /// The methods with a route for `path`, in a fixed order. Routes for
+    /// every method aren't counted, they answer whatever the method.
+    pub(crate) fn allowed(&self, path: &PathBuf) -> Vec<RequestMethod> {
+        use RequestMethod::*;
+        [Get, Head, Post, Put, Delete, Patch, Options, Trace, Connect]
+            .iter()
+            .copied()
+            .filter(|method| self.node(*method).map_or(false, |node| node.matches(path)))
+            .collect()
+    }
+
+    /// How many methods have routes
+    #[cfg(test)]
+    pub(crate) fn paths_with_routes(&self) -> usize {
+        self.paths.iter().flatten().count()
+    }
+
+    /// The trie of routes for `method`, if it has any
+    pub(crate) fn node(&self, method: RequestMethod) -> Option<&PathNode<Indexed<T>>> {
+        self.paths[method.index()].as_ref()
     }
 
     fn next_index(&mut self) -> usize {
@@ -385,6 +392,6 @@ mod tests {
         let path = PathBuf::parse("/users/42").unwrap();
         let matched = routes.matched(RequestMethod::Get, &path);
         assert!(matched[0].vars.is_empty());
-        assert_eq!(matched[1].vars.get("id"), Some(&"42"));
+        assert_eq!(matched[1].vars.get("id"), Some("42"));
     }
 }

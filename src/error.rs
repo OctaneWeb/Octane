@@ -1,56 +1,27 @@
 use crate::constants::NOT_FOUND;
 use crate::responder::Response;
-use crate::Octane;
 use octane_http::StatusCode;
-use std::error;
-use std::marker::Unpin;
-use tokio::io::AsyncWrite;
 
-/// The Error structure holds the kind of error code and
-/// the location of the custom 404 file, if given by the user
-/// and manages sending errors on internal http errors and other instances
-/// will send with blank content if no 404 file is found or will send the
-/// 404 file directly if given.
+/// The Error structure builds the responses the server sends on internal
+/// http errors: when no route answers a request or when a request can't be
+/// served at all.
 ///
 /// You will not have to use this manually, to send errors on your own, you
 /// can do so by just specifying the error code and the content like
 /// `res.status(status_code).send("")`.
-pub struct Error {
-    kind: StatusCode,
-}
+pub struct Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 // Custom error type for invalid SSL certificates
 pub struct InvalidCertError;
 
-/// Takes in a http stream and a error code and sends to the client
-#[macro_export]
-#[doc(hidden)]
-macro_rules! declare_error {
-    ($stream : expr, $error_type : expr) => {
-        Error::err($error_type, $stream).await?;
-        return Ok(());
-    };
-}
-
 impl Error {
-    pub async fn err<S>(status_code: StatusCode, stream: S) -> Result<(), Box<dyn error::Error>>
-    where
-        S: AsyncWrite + Unpin,
-    {
-        Error { kind: status_code }.send(stream).await
-    }
-    async fn send<S>(self, stream: S) -> Result<(), Box<dyn error::Error>>
-    where
-        S: AsyncWrite + Unpin,
-    {
+    /// The response sent for `status_code` when no route answers a request
+    /// or it can't be served
+    pub(crate) fn response(status_code: StatusCode) -> Response<'static> {
         let mut res = Response::new_from_static(NOT_FOUND.as_bytes());
-        res.status(self.kind)
-            .default_headers()
-            .set("Content-Type", "text/html");
-
-        let response = res.into_parts();
-        Octane::send(response, stream).await?;
-        Ok(())
+        res.status(status_code).default_headers();
+        res.headers.set("Content-Type", "text/html");
+        res
     }
 }

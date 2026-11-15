@@ -102,17 +102,22 @@ impl Ssl {
 /// item. If no config is specified then defaults are used.
 ///
 pub struct OctaneConfig {
-    /// The duration for keep alive requests. It is 5 seconds by default
+    /// How long a persistent (keep-alive) connection may sit idle waiting for
+    /// its next request before it is closed. It is 5 seconds by default.
+    /// `None` turns keep-alive off: every response closes its connection.
     pub keep_alive: Option<Duration>,
     /// Maximum number of connections being served at once. Once the limit is
     /// reached, each listener stops draining the operating system's backlog
     /// while it waits for capacity. It is 1024 by default; zero is treated as
     /// one, and values too large for the runtime return an error from `listen`.
+    /// An idle keep-alive connection holds its place until it is closed.
     pub max_connections: usize,
-    /// Maximum total time spent on one connection after it acquires serving
-    /// capacity, including a TLS handshake when TLS is enabled. `None`
-    /// disables the deadline. It is 30 seconds by default. Custom Tokio
-    /// runtimes must enable the time driver with `enable_time` or `enable_all`.
+    /// Maximum time to receive one request and send its response, and to
+    /// complete a TLS handshake when TLS is enabled. The first request on a
+    /// connection must also start within it. A connection that runs out of
+    /// time is closed. `None` disables the deadline. It is 30 seconds by
+    /// default. Custom Tokio runtimes must enable the time driver with
+    /// `enable_time` or `enable_all`.
     pub connection_timeout: Option<Duration>,
     /// An instance of the `Ssl` struct to store the values of key and certificates.
     pub ssl: Ssl,

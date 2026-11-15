@@ -43,6 +43,21 @@ impl Response {
     }
 }
 
+#[allow(dead_code)]
+impl Response {
+    /// The value of the `name` header, matched without regard to case
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.head.split("\r\n").skip(1).find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            if key.eq_ignore_ascii_case(name) {
+                Some(value.trim())
+            } else {
+                None
+            }
+        })
+    }
+}
+
 /// Send `method path` with a Host header plus `headers`, and read the response
 #[allow(dead_code)]
 pub fn request(port: u16, method: &str, path: &str, headers: &[&str]) -> Response {
@@ -55,35 +70,82 @@ pub fn request(port: u16, method: &str, path: &str, headers: &[&str]) -> Respons
         req.push_str("\r\n");
     }
     req.push_str("\r\n");
-    raw_request(port, req.as_bytes())
+    let mut stream = connect(port);
+    stream.write_all(req.as_bytes()).unwrap();
+    read_response(&mut stream, method == "HEAD")
 }
 
-/// Send `bytes` as they are and read the response, the server closes the
-/// connection after it
+/// Send `bytes` as they are and read the response
 #[allow(dead_code)]
 pub fn raw_request(port: u16, bytes: &[u8]) -> Response {
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("cannot connect");
+    let mut stream = connect(port);
+    stream.write_all(bytes).unwrap();
+    read_response(&mut stream, false)
+}
+
+/// Open a connection to the server on `port`
+#[allow(dead_code)]
+pub fn connect(port: u16) -> TcpStream {
+    let stream = TcpStream::connect(("127.0.0.1", port)).expect("cannot connect");
     stream
         .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
-    stream.write_all(bytes).unwrap();
+    stream
+}
+
+/// Read one response off `stream`, and nothing past it: the body is as long
+/// as its `Content-Length`, or runs to the end of the stream without one.
+/// The answer to a `HEAD` request (`head_only`) has no body.
+#[allow(dead_code)]
+pub fn read_response(stream: &mut TcpStream, head_only: bool) -> Response {
+    // a byte at a time, so the start of the next response stays unread
     let mut raw = Vec::new();
-    stream.read_to_end(&mut raw).expect("cannot read response");
-    let end = raw
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .expect("response has no end of head");
-    let head = String::from_utf8(raw[..end].to_vec()).expect("head is not utf-8");
+    let mut byte = [0u8; 1];
+    while !raw.ends_with(b"\r\n\r\n") {
+        let read = stream.read(&mut byte).expect("cannot read response");
+        assert_eq!(
+            read,
+            1,
+            "connection closed in the head {:?}",
+            String::from_utf8_lossy(&raw)
+        );
+        raw.push(byte[0]);
+    }
+    raw.truncate(raw.len() - 4);
+    let head = String::from_utf8(raw).expect("head is not utf-8");
     let status = head
         .split(' ')
         .nth(1)
         .and_then(|code| code.parse().ok())
         .expect("response has no status code");
-    Response {
+    let mut response = Response {
         status,
         head,
-        body: raw[end + 4..].to_vec(),
+        body: Vec::new(),
+    };
+    if !head_only {
+        match response.header("content-length") {
+            Some(len) => {
+                response.body = vec![0; len.parse().expect("bad Content-Length")];
+                stream
+                    .read_exact(&mut response.body)
+                    .expect("cannot read body");
+            }
+            None => {
+                stream
+                    .read_to_end(&mut response.body)
+                    .expect("cannot read body");
+            }
+        }
     }
+    response
+}
+
+/// Whether the server has closed `stream`, after waiting for it to
+#[allow(dead_code)]
+pub fn is_closed(stream: &mut TcpStream) -> bool {
+    let mut byte = [0u8; 1];
+    matches!(stream.read(&mut byte), Ok(0))
 }
 
 /// GET `path` over https, accepting the self-signed test certificate

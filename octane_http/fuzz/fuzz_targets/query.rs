@@ -23,7 +23,7 @@ fuzz_target!(|data: &[u8]| {
         let name = pair.split_once('=').map_or(pair, |(name, _)| name);
         if !name.is_empty() {
             assert!(
-                query.contains_key(&fuzzing::query_decode(name)),
+                query.contains(&fuzzing::query_decode(name)),
                 "{:?}",
                 pair
             );

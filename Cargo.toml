@@ -1,6 +1,6 @@
 [package]
 name = "octane"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["weegee <41485688+Daksh14@users.noreply.github.com>", "aplet123 <aplet@aplet.me>"]
 description = "A web server which is express-like, intuitive and high-powered"
 license-file = "LICENSE"
@@ -34,6 +34,8 @@ default = ["std", "faithful", "query_strings", "cookies", "url_variables", "raw_
 std = ["tokio", "socket2", "octane_http/std"]
 faithful = ["std"]
 test_crate = ["std"]
+# no effect: header names are always kept as they were sent. Kept so that
+# feature lists naming it still build
 raw_headers = ["std"]
 query_strings = ["std"]
 extended_queries = ["std"]

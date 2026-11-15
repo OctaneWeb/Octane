@@ -1,5 +1,6 @@
 #![cfg(feature = "std")]
 use octane::prelude::*;
+use std::io::Write;
 mod common;
 
 #[test]
@@ -70,8 +71,16 @@ pub fn basic_server_x_req() {
         for method in &["GET", "POST", "PUT", "PATCH", "DELETE"] {
             assert_eq!(string, common::request(8082, method, "/", &[]).text());
         }
-        // TODO: HEAD responses still carry the body, they must not
-        assert_eq!(200, common::request(8082, "HEAD", "/", &[]).status);
+        // HEAD gets the head GET would, and no body: what follows it on the
+        // connection is the next response
+        let mut stream = common::connect(8082);
+        stream
+            .write_all(b"HEAD / HTTP/1.1\r\nHost: a\r\n\r\nGET / HTTP/1.1\r\nHost: a\r\n\r\n")
+            .unwrap();
+        let head = common::read_response(&mut stream, true);
+        assert_eq!(200, head.status);
+        assert_eq!(Some("12"), head.header("content-length"));
+        assert_eq!(string, common::read_response(&mut stream, false).text());
     });
 }
 

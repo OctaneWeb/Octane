@@ -4,11 +4,13 @@
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieError};
 use crate::path::PathBuf;
+use crate::query::Query;
 #[cfg(feature = "extended_queries")]
 use crate::query::QueryValue;
 use crate::request::{Headers, RequestLine};
 use crate::server::Octane;
 use octane_http::StatusCode;
+#[cfg(feature = "extended_queries")]
 use std::collections::HashMap;
 use std::io;
 use std::pin::Pin;
@@ -24,8 +26,8 @@ pub fn request_line(method: &[u8], url: &[u8], version: &[u8]) -> Option<Request
 }
 
 /// Parse a header block, the lines between the request line and the empty line
-pub fn headers(block: &str) -> Option<Headers> {
-    Headers::parse(block.to_owned())
+pub fn headers(block: &str) -> Option<Headers<'_>> {
+    Headers::parse(block)
 }
 
 /// The body length the server reads for a request with `headers`
@@ -39,8 +41,8 @@ pub fn path(path: &str) -> Option<Vec<String>> {
 }
 
 /// Parse a query string
-pub fn query(query: &str) -> HashMap<String, String> {
-    crate::query::parse_query(query)
+pub fn query(query: &str) -> Query<'_> {
+    Query::parse(query)
 }
 
 /// Parse a query string with arrays and objects
@@ -51,7 +53,7 @@ pub fn extended_query(query: &str) -> HashMap<String, QueryValue> {
 
 /// Decode one query string component
 pub fn query_decode(component: &str) -> String {
-    crate::query::unescape_hex(component)
+    crate::query::decode(component).into_owned()
 }
 
 /// Parse a request `Cookie` header
@@ -67,10 +69,15 @@ pub fn set_cookie(cookie: &Cookie<'_>) -> Result<String, CookieError> {
 }
 
 /// Serve one connection whose client sends `input`, handed to the server
-/// `chunk` bytes per read, and return everything the server wrote back
+/// `chunk` bytes per read, and return everything the server wrote back.
+/// The connection ends when `input` does, after every request in it that can
+/// be served is answered.
 pub fn serve(app: &Arc<Octane>, input: &[u8], chunk: usize) -> Vec<u8> {
     thread_local! {
+        // the server keeps idle and request deadlines, which never fire here
+        // because reading the in-memory stream never waits
         static RUNTIME: Runtime = Builder::new_current_thread()
+            .enable_time()
             .build()
             .expect("Unable to build tokio runtime");
     }

@@ -65,7 +65,7 @@ fn routes() -> Result<Router, octane::wasip3::InvalidPathError> {
     router.get(
         "/hello/:name",
         handler(async |req, res| {
-            let name = req.vars.get("name").copied().unwrap_or("there");
+            let name = req.vars.get("name").unwrap_or("there");
             let _ = res
                 .send(
                     StatusCode::Ok,

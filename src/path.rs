@@ -1,9 +1,8 @@
 use crate::{default, deref};
-use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use std::error;
 use std::fmt;
-use std::iter::{FromIterator, Iterator, Map};
+use std::iter::{FromIterator, Iterator};
 use std::path::PathBuf as StdPathBuf;
 use std::str::FromStr;
 
@@ -81,17 +80,14 @@ impl PathBuf {
     }
     /// Check if a Pathbuf matches the given pathbuf in url
     #[cfg(feature = "url_variables")]
-    pub fn check_matches<'a, 'b>(
-        &'a self,
-        other: &'b PathBuf,
-    ) -> Option<HashMap<&'a str, &'b str>> {
+    pub fn check_matches<'a>(&'a self, other: &'a PathBuf) -> Option<Vars<'a>> {
         if self.len() != other.len() {
             return None;
         }
-        let mut vars = HashMap::new();
+        let mut vars = Vars::new();
         for (a, b) in self.iter().zip(other.iter()) {
             if a.as_bytes()[0] == b':' {
-                vars.insert(&a[1..], &b[..]);
+                vars.vars.push((&a[1..], &b[..]));
             } else if a != b {
                 return None;
             }
@@ -155,6 +151,36 @@ impl FromStr for PathBuf {
     }
 }
 
+/// The url variables of a matched route, like `id` in `/users/:id`, in the
+/// order they appear in the route. They are borrowed from the request path.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Vars<'a> {
+    vars: Vec<(&'a str, &'a str)>,
+}
+
+impl<'a> Vars<'a> {
+    pub fn new() -> Self {
+        Self { vars: Vec::new() }
+    }
+    /// The value of the variable `name`
+    pub fn get(&self, name: &str) -> Option<&'a str> {
+        self.vars
+            .iter()
+            .find(|(var, _)| *var == name)
+            .map(|(_, value)| *value)
+    }
+    /// Every variable and its value
+    pub fn iter(&self) -> impl Iterator<Item = (&'a str, &'a str)> + '_ {
+        self.vars.iter().copied()
+    }
+    pub fn len(&self) -> usize {
+        self.vars.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.vars.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathData<T> {
     pub orig_path: PathBuf,
@@ -164,252 +190,132 @@ pub struct PathData<T> {
 #[derive(Debug, Clone)]
 pub struct MatchedPath<'a, T> {
     #[cfg(feature = "url_variables")]
-    pub vars: HashMap<&'a str, &'a str>,
+    pub vars: Vars<'a>,
     pub data: &'a T,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum PathChunk {
-    Chunk(String),
-    CatchAll,
-    End,
-}
-
+/// A trie of paths, one level per segment
 #[derive(Debug, Clone)]
-pub enum PathNode<T> {
-    Node(HashMap<PathChunk, PathNode<T>>),
-    Leaf(Vec<PathData<T>>),
+pub struct PathNode<T> {
+    // literal segments, sorted so the request's segment is found by binary
+    // search, without hashing or copying it
+    chunks: Vec<(String, PathNode<T>)>,
+    // a `:variable` segment
+    var: Option<Box<PathNode<T>>>,
+    // what was inserted at exactly this path
+    end: Vec<PathData<T>>,
 }
 
 impl<T> PathNode<T> {
-    fn unwrap_node(&self) -> &HashMap<PathChunk, PathNode<T>> {
-        if let PathNode::Node(x) = self {
-            x
-        } else {
-            panic!("Tried to unwrap a leaf as a node.");
-        }
-    }
-
-    fn unwrap_node_mut(&mut self) -> &mut HashMap<PathChunk, PathNode<T>> {
-        if let PathNode::Node(x) = self {
-            x
-        } else {
-            panic!("Tried to unwrap a leaf as a node.");
-        }
-    }
-
-    fn unwrap_leaf(&self) -> &Vec<PathData<T>> {
-        if let PathNode::Leaf(x) = self {
-            x
-        } else {
-            panic!("Tried to unwrap a node as a leaf.");
-        }
-    }
-
-    fn unwrap_leaf_mut(&mut self) -> &mut Vec<PathData<T>> {
-        if let PathNode::Leaf(x) = self {
-            x
-        } else {
-            panic!("Tried to unwrap a node as a leaf.");
-        }
-    }
-
     pub fn new() -> Self {
-        PathNode::Node(HashMap::new())
+        PathNode {
+            chunks: Vec::new(),
+            var: None,
+            end: Vec::new(),
+        }
     }
 
     pub fn insert(&mut self, path: PathBuf, data: T) {
-        let mut cur = self.unwrap_node_mut();
-        let path_chunks;
-        path_chunks = path.clone().chunks;
-        for chunk in path_chunks.into_iter() {
-            if chunk.as_bytes()[0] == b':' {
-                cur = cur
-                    .entry(PathChunk::CatchAll)
-                    .or_default()
-                    .unwrap_node_mut();
-                continue;
-            }
-            cur = cur
-                .entry(PathChunk::Chunk(chunk))
-                .or_default()
-                .unwrap_node_mut();
+        let mut cur = self;
+        for chunk in path.chunks.iter() {
+            // segments are never empty, `PathBuf::parse` drops those
+            cur = if chunk.as_bytes()[0] == b':' {
+                &mut **cur.var.get_or_insert_with(|| Box::new(PathNode::new()))
+            } else {
+                let at = match cur
+                    .chunks
+                    .binary_search_by(|(key, _)| key.as_str().cmp(chunk))
+                {
+                    Ok(at) => at,
+                    Err(at) => {
+                        cur.chunks.insert(at, (chunk.clone(), PathNode::new()));
+                        at
+                    }
+                };
+                &mut cur.chunks[at].1
+            };
         }
-        cur.entry(PathChunk::End)
-            .or_insert_with(|| PathNode::Leaf(vec![]))
-            .unwrap_leaf_mut()
-            .push(PathData {
-                orig_path: path,
-                data,
-            });
+        cur.end.push(PathData {
+            orig_path: path,
+            data,
+        });
     }
 
-    fn dfs(&self, chunks: &[String]) -> Vec<&PathData<T>> {
-        let cur = self.unwrap_node();
-        if chunks.is_empty() {
-            return cur
-                .get(&PathChunk::End)
-                .map(|v| v.unwrap_leaf().iter().collect())
-                .unwrap_or_default();
-        }
-        let mut ret = vec![];
-        if let Some(v) = cur.get(&PathChunk::Chunk(chunks[0].clone())) {
-            let found = v.dfs(&chunks[1..]);
-            ret = found;
-        }
-        #[cfg(feature = "url_variables")]
-        {
-            if let Some(v) = cur.get(&PathChunk::CatchAll) {
-                let found = v.dfs(&chunks[1..]);
-                ret.extend(found);
-            }
-        }
-        ret
+    /// Hand everything inserted at a path that matches `path` to `found`,
+    /// with the url variables of the match
+    pub(crate) fn find<'a, F>(&'a self, path: &'a PathBuf, found: &mut F)
+    where
+        F: FnMut(MatchedPath<'a, T>),
+    {
+        self.find_from(&path.chunks, path, found);
     }
 
-    pub fn get<'a>(&'a self, path: &'a PathBuf) -> Vec<MatchedPath<'a, T>> {
-        let matched = self.dfs(path.chunks.as_slice());
-        matched
-            .into_iter()
-            .map(|data| MatchedPath {
+    fn find_from<'a, F>(&'a self, rest: &[String], path: &'a PathBuf, found: &mut F)
+    where
+        F: FnMut(MatchedPath<'a, T>),
+    {
+        match rest.split_first() {
+            None => {
+                for data in &self.end {
+                    found(MatchedPath {
+                        #[cfg(feature = "url_variables")]
+                        vars: data.orig_path.check_matches(path).unwrap_or_default(),
+                        data: &data.data,
+                    });
+                }
+            }
+            Some((first, rest)) => {
+                let at = self
+                    .chunks
+                    .binary_search_by(|(key, _)| key.as_str().cmp(first));
+                if let Ok(at) = at {
+                    self.chunks[at].1.find_from(rest, path, found);
+                }
                 #[cfg(feature = "url_variables")]
-                vars: data
-                    .orig_path
-                    .check_matches(path)
-                    .unwrap()
-                    .into_iter()
-                    .map(|(k, v)| (k, v))
-                    .collect(),
-                data: &data.data,
-            })
-            .collect()
-    }
-}
-
-// nothing walks a trie by reference yet; `Router.paths` used to be public
-#[allow(dead_code)]
-pub struct PathNodeIterator<'a, T> {
-    stack: Vec<hash_map::Values<'a, PathChunk, PathNode<T>>>,
-    curvec: Option<&'a Vec<PathData<T>>>,
-    curind: usize,
-}
-
-pub struct OwnedPathNodeIterator<T, F>
-where
-    F: FnMut((PathChunk, PathNode<T>)) -> PathNode<T>,
-{
-    stack: Vec<Map<hash_map::IntoIter<PathChunk, PathNode<T>>, F>>,
-    curvec: Option<Vec<PathData<T>>>,
-}
-
-impl<'a, T> Iterator for PathNodeIterator<'a, T> {
-    type Item = &'a PathData<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // loop due to lack of tail recursive optimizations
-        loop {
-            if let Some(v) = self.curvec {
-                if self.curind < v.len() {
-                    let ret = &v[self.curind];
-                    self.curind += 1;
-                    return Some(ret);
-                }
-            }
-            self.curind = 0;
-            self.curvec = None;
-            if self.stack.is_empty() {
-                return None;
-            }
-            let len = self.stack.len();
-            if let Some(v) = self.stack[len - 1].next() {
-                // using continue as tail recursion
-                match v {
-                    PathNode::Node(n) => {
-                        self.stack.push(n.values());
-                        continue;
-                    }
-                    PathNode::Leaf(l) => {
-                        self.curvec = Some(l);
-                        continue;
+                {
+                    if let Some(node) = &self.var {
+                        node.find_from(rest, path, found);
                     }
                 }
-            } else {
-                self.stack.pop();
-                continue;
             }
         }
     }
-}
 
-impl<T> PathNode<T> {
-    #[allow(dead_code)]
-    pub fn iter(&self) -> PathNodeIterator<'_, T> {
-        match self {
-            PathNode::Node(n) => PathNodeIterator {
-                stack: vec![n.values()],
-                curvec: None,
-                curind: 0,
-            },
-            PathNode::Leaf(l) => PathNodeIterator {
-                stack: vec![],
-                curvec: Some(l),
-                curind: 0,
-            },
-        }
+    /// Whether anything was inserted at a path that matches `path`
+    pub(crate) fn matches(&self, path: &PathBuf) -> bool {
+        let mut found = false;
+        self.find(path, &mut |_| found = true);
+        found
     }
-}
 
-impl<T> Iterator for OwnedPathNodeIterator<T, fn((PathChunk, PathNode<T>)) -> PathNode<T>> {
-    type Item = PathData<T>;
+    /// Everything inserted at a path that matches `path`
+    #[cfg(test)]
+    pub fn get<'a>(&'a self, path: &'a PathBuf) -> Vec<MatchedPath<'a, T>> {
+        let mut matched = Vec::new();
+        self.find(path, &mut |m| matched.push(m));
+        matched
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        // loop due to lack of tail recursive optimizations
-        loop {
-            if let Some(v) = &mut self.curvec {
-                if !v.is_empty() {
-                    return v.pop();
-                }
-            }
-            self.curvec = None;
-            if self.stack.is_empty() {
-                return None;
-            }
-            let len = self.stack.len();
-            if let Some(v) = self.stack[len - 1].next() {
-                // using continue as tail recursion
-                match v {
-                    PathNode::Node(n) => {
-                        self.stack.push(n.into_iter().map(get_second));
-                        continue;
-                    }
-                    PathNode::Leaf(l) => {
-                        self.curvec = Some(l);
-                        continue;
-                    }
-                }
-            } else {
-                self.stack.pop();
-                continue;
-            }
+    // Move everything in the trie into `all`
+    fn drain_into(self, all: &mut Vec<PathData<T>>) {
+        all.extend(self.end);
+        for (_, node) in self.chunks {
+            node.drain_into(all);
+        }
+        if let Some(node) = self.var {
+            node.drain_into(all);
         }
     }
 }
 
 impl<T> IntoIterator for PathNode<T> {
     type Item = PathData<T>;
-    type IntoIter = OwnedPathNodeIterator<T, fn((PathChunk, PathNode<T>)) -> PathNode<T>>;
+    type IntoIter = std::vec::IntoIter<PathData<T>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        match self {
-            PathNode::Node(n) => OwnedPathNodeIterator {
-                stack: vec![n.into_iter().map(get_second)],
-                curvec: None,
-            },
-            PathNode::Leaf(l) => OwnedPathNodeIterator {
-                stack: vec![],
-                curvec: Some(l),
-            },
-        }
+        let mut all = Vec::new();
+        self.drain_into(&mut all);
+        all.into_iter()
     }
 }
 
@@ -460,10 +366,6 @@ pub fn is_ctl(c: char) -> bool {
     c <= '\x1f' || c == '\x7f'
 }
 
-fn get_second<T>(tup: (PathChunk, PathNode<T>)) -> PathNode<T> {
-    tup.1
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -484,11 +386,11 @@ mod test {
         let path3 = PathBuf::parse("/asdf/test/foo").unwrap();
         let path4 = PathBuf::parse("/asdf/test/bad").unwrap();
         assert_eq!(
-            path1.check_matches(&path2).unwrap()["var"],
+            path1.check_matches(&path2).unwrap().get("var").unwrap(),
             "test".to_string()
         );
         assert_eq!(
-            path1.check_matches(&path3).unwrap()["var"],
+            path1.check_matches(&path3).unwrap().get("var").unwrap(),
             "test".to_string()
         );
         assert!(path1.check_matches(&path4).is_none());
@@ -540,10 +442,10 @@ mod test {
         assert!(node.get(&path5).is_empty());
         let matched = node.get(&path2).remove(0);
         assert_eq!(*matched.data, 1);
-        assert_eq!(matched.vars.get("var").unwrap(), &"test");
+        assert_eq!(matched.vars.get("var").unwrap(), "test");
         let matched = node.get(&path3).remove(0);
         assert_eq!(*matched.data, 1);
-        assert_eq!(matched.vars.get("var").unwrap(), &"test");
+        assert_eq!(matched.vars.get("var").unwrap(), "test");
         let matched = node.get(&path4).remove(0);
         assert_eq!(*matched.data, 4);
         assert!(matched.vars.is_empty());

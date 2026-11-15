@@ -1,21 +1,36 @@
 use crate::constants::*;
 #[cfg(feature = "cookies")]
 use crate::cookie::Cookie;
-use crate::deref;
-use crate::path::is_ctl;
 use crate::path::PathBuf;
-use crate::query::parse_query;
+#[cfg(feature = "url_variables")]
+pub use crate::path::Vars;
+pub use crate::query::Query;
 #[cfg(feature = "extended_queries")]
 use crate::query::{parse_extended_query, QueryValue};
-use crate::util::Spliterator;
+use crate::util::read_some;
+use octane_http::http1x::{find_in_slice, MAX_HEAD_SIZE};
 use octane_http::{HttpVersion, StatusCode};
 use std::cfg;
+#[cfg(feature = "extended_queries")]
 use std::collections::HashMap;
 #[cfg(not(feature = "raw_headers"))]
 use std::marker::PhantomData;
+use std::ops::Range;
 use std::str;
-use std::string::ToString;
 use tokio::io::{AsyncRead, AsyncReadExt};
+
+// The longest chunk-size line (the size and its extensions) a chunked body
+// may have
+const MAX_CHUNK_LINE: usize = 4096;
+
+/// How the end of a request body is found (RFC 9112 section 6.3)
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) enum BodyFraming {
+    /// `Content-Length` bytes, 0 when there is no body
+    Length(usize),
+    /// `Transfer-Encoding: chunked`
+    Chunked,
+}
 
 pub use crate::method::RequestMethod;
 
@@ -121,163 +136,137 @@ pub(crate) fn request_line_parse(method: &[u8], url: &[u8], version: &[u8]) -> O
     }
 }
 
-/// The header structure represents a parsed value
-/// of unit header that looks like `key: value`
-/// and holds both the key and value. You
-/// shouldn't use it directly as the parsing has
-/// been done for you and all the headers are
-/// available in the `Headers` struct which you
-/// get as a field in the `req` variable in
-/// closures
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Header {
-    name: String,
-    value: String,
+/// One header field of a request, `name: value`, borrowed from the request.
+/// The name is as the client sent it, the value has the whitespace around
+/// it removed.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Header<'a> {
+    name: &'a str,
+    value: &'a str,
 }
 
-impl Header {
-    /// Parses a `key: value` header string and
-    /// returns a Header struct
-    pub(crate) fn parse(header: impl AsRef<str>) -> Option<Self> {
-        let header = header.as_ref();
-        let mut toks = header.splitn(2, ':');
-        let name = toks.next()?;
-        if name.is_empty() {
-            return None;
-        }
-        if cfg!(feature = "faithful") && !is_token(name) {
-            return None;
-        }
-        // whitespace around a field value isn't part of it, and HTAB is the
-        // only control character allowed inside one
-        let value = toks.next()?.trim_matches(|c| c == SP || c == HT);
-        if cfg!(feature = "faithful") && value.chars().any(|c| is_ctl(c) && c != HT) {
-            return None;
-        }
-        Some(Self {
-            name: name.to_owned(),
-            value: value.to_owned(),
-        })
+impl<'a> Header<'a> {
+    /// The name of the header, as it was sent
+    pub fn name(&self) -> &'a str {
+        self.name
     }
-    /// Return the name of the header
-    pub fn name(&self) -> String {
-        self.name.to_string()
-    }
-    /// Return the value of the header
-    pub fn value(&self) -> String {
-        self.value.to_string()
+    /// The value of the header
+    pub fn value(&self) -> &'a str {
+        self.value
     }
 }
 
-/// The `Headers` struct holds _all_ the headers
-/// a request might have in raw form (if the
-/// feature is enabled) and in a HashMap with key
-/// and value of the type `String`
+/// The headers of a request, a view of the request head: nothing is copied
+/// out of it. Names are matched without regard to case (RFC 9110 section
+/// 5.1), and are kept as the client sent them.
 ///
 /// # Example
 ///
 /// ```
 /// use octane::prelude::*;
-/// use octane::request::RequestMethod;
 ///
 /// let mut app = Octane::new();
 /// app.get("/",
 ///     route!(|req, res| {
-///         let some_header = req.headers.get("HeaderName");
+///         let agent = req.headers.get("User-Agent").unwrap_or("unknown");
+///         res.send(agent);
 ///         Flow::Stop
 ///     }),
 /// );
 /// ```
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Headers {
-    /// Headers, serialized to a HashMap
-    pub parsed: HashMap<String, String>,
-    #[cfg(feature = "raw_headers")]
-    /// Contains headers in raw form
-    pub raw: Vec<Header>,
-    #[cfg(not(feature = "raw_headers"))]
-    raw: PhantomData<()>,
-    // how many Host fields were sent, they are joined in `parsed` so a
-    // duplicate can't be told apart from a single comma separated value
-    host_count: usize,
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub struct Headers<'a> {
+    // every line was checked by `parse`, joined by CRLF, empty for none
+    block: &'a str,
 }
 
-impl Headers {
-    /// Parse all the headers on a request
-    pub(crate) fn parse(request: impl AsRef<str>) -> Option<Self> {
-        let request = request.as_ref();
-        let mut toks = Spliterator::new(request.as_bytes(), B_CRLF);
-        // an empty block is a request without any header lines
-        toks.finished = request.is_empty();
-        let mut headers: HashMap<String, String> = HashMap::new();
-        #[cfg(feature = "raw_headers")]
-        let mut raw_headers: Vec<Header> = Vec::new();
-        let mut host_count = 0;
-        for tok in toks {
-            let parsed = Header::parse(str::from_utf8(tok).ok()?)?;
-            if parsed.name.eq_ignore_ascii_case("host") {
-                host_count += 1;
-            }
-            #[cfg(feature = "raw_headers")]
-            {
-                let name = parsed.name.to_ascii_lowercase();
-                // cookie pairs are joined with "; " (RFC 6265 section 5.4)
-                let sep = if name == "cookie" { "; " } else { ", " };
-                headers
-                    .entry(name)
-                    .and_modify(|v| {
-                        v.push_str(sep);
-                        v.push_str(&parsed.value);
-                    })
-                    .or_insert_with(|| parsed.value.to_owned());
-            }
-            #[cfg(not(feature = "raw_headers"))]
-            {
-                // Without raw-header preservation, reuse the allocations made
-                // by `Header::parse` instead of cloning both strings.
-                let Header { mut name, value } = parsed;
-                name.make_ascii_lowercase();
-                let sep = if name == "cookie" { "; " } else { ", " };
-                match headers.entry(name) {
-                    std::collections::hash_map::Entry::Occupied(mut entry) => {
-                        entry.get_mut().push_str(sep);
-                        entry.get_mut().push_str(&value);
-                    }
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert(value);
-                    }
-                }
-            }
-            #[cfg(feature = "raw_headers")]
-            raw_headers.push(parsed);
-        }
-        Some(Self {
-            parsed: headers,
-            #[cfg(feature = "raw_headers")]
-            raw: raw_headers,
-            #[cfg(not(feature = "raw_headers"))]
-            raw: PhantomData,
-            host_count,
-        })
+impl<'a> Headers<'a> {
+    /// Check a header block, the lines between the request line and the
+    /// empty line. Every field needs a token for a name and a value without
+    /// control characters but HTAB, whatever the features: a lenient check
+    /// is how framing headers get smuggled past a proxy.
+    pub(crate) fn parse(block: &'a str) -> Option<Self> {
+        octane_http::http1x::Headers::parse(block.as_bytes()).ok()?;
+        Some(Self { block })
+    }
+
+    /// Headers for a block that was already checked by [`Headers::parse`]
+    pub(crate) fn checked(block: &'a str) -> Self {
+        Self { block }
+    }
+
+    /// Every header, in the order they were sent
+    pub fn iter(&self) -> impl Iterator<Item = Header<'a>> + 'a {
+        let block = self.block;
+        block
+            .split("\r\n")
+            .filter(move |_| !block.is_empty())
+            .filter_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                Some(Header {
+                    name,
+                    value: value.trim_matches(|c| c == SP || c == HT),
+                })
+            })
+    }
+
+    /// The value of the first header named `name`
+    pub fn get(&self, name: &str) -> Option<&'a str> {
+        self.get_all(name).next()
+    }
+
+    /// The values of every header named `name`, in order. A header that can
+    /// be repeated, like `Accept`, is one list across all of them.
+    pub fn get_all<'n>(&self, name: &'n str) -> impl Iterator<Item = &'a str> + 'n
+    where
+        'a: 'n,
+    {
+        self.iter()
+            .filter(move |header| header.name.eq_ignore_ascii_case(name))
+            .map(|header| header.value)
+    }
+
+    /// Whether there is a header named `name`
+    pub fn contains(&self, name: &str) -> bool {
+        self.get(name).is_some()
+    }
+
+    /// How many headers there are
+    pub fn len(&self) -> usize {
+        self.iter().count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.block.is_empty()
     }
 
     /// How many `Host` fields the request had. HTTP/1.1 requests need
     /// exactly one (RFC 9112 section 3.2)
     pub(crate) fn host_count(&self) -> usize {
-        self.host_count
+        self.get_all("host").count()
     }
 
-    /// The body length declared by the `Content-Length` header, 0 if it
-    /// isn't present (RFC 9112 section 6.3). Repeated identical values like
-    /// `5, 5` are accepted. A value that isn't a decimal number or values
-    /// that disagree give a `400`, a length over `max` gives a `413`.
+    /// Whether the `Connection` header lists `option`, like `close`
+    pub(crate) fn connection_has(&self, option: &str) -> bool {
+        self.get_all("connection").any(|value| {
+            value.split(',').any(|member| {
+                member
+                    .trim_matches(|c| c == SP || c == HT)
+                    .eq_ignore_ascii_case(option)
+            })
+        })
+    }
+
+    /// The body length declared by `Content-Length`, 0 if it isn't present
+    /// (RFC 9112 section 6.3). Repeated identical values like `5, 5`, in one
+    /// field or several, are accepted. A value that isn't a decimal number
+    /// or values that disagree give a `400`, a length over `max` a `413`.
     pub(crate) fn content_length(&self, max: usize) -> Result<usize, StatusCode> {
-        let value = match self.get("content-length") {
-            Some(value) => value,
-            None => return Ok(0),
-        };
         let mut digits: Option<&str> = None;
-        for member in value.split(',') {
+        for member in self
+            .get_all("content-length")
+            .flat_map(|value| value.split(','))
+        {
             let member = member.trim_matches(|c| c == SP || c == HT);
             if member.is_empty() || !member.bytes().all(|b| b.is_ascii_digit()) {
                 return Err(StatusCode::BadRequest);
@@ -299,41 +288,46 @@ impl Headers {
         Ok(length)
     }
 
-    /// Build `Headers` from already-decoded name/value pairs, as produced by
-    /// the HTTP/2 HPACK decoder. Names are lowercased and duplicates are joined
-    /// (with `; ` for `cookie` per RFC 9113 §8.2.3, `, ` otherwise); no header
-    /// block is re-serialized.
-    pub(crate) fn from_pairs(pairs: &[(String, String)]) -> Self {
-        let mut parsed: HashMap<String, String> = HashMap::new();
-        #[cfg(feature = "raw_headers")]
-        let mut raw: Vec<Header> = Vec::new();
-        let mut host_count = 0;
-        for (name, value) in pairs {
-            let lower = name.to_ascii_lowercase();
-            if lower == "host" {
-                host_count += 1;
-            }
-            let sep = if lower == "cookie" { "; " } else { ", " };
-            parsed
-                .entry(lower)
-                .and_modify(|v| {
-                    v.push_str(sep);
-                    v.push_str(value);
-                })
-                .or_insert_with(|| value.clone());
-            #[cfg(feature = "raw_headers")]
-            raw.push(Header {
-                name: name.clone(),
-                value: value.clone(),
-            });
+    /// How the body of a request with these headers is delimited (RFC 9112
+    /// section 6.3). `chunked` is the only transfer coding supported, and it
+    /// has to be the only one: other codings give a `501`, and anything that
+    /// leaves the length ambiguous gives a `400`, after which the connection
+    /// must not be reused.
+    pub(crate) fn body_framing(
+        &self,
+        version: HttpVersion,
+        max: usize,
+    ) -> Result<BodyFraming, StatusCode> {
+        if !self.contains("transfer-encoding") {
+            return self.content_length(max).map(BodyFraming::Length);
         }
-        Self {
-            parsed,
-            #[cfg(feature = "raw_headers")]
-            raw,
-            #[cfg(not(feature = "raw_headers"))]
-            raw: PhantomData,
-            host_count,
+        // Both headers are how requests get smuggled past a proxy that
+        // reads the other one (RFC 9112 section 6.1), and HTTP/1.0 has no
+        // transfer codings, so its framing can't be trusted either
+        if self.contains("content-length") || version != HttpVersion::Http11 {
+            return Err(StatusCode::BadRequest);
+        }
+        // the codings of every Transfer-Encoding field, in order
+        let mut codings = self
+            .get_all("transfer-encoding")
+            .flat_map(|value| value.split(','))
+            .map(|coding| coding.trim_matches(|c| c == SP || c == HT));
+        let first = codings.next();
+        // the last coding, and the first when there are more
+        let (last, first) = match codings.last() {
+            Some(last) => (Some(last), first),
+            None => (first, None),
+        };
+        // chunked has to come last or the body has no end, and can't be
+        // applied twice
+        match last {
+            Some(last) if last.eq_ignore_ascii_case("chunked") => {}
+            _ => return Err(StatusCode::BadRequest),
+        }
+        match first {
+            None => Ok(BodyFraming::Chunked),
+            Some(coding) if coding.eq_ignore_ascii_case("chunked") => Err(StatusCode::BadRequest),
+            Some(_) => Err(StatusCode::NotImplemented),
         }
     }
 }
@@ -369,7 +363,7 @@ pub struct Request<'a> {
     /// request method, request_uri.
     pub request_line: RequestLine,
     /// Headers in the request
-    pub headers: Headers,
+    pub headers: Headers<'a>,
     /// The body of the request
     pub body: &'a [u8],
     #[cfg(feature = "cookies")]
@@ -382,16 +376,12 @@ impl<'a> Request<'a> {
     /// and body and return a Request struct
     pub(crate) fn parse(
         request_line: RequestLine,
-        headers: Headers,
+        headers: Headers<'a>,
         body: &'a [u8],
     ) -> Option<Self> {
+        // borrowed from the head like the headers, from every Cookie field
         #[cfg(feature = "cookies")]
-        let cookies: Vec<Cookie<'static>> = headers.get("cookie").map_or_else(Vec::new, |value| {
-            Cookie::parse(value)
-                .into_iter()
-                .map(|cookie| Cookie::new(cookie.name().to_owned(), cookie.value().to_owned()))
-                .collect()
-        });
+        let cookies = headers.get_all("cookie").flat_map(Cookie::parse).collect();
         Some(Self {
             request_line,
             headers,
@@ -400,51 +390,62 @@ impl<'a> Request<'a> {
             body,
         })
     }
-    /// Build a [`Request`] from an already-parsed request line and header set,
-    /// reading any body bytes that weren't already buffered alongside the head.
+    /// Build a [`Request`] from an already-parsed request line, reading any
+    /// body bytes that weren't already buffered alongside the head.
     ///
-    /// `body_start` is the offset in `data` immediately after the request head.
-    /// If `Content-Length` calls for more bytes than are already buffered, the
-    /// rest is streamed off `reader` into that same allocation. Bodies longer
-    /// than `max_body_size` are refused with a `413` before anything is read.
+    /// `head` is where the header block is in `data`, already checked by
+    /// [`Headers::parse`], and `framing` how its body is delimited. The
+    /// headers are a view of `data`, made once the body is read: reading it
+    /// may move the buffer. `body_start` is the offset in `data` immediately
+    /// after the request head. Whatever of the body wasn't buffered yet is
+    /// streamed off `reader` into that same allocation. A chunked body is
+    /// decoded in place, so either way the body ends up as
+    /// `data[body_start..end]` followed by any bytes that were sent after it
+    /// (the next pipelined request). Returns the request and `end`. Bodies
+    /// longer than `max_body_size` are refused with a `413`.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn from_raw<T: AsyncRead + Unpin>(
-        headers: Headers,
+        head: Range<usize>,
+        framing: BodyFraming,
         request_line: RequestLine,
         data: &'a mut Vec<u8>,
         body_start: usize,
         mut reader: T,
         max_body_size: usize,
-    ) -> Result<Request<'a>, StatusCode> {
-        let body_len = headers.content_length(max_body_size)?;
-        let buffered_body_len = data
-            .len()
-            .checked_sub(body_start)
-            .ok_or(StatusCode::BadRequest)?;
-        let body_end = body_start
-            .checked_add(body_len)
-            .ok_or(StatusCode::PayloadTooLarge)?;
-
-        if body_len > buffered_body_len {
-            // grow the buffer as bytes arrive instead of allocating the
-            // declared length up front
-            let missing = (body_len - buffered_body_len) as u64;
-            (&mut reader)
-                .take(missing)
-                .read_to_end(data)
-                .await
-                .map_err(|_| StatusCode::BadRequest)?;
-            // the client hung up before sending the whole body
-            if data.len() != body_end {
-                return Err(StatusCode::BadRequest);
-            }
+    ) -> Result<(Request<'a>, usize), StatusCode> {
+        if body_start > data.len() || head.end > body_start {
+            return Err(StatusCode::BadRequest);
         }
+        let body_end = match framing {
+            BodyFraming::Length(body_len) => {
+                read_length(data, body_start, body_len, &mut reader).await?
+            }
+            BodyFraming::Chunked => {
+                read_chunked(data, body_start, max_body_size, &mut reader).await?
+            }
+        };
 
-        // Bytes already buffered or sent after the declared length are not
-        // part of this request body.
+        // nothing is read into the buffer from here on
+        let data: &'a Vec<u8> = data;
+        let block = str::from_utf8(&data[head]).map_err(|_| StatusCode::BadRequest)?;
+        // Bytes already buffered or sent after the body are not part of it
         let body = data
             .get(body_start..body_end)
             .ok_or(StatusCode::BadRequest)?;
-        Self::parse(request_line, headers, body).ok_or(StatusCode::BadRequest)
+        let request = Self::parse(request_line, Headers::checked(block), body)
+            .ok_or(StatusCode::BadRequest)?;
+        Ok((request, body_end))
+    }
+
+    /// Whether the connection stays open after this request: HTTP/1.1
+    /// unless `Connection: close`, HTTP/1.0 only with `Connection: keep-alive`
+    /// (RFC 9112 section 9.3)
+    pub(crate) fn keep_alive(&self) -> bool {
+        match self.request_line.version {
+            HttpVersion::Http11 => !self.headers.connection_has("close"),
+            HttpVersion::Http10 => self.headers.connection_has("keep-alive"),
+            _ => false,
+        }
     }
 
     /// Get the first cookie with the given name. When several cookies share
@@ -466,8 +467,7 @@ impl<'a> Request<'a> {
         self.cookies.iter().find(|cookie| cookie.name() == name)
     }
 
-    /// Parse the query and return the key value pairs in the form
-    /// of an HashMap
+    /// Parse the query into its decoded `name=value` pairs, see [`Query`]
     ///
     /// ```
     /// use octane::prelude::*;
@@ -479,8 +479,8 @@ impl<'a> Request<'a> {
     ///     let value = parsed_query.get("value");
     /// }));
     /// ```
-    pub fn get_query(&self) -> HashMap<String, String> {
-        parse_query(&self.request_line.query)
+    pub fn get_query(&self) -> Query<'_> {
+        Query::parse(&self.request_line.query)
     }
 
     /// Parse the extended query and return the key value pairs in the form
@@ -489,6 +489,182 @@ impl<'a> Request<'a> {
     pub fn get_extended_query(&self) -> HashMap<String, QueryValue> {
         parse_extended_query(&self.request_line.query)
     }
+}
+
+// Read a `Content-Length` body starting at `start`, returning where it ends
+async fn read_length<R: AsyncRead + Unpin>(
+    data: &mut Vec<u8>,
+    start: usize,
+    len: usize,
+    reader: &mut R,
+) -> Result<usize, StatusCode> {
+    let end = start.checked_add(len).ok_or(StatusCode::PayloadTooLarge)?;
+    if end > data.len() {
+        // grow the buffer as bytes arrive instead of allocating the
+        // declared length up front
+        let missing = (end - data.len()) as u64;
+        reader
+            .take(missing)
+            .read_to_end(data)
+            .await
+            .map_err(|_| StatusCode::BadRequest)?;
+        // the client hung up before sending the whole body
+        if data.len() != end {
+            return Err(StatusCode::BadRequest);
+        }
+    }
+    Ok(end)
+}
+
+// Decode a chunked body (RFC 9112 section 7.1) starting at `start`, in place,
+// returning where the decoded body ends.
+//
+// `data[start..end]` holds the body decoded so far and `data[pos..]` the bytes
+// not decoded yet. Chunk data is moved down over the framing as it is read,
+// which is never more bytes than were read, so decoding costs one copy of the
+// body whatever the chunk sizes. Before reading more, the framing between
+// `end` and `pos` is dropped, so the buffer holds the decoded body and at most
+// one read of framing.
+async fn read_chunked<R: AsyncRead + Unpin>(
+    data: &mut Vec<u8>,
+    start: usize,
+    max_body_size: usize,
+    reader: &mut R,
+) -> Result<usize, StatusCode> {
+    let mut end = start;
+    let mut pos = start;
+    loop {
+        let line = read_line(data, end, &mut pos, MAX_CHUNK_LINE, reader).await?;
+        let size = chunk_size(&data[line.0..line.1])?;
+        if size == 0 {
+            break;
+        }
+        if size > max_body_size - (end - start) {
+            return Err(StatusCode::PayloadTooLarge);
+        }
+        let mut left = size;
+        while left > 0 {
+            if pos == data.len() {
+                fill(data, end, &mut pos, reader).await?;
+            }
+            let n = left.min(data.len() - pos);
+            data.copy_within(pos..pos + n, end);
+            end += n;
+            pos += n;
+            left -= n;
+        }
+        // chunk data is followed by CRLF
+        while data.len() - pos < 2 {
+            fill(data, end, &mut pos, reader).await?;
+        }
+        if data[pos..pos + 2] != *B_CRLF {
+            return Err(StatusCode::BadRequest);
+        }
+        pos += 2;
+    }
+    // The trailer section ends at an empty line. Trailer fields are checked,
+    // but not merged into the headers (RFC 9112 section 7.1.2).
+    let mut trailer_len = 0;
+    loop {
+        let (from, to) = read_line(data, end, &mut pos, MAX_HEAD_SIZE, reader).await?;
+        if from == to {
+            break;
+        }
+        trailer_len += to - from + B_CRLF.len();
+        if trailer_len > MAX_HEAD_SIZE {
+            return Err(StatusCode::RequestHeaderFieldsTooLarge);
+        }
+        if !is_trailer_field(&data[from..to]) {
+            return Err(StatusCode::BadRequest);
+        }
+    }
+    // what follows the body is the next request
+    data.drain(end..pos);
+    Ok(end)
+}
+
+// Find the line at `pos`, reading more until its CRLF arrives, and move `pos`
+// past it. Returns where the line starts and ends, without the CRLF.
+async fn read_line<R: AsyncRead + Unpin>(
+    data: &mut Vec<u8>,
+    end: usize,
+    pos: &mut usize,
+    max: usize,
+    reader: &mut R,
+) -> Result<(usize, usize), StatusCode> {
+    loop {
+        if let Some(len) = find_in_slice(&data[*pos..], B_CRLF) {
+            if len > max {
+                return Err(StatusCode::BadRequest);
+            }
+            let line = (*pos, *pos + len);
+            *pos += len + B_CRLF.len();
+            return Ok(line);
+        }
+        if data.len() - *pos > max {
+            return Err(StatusCode::BadRequest);
+        }
+        fill(data, end, pos, reader).await?;
+    }
+}
+
+// Drop the framing already decoded and read more of the body
+async fn fill<R: AsyncRead + Unpin>(
+    data: &mut Vec<u8>,
+    end: usize,
+    pos: &mut usize,
+    reader: &mut R,
+) -> Result<(), StatusCode> {
+    data.drain(end..*pos);
+    *pos = end;
+    match read_some(reader, data).await {
+        Ok(0) | Err(_) => Err(StatusCode::BadRequest),
+        Ok(_) => Ok(()),
+    }
+}
+
+// Whether `line` is a field line: a token name, a colon and a value with no
+// control character but HTAB (RFC 9110 section 5). This is checked strictly
+// whatever the features: a lenient check lets the bare LF in `0\r\n\n` start a
+// "trailer" that swallows the request a proxy sends next, which smuggles the
+// one hidden in that request's body (GHSA-2q7f-mf9f-5qhr in actix-http).
+fn is_trailer_field(line: &[u8]) -> bool {
+    let colon = match line.iter().position(|&b| b == b':') {
+        Some(colon) => colon,
+        None => return false,
+    };
+    let (name, value) = (&line[..colon], &line[colon + 1..]);
+    str::from_utf8(name).map_or(false, is_token)
+        && value
+            .iter()
+            .all(|&b| b == b'\t' || (b >= b' ' && b != 0x7f))
+}
+
+// Parse `chunk-size [ chunk-ext ]`. Extensions are allowed but ignored.
+fn chunk_size(line: &[u8]) -> Result<usize, StatusCode> {
+    let (size, ext) = match line.iter().position(|&b| b == b';') {
+        Some(at) => line.split_at(at),
+        None => (line, &[][..]),
+    };
+    // whitespace may come before the extensions (BWS), never before the size
+    let size = match size.iter().rposition(|&b| b != b' ' && b != b'\t') {
+        Some(last) => &size[..=last],
+        None => return Err(StatusCode::BadRequest),
+    };
+    if !size.iter().all(u8::is_ascii_hexdigit) {
+        return Err(StatusCode::BadRequest);
+    }
+    // HTAB is the only control character an extension may hold
+    if ext.iter().any(|&b| (b < b' ' && b != b'\t') || b == 0x7f) {
+        return Err(StatusCode::BadRequest);
+    }
+    size.iter().try_fold(0usize, |n, &b| {
+        let digit = (b as char).to_digit(16).unwrap_or(0) as usize;
+        n.checked_mul(16)
+            .and_then(|n| n.checked_add(digit))
+            // too large for any body that could be accepted
+            .ok_or(StatusCode::PayloadTooLarge)
+    })
 }
 
 /// The KeepAlive struct represents the value
@@ -566,7 +742,7 @@ impl KeepAlive {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MatchedRequest<'a> {
     /// The request coming from the client
-    pub request: Request<'a>,
+    pub request: &'a Request<'a>,
     #[cfg(feature = "url_variables")]
     /// A Hashmap containing the variables specified in the url with their
     /// respective keys.
@@ -584,11 +760,16 @@ pub struct MatchedRequest<'a> {
     ///     }),
     /// );
     /// ```
-    pub vars: HashMap<&'a str, &'a str>,
+    pub vars: Vars<'a>,
 }
 
-deref!(MatchedRequest<'a>, Request<'a>, request);
-deref!(Headers, HashMap<String, String>, parsed);
+impl<'a> std::ops::Deref for MatchedRequest<'a> {
+    type Target = Request<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        self.request
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -682,8 +863,7 @@ mod test {
         User-Agent: curl/7.58.0\r\n\
         Accept: */*\r\n\
         Content-Length: 20\r\n\
-        Content-Type: application/x-www-form-urlencoded"
-                .to_string(),
+        Content-Type: application/x-www-form-urlencoded",
         )
         .unwrap();
         assert_eq!(headers.get("host").unwrap(), "localhost:12345");
@@ -697,57 +877,54 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "raw_headers")]
-    fn success_raw_headers() {
-        // Parsing should work as expected.
-        let headers = Headers::parse(
-            "HOst: localhost:12345\r\n\
-        User-Agent: curl/7.58.0"
-                .to_string(),
-        )
-        .unwrap();
-        assert_eq!(headers.raw[0].name(), "HOst");
-        assert_eq!(headers.raw[0].value(), "localhost:12345");
-        assert_eq!(headers.raw[1].name(), "User-Agent");
-        assert_eq!(headers.raw[1].value(), "curl/7.58.0");
+    fn names_are_kept_as_sent_and_matched_without_case() {
+        let headers = Headers::parse("HOst: localhost:12345\r\nUser-Agent: curl/7.58.0").unwrap();
+        let fields: Vec<_> = headers.iter().map(|h| (h.name(), h.value())).collect();
+        assert_eq!(
+            fields,
+            [("HOst", "localhost:12345"), ("User-Agent", "curl/7.58.0")]
+        );
+        assert_eq!(headers.get("host"), Some("localhost:12345"));
+        assert_eq!(headers.get("USER-AGENT"), Some("curl/7.58.0"));
+        assert_eq!(headers.len(), 2);
+    }
+
+    // The one field of a one line block
+    fn field(line: &str) -> Option<(&str, &str)> {
+        let headers = Headers::parse(line)?;
+        let header = headers.iter().next()?;
+        Some((header.name(), header.value()))
     }
 
     #[test]
     fn success_standard_header() {
         // Parsing should work as expected.
-        let req = Header::parse("Referer: \t\t request://www.example.com/".to_string()).unwrap();
-        assert_eq!(req.name(), "Referer");
-        assert_eq!(req.value(), "request://www.example.com/");
+        let req = field("Referer: \t\t request://www.example.com/");
+        assert_eq!(req, Some(("Referer", "request://www.example.com/")));
     }
 
     #[test]
     fn success_empty_value() {
         // Empty values are allowed.
-        let req = Header::parse("Referer: \t\t ".to_string()).unwrap();
-        assert_eq!(req.name(), "Referer");
-        assert_eq!(req.value(), "");
+        assert_eq!(field("Referer: \t\t "), Some(("Referer", "")));
     }
 
     #[test]
-    #[should_panic]
-    fn fail_no_value() {
-        // Having no value should fail.
-        Header::parse("Referer".to_string()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn fail_empty_name() {
-        // Having no name should fail.
-        Header::parse(": test".to_string()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    #[cfg_attr(not(feature = "faithful"), ignore)]
-    fn fail_malformed_name() {
-        // Having separators in the name should fail.
-        Header::parse("Test Header: test".to_string()).unwrap();
+    fn malformed_fields_are_refused_whatever_the_features() {
+        // no colon, no name, separators or control characters in the name,
+        // control characters in the value
+        for line in [
+            "Referer",
+            ": test",
+            "Test Header: test",
+            "Content-Length : 5",
+            "X\x0b: 1",
+            "X: a\x00b",
+        ]
+        .iter()
+        {
+            assert!(Headers::parse(line).is_none(), "{:?}", line);
+        }
     }
 
     #[test]
@@ -790,7 +967,7 @@ mod test {
     #[test]
     fn success_no_headers() {
         // A request may have no header lines at all.
-        assert!(Headers::parse(String::new()).unwrap().is_empty());
+        assert!(Headers::parse("").unwrap().is_empty());
     }
 
     #[test]
@@ -804,8 +981,7 @@ mod test {
     #[test]
     fn success_value_whitespace_and_tabs() {
         // Whitespace around a value is dropped, tabs inside it are kept.
-        let req = Header::parse("X-Test:  a\tb \t".to_string()).unwrap();
-        assert_eq!(req.value(), "a\tb");
+        assert_eq!(field("X-Test:  a\tb \t"), Some(("X-Test", "a\tb")));
     }
 
     #[test]
@@ -817,18 +993,29 @@ mod test {
     }
 
     #[test]
-    fn success_cookie_headers_joined_with_semicolons() {
-        let headers = Headers::parse("Cookie: a=1\r\nCookie: b=2".to_string()).unwrap();
-        assert_eq!(headers.get("cookie").unwrap(), "a=1; b=2");
+    fn repeated_fields_are_all_kept() {
+        let headers = Headers::parse("Cookie: a=1\r\nX: 0\r\ncookie: b=2").unwrap();
+        assert_eq!(headers.get("cookie"), Some("a=1"));
+        assert_eq!(
+            headers.get_all("Cookie").collect::<Vec<_>>(),
+            ["a=1", "b=2"]
+        );
+        #[cfg(feature = "cookies")]
+        {
+            let line = RequestLine::parse("GET / HTTP/1.1").unwrap();
+            let request = Request::parse(line, headers, b"").unwrap();
+            let cookies: Vec<_> = request
+                .cookies
+                .iter()
+                .map(|c| (c.name(), c.value()))
+                .collect();
+            assert_eq!(cookies, [("a", "1"), ("b", "2")]);
+        }
     }
 
     #[test]
     fn success_content_length() {
-        let parse = |block: &str| {
-            Headers::parse(block.to_string())
-                .unwrap()
-                .content_length(100)
-        };
+        let parse = |block: &str| Headers::parse(block).unwrap().content_length(100);
         assert_eq!(parse("Host: a"), Ok(0));
         assert_eq!(parse("Content-Length: 42"), Ok(42));
         assert_eq!(parse("Content-Length: 007"), Ok(7));
@@ -838,11 +1025,7 @@ mod test {
 
     #[test]
     fn fail_content_length() {
-        let parse = |block: &str| {
-            Headers::parse(block.to_string())
-                .unwrap()
-                .content_length(100)
-        };
+        let parse = |block: &str| Headers::parse(block).unwrap().content_length(100);
         let bad = Err(StatusCode::BadRequest);
         assert_eq!(parse("Content-Length: 5\r\nContent-Length: 6"), bad);
         assert_eq!(parse("Content-Length: +5"), bad);
@@ -858,15 +1041,31 @@ mod test {
         assert_eq!(parse("Content-Length: 99999999999999999999999"), too_large);
     }
 
+    // `data` as `from_raw` gets it: the header block, then whatever of the
+    // body was buffered with it
+    fn buffered(block: &str, body: &[u8]) -> (Vec<u8>, Range<usize>, usize) {
+        let mut data = block.as_bytes().to_vec();
+        let head = 0..data.len();
+        data.extend_from_slice(body);
+        (data, head, block.len())
+    }
+
+    fn framing(block: &str, max: usize) -> Result<BodyFraming, StatusCode> {
+        Headers::parse(block)
+            .unwrap()
+            .body_framing(HttpVersion::Http11, max)
+    }
+
     #[tokio::test]
     async fn from_raw_appends_missing_body_to_the_request_buffer() {
-        let mut data = Vec::with_capacity(16);
-        data.extend_from_slice(b"HEADhe");
-        let request = Request::from_raw(
-            Headers::parse("Content-Length: 5").unwrap(),
+        let block = "Content-Length: 5";
+        let (mut data, head, start) = buffered(block, b"he");
+        let (request, end) = Request::from_raw(
+            head,
+            framing(block, 16).unwrap(),
             RequestLine::parse("POST / HTTP/1.1").unwrap(),
             &mut data,
-            4,
+            start,
             &b"lloignored"[..],
             16,
         )
@@ -874,20 +1073,24 @@ mod test {
         .unwrap();
 
         assert_eq!(request.body, b"hello");
+        assert_eq!(request.headers.get("content-length"), Some("5"));
         let body_pointer = request.body.as_ptr() as usize;
         drop(request);
-        assert_eq!(body_pointer, data.as_ptr() as usize + 4);
-        assert_eq!(data, b"HEADhello");
+        assert_eq!(body_pointer, data.as_ptr() as usize + start);
+        assert_eq!(&data[start..], b"hello");
+        assert_eq!(end, data.len());
     }
 
     #[tokio::test]
     async fn from_raw_excludes_already_buffered_trailing_bytes() {
-        let mut data = b"HEADhello".to_vec();
-        let request = Request::from_raw(
-            Headers::parse("Content-Length: 2").unwrap(),
+        let block = "Content-Length: 2";
+        let (mut data, head, start) = buffered(block, b"hello");
+        let (request, end) = Request::from_raw(
+            head,
+            framing(block, 16).unwrap(),
             RequestLine::parse("POST / HTTP/1.1").unwrap(),
             &mut data,
-            4,
+            start,
             &b""[..],
             16,
         )
@@ -896,37 +1099,221 @@ mod test {
 
         assert_eq!(request.body, b"he");
         drop(request);
-        assert_eq!(data, b"HEADhello");
+        // the rest is the next request
+        assert_eq!(&data[end..], b"llo");
     }
 
     #[tokio::test]
-    async fn from_raw_rejects_oversized_and_incomplete_bodies() {
-        let mut oversized_data = b"HEAD".to_vec();
-        let oversized = Request::from_raw(
-            Headers::parse("Content-Length: 6").unwrap(),
-            RequestLine::parse("POST / HTTP/1.1").unwrap(),
-            &mut oversized_data,
-            4,
-            &b"unused"[..],
-            5,
-        )
-        .await;
-        assert!(matches!(oversized, Err(StatusCode::PayloadTooLarge)));
-        drop(oversized);
-        assert_eq!(oversized_data, b"HEAD");
+    async fn oversized_and_incomplete_bodies_are_refused() {
+        // too large is known from the headers, before anything is read
+        assert_eq!(
+            framing("Content-Length: 6", 5),
+            Err(StatusCode::PayloadTooLarge)
+        );
 
-        let mut incomplete_data = b"HEADhe".to_vec();
+        let block = "Content-Length: 5";
+        let (mut data, head, start) = buffered(block, b"he");
         let incomplete = Request::from_raw(
-            Headers::parse("Content-Length: 5").unwrap(),
+            head,
+            framing(block, 5).unwrap(),
             RequestLine::parse("POST / HTTP/1.1").unwrap(),
-            &mut incomplete_data,
-            4,
+            &mut data,
+            start,
             &b"l"[..],
             5,
         )
         .await;
         assert!(matches!(incomplete, Err(StatusCode::BadRequest)));
         drop(incomplete);
-        assert_eq!(incomplete_data, b"HEADhel");
+        assert_eq!(&data[start..], b"hel");
+    }
+
+    // Hands out at most `step` bytes per read, like a slow client
+    struct Trickle<'a> {
+        bytes: &'a [u8],
+        step: usize,
+    }
+
+    impl AsyncRead for Trickle<'_> {
+        fn poll_read(
+            mut self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            let n = self.step.min(self.bytes.len()).min(buf.remaining());
+            let (read, rest) = self.bytes.split_at(n);
+            buf.put_slice(read);
+            self.bytes = rest;
+            std::task::Poll::Ready(Ok(()))
+        }
+    }
+
+    // Decode `wire` as a chunked body that arrives `step` bytes at a time
+    // after `buffered`, returning the body and what came after it: the bytes
+    // left in the buffer followed by those that weren't read at all
+    async fn chunked(
+        buffered: &[u8],
+        wire: &[u8],
+        step: usize,
+        max: usize,
+    ) -> Result<(Vec<u8>, Vec<u8>), StatusCode> {
+        let block = "Transfer-Encoding: chunked";
+        let (mut data, head, start) = self::buffered(block, buffered);
+        let mut reader = Trickle { bytes: wire, step };
+        let (request, end) = Request::from_raw(
+            head,
+            BodyFraming::Chunked,
+            RequestLine::parse("POST / HTTP/1.1").unwrap(),
+            &mut data,
+            start,
+            &mut reader,
+            max,
+        )
+        .await?;
+        let body = request.body.to_vec();
+        assert_eq!(request.headers.get("transfer-encoding"), Some("chunked"));
+        drop(request);
+        assert_eq!(&data[..start], block.as_bytes());
+        assert_eq!(&data[start..end], &body[..]);
+        let mut rest = data[end..].to_vec();
+        rest.extend_from_slice(reader.bytes);
+        Ok((body, rest))
+    }
+
+    #[tokio::test]
+    async fn chunked_bodies_are_decoded_whatever_the_fragmentation() {
+        let wire: &[u8] = b"5\r\nhello\r\n1;name=\"v\"\r\n,\r\nA \t;x\r\n world!!!!\r\n0\r\nX-Trailer: 1\r\n\r\nGET / HTTP/1.1\r\n";
+        let want = (b"hello, world!!!!".to_vec(), b"GET / HTTP/1.1\r\n".to_vec());
+        for step in 1..=wire.len() {
+            // all of it arriving later, a byte at a time and so on
+            assert_eq!(
+                chunked(b"", wire, step, 64).await,
+                Ok(want.clone()),
+                "step {}",
+                step
+            );
+        }
+        for split in 0..=wire.len() {
+            // some of it buffered with the head, the rest read later
+            let (buffered, rest) = wire.split_at(split);
+            assert_eq!(
+                chunked(buffered, rest, 3, 64).await,
+                Ok(want.clone()),
+                "split {}",
+                split
+            );
+        }
+        // trailer values may hold tabs and bytes over 0x7f
+        let trailers = b"0\r\nX-Sum: a\tb \xc3\xa9\r\nX-Empty:\r\n\r\n";
+        assert_eq!(
+            chunked(trailers, b"", 1, 0).await,
+            Ok((Vec::new(), Vec::new()))
+        );
+        // an empty body
+        let empty = chunked(b"0\r\n\r\n", b"", 1, 0).await;
+        assert_eq!(empty, Ok((Vec::new(), Vec::new())));
+    }
+
+    #[tokio::test]
+    async fn malformed_chunked_bodies_are_refused() {
+        let bad = Err(StatusCode::BadRequest);
+        let cases: &[&[u8]] = &[
+            // no size, not hex, a sign or whitespace before it
+            b"\r\nhello\r\n0\r\n\r\n",
+            b"g\r\nhello\r\n0\r\n\r\n",
+            b"+5\r\nhello\r\n0\r\n\r\n",
+            b" 5\r\nhello\r\n0\r\n\r\n",
+            b"0x5\r\nhello\r\n0\r\n\r\n",
+            // bare LF line ends
+            b"5\nhello\r\n0\r\n\r\n",
+            b"5\r\nhello\n0\r\n\r\n",
+            // data longer than its size
+            b"5\r\nhello!\r\n0\r\n\r\n",
+            // a control character in an extension
+            b"5;a\x01\r\nhello\r\n0\r\n\r\n",
+            // a malformed trailer field
+            b"5\r\nhello\r\n0\r\nno colon\r\n\r\n",
+            // a bare LF after the last chunk can't start a trailer that
+            // swallows the next request (GHSA-2q7f-mf9f-5qhr in actix-http)
+            b"0\r\n\nGET /a:b HTTP/1.1\r\nHost: a\r\n\r\n",
+            b"0\r\n\nX-Smuggled: 1\r\n\r\n",
+            b"0\r\nX-Bad\x01: 1\r\n\r\n",
+            b"0\r\nX-Ok: a\x00b\r\n\r\n",
+            b"0\r\nBad Name: 1\r\n\r\n",
+            // the client hangs up before the end
+            b"5\r\nhel",
+            b"5\r\nhello\r\n0\r\n",
+        ];
+        for wire in cases {
+            let got = chunked(b"", wire, 2, 64).await;
+            assert_eq!(got, bad, "{:?}", String::from_utf8_lossy(wire));
+        }
+        // more than max_body_size, however it is split up
+        let too_large = Err(StatusCode::PayloadTooLarge);
+        assert_eq!(
+            chunked(b"", b"6\r\nhello!\r\n0\r\n\r\n", 4, 5).await,
+            too_large
+        );
+        assert_eq!(
+            chunked(b"", b"3\r\nabc\r\n3\r\ndef\r\n0\r\n\r\n", 4, 5).await,
+            too_large
+        );
+        let overflow = b"ffffffffffffffffffff\r\n";
+        assert_eq!(chunked(b"", overflow, 4, 5).await, too_large);
+    }
+
+    #[test]
+    fn body_framing_follows_rfc_9112() {
+        let framing =
+            |block: &str, version| Headers::parse(block).unwrap().body_framing(version, 100);
+        let v11 = HttpVersion::Http11;
+        assert_eq!(framing("", v11), Ok(BodyFraming::Length(0)));
+        assert_eq!(
+            framing("Content-Length: 5", v11),
+            Ok(BodyFraming::Length(5))
+        );
+        assert_eq!(
+            framing("Transfer-Encoding: chunked", v11),
+            Ok(BodyFraming::Chunked)
+        );
+        assert_eq!(
+            framing("Transfer-Encoding: CHUNKED", v11),
+            Ok(BodyFraming::Chunked)
+        );
+        let bad = Err(StatusCode::BadRequest);
+        // smuggling: both framings, or chunked on HTTP/1.0
+        let both = "Transfer-Encoding: chunked\r\nContent-Length: 5";
+        assert_eq!(framing(both, v11), bad);
+        let http10 = framing("Transfer-Encoding: chunked", HttpVersion::Http10);
+        assert_eq!(http10, bad);
+        // chunked not last, twice, or nothing at all
+        assert_eq!(framing("Transfer-Encoding: chunked, gzip", v11), bad);
+        assert_eq!(framing("Transfer-Encoding: chunked, chunked", v11), bad);
+        let repeated = "Transfer-Encoding: chunked\r\nTransfer-Encoding: chunked";
+        assert_eq!(framing(repeated, v11), bad);
+        assert_eq!(framing("Transfer-Encoding: gzip", v11), bad);
+        assert_eq!(framing("Transfer-Encoding: ", v11), bad);
+        // codings that aren't supported
+        let gzip = framing("Transfer-Encoding: gzip, chunked", v11);
+        assert_eq!(gzip, Err(StatusCode::NotImplemented));
+    }
+
+    #[test]
+    fn keep_alive_follows_the_version_and_connection_header() {
+        let keep_alive = |line: &str, block: &str| {
+            Request::parse(
+                RequestLine::parse(line).unwrap(),
+                Headers::parse(block).unwrap(),
+                b"",
+            )
+            .unwrap()
+            .keep_alive()
+        };
+        assert!(keep_alive("GET / HTTP/1.1", ""));
+        assert!(keep_alive("GET / HTTP/1.1", "Connection: keep-alive"));
+        assert!(!keep_alive("GET / HTTP/1.1", "Connection: close"));
+        assert!(!keep_alive("GET / HTTP/1.1", "Connection: Upgrade, Close"));
+        assert!(!keep_alive("GET / HTTP/1.0", ""));
+        assert!(keep_alive("GET / HTTP/1.0", "Connection: Keep-Alive"));
     }
 }

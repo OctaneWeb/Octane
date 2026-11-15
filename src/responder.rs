@@ -6,7 +6,7 @@ use crate::time::Time;
 use octane_http::{HttpVersion, StatusCode};
 #[cfg(feature = "json")]
 use serde::Serialize;
-use std::collections::HashMap;
+use std::borrow::Cow;
 use std::error::Error;
 #[cfg(feature = "cookies")]
 use std::fmt;
@@ -64,15 +64,19 @@ pub struct Response<'a> {
     pub status_code: StatusCode,
     /// Length of the content which will be sent as the response
     pub content_len: Option<usize>,
-    /// Http version which the response will use
+    /// Http version which the response will use, `1.1` when empty
     pub http_version: String,
     /// Custom headers which will be sent with the response
-    pub headers: HashMap<String, String>,
+    pub headers: ResponseHeaders,
     /// Content-Type charset
     pub charset: Option<String>,
     /// Cookies that will be sent with the response
     #[cfg(feature = "cookies")]
     pub cookies: Vec<Cookie<'a>>,
+    // add `Content-Length` and `Date` to the head, unless already set
+    auto_headers: bool,
+    // `Content-Length` is the length of the body, whatever was set
+    framed: bool,
     marker: PhantomData<&'a ()>,
 }
 
@@ -100,7 +104,7 @@ impl<'a> Response<'a> {
     /// );
     /// ```
     pub fn set(&mut self, key: &str, value: &str) -> &mut Self {
-        self.set_owned(key, value.to_owned());
+        self.headers.set(key.to_owned(), value.to_owned());
         self
     }
     /// Get the header value by name
@@ -115,12 +119,12 @@ impl<'a> Response<'a> {
     ///     "/",
     ///     route!(|req, res| {
     ///         res.send("Hello, world");
-    ///         assert_eq!(res.get("Content-Type"),  Some(&"text/html".to_owned()));
+    ///         assert_eq!(res.get("Content-Type"), Some("text/html"));
     ///         Flow::Stop
     ///     }),
     /// );
     /// ```
-    pub fn get(&mut self, field: &'static str) -> Option<&String> {
+    pub fn get(&self, field: &str) -> Option<&str> {
         self.headers.get(field)
     }
     /// Puts the given text to the body and send it
@@ -155,20 +159,27 @@ impl<'a> Response<'a> {
     /// if no content header is sent
     pub fn default_headers(&mut self) -> &mut Self {
         if let Some(content_len) = self.content_len {
-            self.set_owned("Content-Length", content_len.to_string());
+            self.headers.set("Content-Length", content_len.to_string());
         }
         if let Some(date) = Time::now_http_date() {
-            self.set_owned("Date", date);
+            self.headers.set("Date", date);
         }
-        if !self.headers.contains_key("Content-Type") {
-            let mut format = String::from("text/html");
-            if let Some(charset) = &self.charset {
-                write!(&mut format, " ;charset={:?}", charset)
-                    .expect("writing a charset to a String cannot fail");
-            }
-            self.set_owned("Content-Type", format);
-        }
+        self.default_type();
         self
+    }
+    // `Content-Type: text/html`, unless a type was set
+    fn default_type(&mut self) {
+        if !self.headers.contains("Content-Type") {
+            match &self.charset {
+                Some(charset) => {
+                    let mut format = String::from("text/html");
+                    write!(&mut format, " ;charset={:?}", charset)
+                        .expect("writing a charset to a String cannot fail");
+                    self.headers.set("Content-Type", format);
+                }
+                None => self.headers.set("Content-Type", "text/html"),
+            }
+        }
     }
     /// Modify the `Content-Type` header as passed
     /// in the argument
@@ -193,7 +204,7 @@ impl<'a> Response<'a> {
         // TODO:
         // res.with_type("json") => application/json
         // res.with_type("application/json") => application/json
-        self.set("Content-Type", _type);
+        self.headers.set("Content-Type", _type);
         self
     }
     /// Consume the response and get the final formed http
@@ -217,7 +228,7 @@ impl<'a> Response<'a> {
     ///     route!(
     ///         |req, res| {
     ///             res.send_file("templates/index.html").expect("file not found");
-    ///             assert_eq!(res.get("Content-Type"),  Some(&"text/html".to_owned()));
+    ///             assert_eq!(res.get("Content-Type"),  Some("text/html"));
     ///             Flow::Stop
     ///         }
     ///     ),
@@ -226,12 +237,11 @@ impl<'a> Response<'a> {
     /// ```
     pub fn send_file(&mut self, file: &str) -> Result<Option<()>, Box<dyn Error>> {
         let file = FileHandler::handle_file(&PathBuf::from(file))?;
-        self.headers.insert(
-            "Content-Type".to_string(),
-            FileHandler::mime_type(file.extension),
-        );
+        self.headers
+            .set("Content-Type", FileHandler::mime_type(file.extension));
         let len = file.meta.len() as usize;
         self.content_len = Some(len);
+        self.auto_headers = true;
         self.body = ResBody::Sized(len, Box::new(file.file) as BoxReader);
         Ok(Some(()))
     }
@@ -256,7 +266,7 @@ impl<'a> Response<'a> {
     ///     route!(
     ///         |req, res| {
     ///             // add example here
-    ///             // assert_eq!(res.get("Content-Type"),  Some(&"application/json".to_owned()));
+    ///             // assert_eq!(res.get("Content-Type"), Some("application/json"));
     ///             Flow::Stop
     ///         }
     ///     ),
@@ -270,7 +280,7 @@ impl<'a> Response<'a> {
         self.body = ResBody::Bytes(body);
         self.content_len = Some(len);
         self.with_type("application/json");
-        self.default_headers();
+        self.auto_headers = true;
         Ok(())
     }
     /// Set the status code from the status code enum
@@ -445,6 +455,20 @@ impl<'a> Response<'a> {
     pub(crate) fn has_body(&self) -> bool {
         self.body.is_some()
     }
+    /// Make `Content-Length` the length of the body that will be sent. On a
+    /// persistent connection it is the only thing telling the client where
+    /// the response ends, so it can't be missing (`send_file` doesn't set
+    /// it) or disagree with the body.
+    pub(crate) fn frame(&mut self) {
+        let len = match &self.body {
+            ResBody::None => 0,
+            ResBody::Bytes(body) => body.len(),
+            ResBody::Static(body) => body.len(),
+            ResBody::Sized(len, _) => *len,
+        };
+        self.content_len = Some(len);
+        self.framed = true;
+    }
     // Creates a new response from a slice
     pub(crate) fn new_from_slice<T: AsRef<[u8]>>(body: T) -> Self {
         let body_slice = body.as_ref();
@@ -460,11 +484,13 @@ impl<'a> Response<'a> {
             status_code: StatusCode::Ok,
             body: ResBody::None,
             content_len: None,
-            http_version: "1.1".to_owned(),
-            headers: HashMap::new(),
+            http_version: String::new(),
+            headers: ResponseHeaders::new(),
             charset: None,
             #[cfg(feature = "cookies")]
             cookies: Vec::new(),
+            auto_headers: false,
+            framed: false,
             marker: PhantomData,
         }
     }
@@ -474,11 +500,13 @@ impl<'a> Response<'a> {
             status_code: StatusCode::Ok,
             body,
             content_len,
-            http_version: "1.1".to_owned(),
-            headers: HashMap::new(),
+            http_version: String::new(),
+            headers: ResponseHeaders::new(),
             charset: None,
             #[cfg(feature = "cookies")]
             cookies: Vec::new(),
+            auto_headers: false,
+            framed: false,
             marker: PhantomData,
         }
     }
@@ -486,75 +514,185 @@ impl<'a> Response<'a> {
         let len = body.len();
         self.body = ResBody::Bytes(body);
         self.content_len = Some(len);
-        self.default_headers();
-    }
-    fn set_owned(&mut self, key: &str, value: String) {
-        if let Some(existing) = self.headers.get_mut(key) {
-            *existing = value;
-        } else {
-            self.headers.insert(key.to_owned(), value);
-        }
+        self.auto_headers = true;
+        self.default_type();
     }
     pub(crate) fn into_parts(self) -> (String, ResBody) {
-        let header_bytes = self
-            .headers
-            .iter()
-            .map(|(name, value)| name.len() + value.len() + 4)
-            .sum::<usize>();
+        let mut head = Vec::with_capacity(128);
+        self.write_head(&mut head);
+        // header values are `&str` and only ASCII bytes get replaced
+        let head = String::from_utf8(head).expect("a response head is UTF-8");
+        (head, self.body)
+    }
+    pub(crate) fn into_body(self) -> ResBody {
+        self.body
+    }
+    /// Whether the status allows content: 1xx, `204 No Content` and
+    /// `304 Not Modified` never have any (RFC 9110 section 6.4.1), so a
+    /// client reads the next response right after the head
+    pub(crate) fn status_has_body(&self) -> bool {
+        let (code, _) = self.status_code.fetch();
+        !(code < 200 || code == 204 || code == 304)
+    }
+    /// Append the status line and headers to `out`
+    pub(crate) fn write_head(&self, out: &mut Vec<u8>) {
         let (status_code, reason_phrase) = self.status_code.fetch();
-        let mut headers_str = String::with_capacity(
-            32 + self.http_version.len() + reason_phrase.len() + header_bytes,
-        );
-        headers_str.push_str("HTTP/");
-        headers_str.push_str(&self.http_version);
-        headers_str.push(SP);
-        write!(&mut headers_str, "{}", status_code)
-            .expect("writing a status code to a String cannot fail");
-        headers_str.push(SP);
-        headers_str.extend(reason_phrase.chars().flat_map(char::to_uppercase));
-        headers_str.push_str(CRLF);
+        out.extend_from_slice(b"HTTP/");
+        if self.http_version.is_empty() {
+            out.extend_from_slice(b"1.1");
+        } else {
+            out.extend_from_slice(self.http_version.as_bytes());
+        }
+        out.push(b' ');
+        push_number(out, status_code as usize);
+        out.push(b' ');
+        out.extend(reason_phrase.bytes().map(|b| b.to_ascii_uppercase()));
+        out.extend_from_slice(CRLF.as_bytes());
 
-        // push normal headers
-        self.headers
-            .iter()
-            .for_each(|data| push_header(&mut headers_str, data.0, data.1));
+        // no length either: it is forbidden for 1xx and 204, and for 304
+        // could only be the length of the 200 response, which isn't known
+        let has_body = self.status_has_body();
+        let (mut has_length, mut has_date) = (false, false);
+        for (name, value) in self.headers.iter() {
+            if name.eq_ignore_ascii_case("content-length") {
+                if self.framed || !has_body {
+                    continue;
+                }
+                has_length = true;
+            } else if name.eq_ignore_ascii_case("date") {
+                has_date = true;
+            }
+            push_header(out, name, value);
+        }
+        if has_body && (self.framed || (self.auto_headers && !has_length)) {
+            if let Some(len) = self.content_len {
+                out.extend_from_slice(b"Content-Length: ");
+                push_number(out, len);
+                out.extend_from_slice(CRLF.as_bytes());
+            }
+        }
+        if self.auto_headers && !has_date {
+            Time::with_http_date(|date| {
+                out.extend_from_slice(b"Date: ");
+                out.extend_from_slice(date.as_bytes());
+                out.extend_from_slice(CRLF.as_bytes());
+            });
+        }
         // push cookies, one Set-Cookie line each, leaving out the ones
         // that would make an invalid header (see `Cookie::validate`)
         #[cfg(feature = "cookies")]
         self.cookies
             .iter()
             .filter_map(|cookie| cookie.serialise().ok())
-            .for_each(|cookie| push_header(&mut headers_str, "Set-Cookie", &cookie));
-        headers_str.push_str(CRLF);
-        (headers_str, self.body)
+            .for_each(|cookie| push_header(out, "Set-Cookie", &cookie));
+        out.extend_from_slice(CRLF.as_bytes());
     }
+}
+
+/// The headers a response is sent with, in the order they were set. Names
+/// are matched without regard to case, and setting a header replaces one of
+/// the same name. Static names and values, like the ones octane sets itself,
+/// aren't copied.
+///
+/// ```
+/// use octane::prelude::*;
+///
+/// let mut app = Octane::new();
+/// app.get("/", route_stop!(|req, res| {
+///     res.headers.set("Cache-Control", "no-store");
+///     res.headers.set("X-Request-Path", req.request_line.path.to_string());
+///     res.send("ok");
+/// }));
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ResponseHeaders {
+    fields: Vec<(Cow<'static, str>, Cow<'static, str>)>,
+}
+
+impl ResponseHeaders {
+    pub fn new() -> Self {
+        Self { fields: Vec::new() }
+    }
+    /// The value of the header `name`
+    pub fn get(&self, name: &str) -> Option<&str> {
+        self.fields
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_ref())
+    }
+    /// Set the header `name` to `value`, replacing it if it was set
+    pub fn set<N, V>(&mut self, name: N, value: V)
+    where
+        N: Into<Cow<'static, str>>,
+        V: Into<Cow<'static, str>>,
+    {
+        let (name, value) = (name.into(), value.into());
+        match self
+            .fields
+            .iter_mut()
+            .find(|(key, _)| key.eq_ignore_ascii_case(&name))
+        {
+            Some(field) => *field = (name, value),
+            None => self.fields.push((name, value)),
+        }
+    }
+    /// Remove the header `name`, returning its value if it was set
+    pub fn remove(&mut self, name: &str) -> Option<Cow<'static, str>> {
+        let at = self
+            .fields
+            .iter()
+            .position(|(key, _)| key.eq_ignore_ascii_case(name))?;
+        Some(self.fields.remove(at).1)
+    }
+    /// Whether the header `name` is set
+    pub fn contains(&self, name: &str) -> bool {
+        self.get(name).is_some()
+    }
+    /// Every header, in the order it was first set
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.fields
+            .iter()
+            .map(|(name, value)| (name.as_ref(), value.as_ref()))
+    }
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+}
+
+// Push `n` in decimal
+fn push_number(out: &mut Vec<u8>, mut n: usize) {
+    let mut digits = [0u8; 20];
+    let mut at = digits.len();
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    out.extend_from_slice(&digits[at..]);
 }
 
 // Push a `name: value` line. A name that isn't a token is skipped and control
 // characters in the value, CR and LF included, are replaced by spaces, so no
 // value can start another header line or end the head early.
-fn push_header(headers_str: &mut String, name: &str, value: &str) {
+fn push_header(out: &mut Vec<u8>, name: &str, value: &str) {
     if !is_token(name) {
         return;
     }
-    headers_str.push_str(name);
-    headers_str.push(':');
-    headers_str.push(SP);
-    if value
-        .bytes()
-        .any(|byte| (byte <= b'\x1f' && byte != b'\t') || byte == b'\x7f')
-    {
-        headers_str.extend(value.chars().map(|c| {
-            if (c <= '\x1f' && c != HT) || c == '\x7f' {
-                SP
-            } else {
-                c
-            }
-        }));
+    out.extend_from_slice(name.as_bytes());
+    out.extend_from_slice(b": ");
+    let is_ctl = |byte: u8| (byte <= b'\x1f' && byte != b'\t') || byte == b'\x7f';
+    if value.bytes().any(is_ctl) {
+        out.extend(value.bytes().map(|b| if is_ctl(b) { b' ' } else { b }));
     } else {
-        headers_str.push_str(value);
+        out.extend_from_slice(value.as_bytes());
     }
-    headers_str.push_str(CRLF);
+    out.extend_from_slice(CRLF.as_bytes());
 }
 
 #[cfg(feature = "cookies")]

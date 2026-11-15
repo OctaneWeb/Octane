@@ -11,11 +11,14 @@ use tokio_rustls::{
 };
 
 pub fn acceptor(settings: &OctaneConfig) -> Result<TlsAcceptor, Box<dyn Error>> {
-    let config = ServerConfig::builder_with_provider(Arc::new(ring::default_provider()))
+    let mut config = ServerConfig::builder_with_provider(Arc::new(ring::default_provider()))
         .with_safe_default_protocol_versions()?
         .with_no_client_auth()
         .with_single_cert(settings.get_cert()?, settings.get_key()?)?;
-    // config.set_protocols(&[b"h2".to_vec()]);
+    // HTTP/1.1 is the only protocol served over TLS, so that is what ALPN
+    // selects. A client offering ALPN without it gets `no_application_protocol`
+    // instead of a connection speaking something it didn't ask for.
+    config.alpn_protocols = vec![b"http/1.1".to_vec()];
     let acceptor = TlsAcceptor::from(Arc::new(config));
     Ok(acceptor)
 }

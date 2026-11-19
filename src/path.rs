@@ -1,3 +1,4 @@
+use crate::decode::unescape;
 use crate::{default, deref};
 use std::convert::TryFrom;
 use std::error;
@@ -66,6 +67,33 @@ impl PathBuf {
                 continue;
             }
             chunks.push(chunk.to_owned());
+        }
+        Ok(PathBuf { chunks })
+    }
+
+    /// Parse the path of a request. Like [`parse`](Self::parse), but every
+    /// segment is percent-decoded first (a `+` stays a `+`), so routes and
+    /// url variables see `/users/Ada%20Lovelace` as `users`, `Ada Lovelace`.
+    /// The path is split before decoding: an encoded `/` (`%2F`) stays
+    /// inside its segment. A segment that decodes to `.` or `..` counts as
+    /// one, so `%2e%2e` climbs a level like `..` does instead of reaching a
+    /// handler as a variable.
+    pub fn parse_request(path: &str) -> Result<Self, InvalidPathError> {
+        let mut chunks = Vec::new();
+        for chunk in path.split('/') {
+            if chunk.is_empty() {
+                continue;
+            }
+            let chunk = unescape(chunk, false);
+            match &*chunk {
+                "." => {}
+                ".." => {
+                    if chunks.pop().is_none() {
+                        return Err(InvalidPathError);
+                    }
+                }
+                _ => chunks.push(chunk.into_owned()),
+            }
         }
         Ok(PathBuf { chunks })
     }
@@ -424,6 +452,38 @@ mod test {
     fn fail_traversal() {
         // Too many ..s should error.
         PathBuf::parse("/asdf/../..").unwrap();
+    }
+
+    #[test]
+    fn request_paths_are_decoded() {
+        let path = PathBuf::parse_request("/users/Ada%20Lovelace/caf%C3%A9").unwrap();
+        assert_eq!(*path.chunks(), vec!["users", "Ada Lovelace", "café"]);
+        // a `+` is only a space in queries
+        let path = PathBuf::parse_request("/a+b").unwrap();
+        assert_eq!(*path.chunks(), vec!["a+b"]);
+        // split first, an encoded slash is part of the segment
+        let path = PathBuf::parse_request("/files/a%2Fb").unwrap();
+        assert_eq!(*path.chunks(), vec!["files", "a/b"]);
+    }
+
+    #[test]
+    fn encoded_dot_segments_are_dot_segments() {
+        let path = PathBuf::parse_request("/static/%2e%2E/a/%2e/b").unwrap();
+        assert_eq!(*path.chunks(), vec!["a", "b"]);
+        assert!(PathBuf::parse_request("/%2e%2e").is_err());
+        // only a whole segment is a dot segment
+        let path = PathBuf::parse_request("/%2e%2e%2Fetc").unwrap();
+        assert_eq!(*path.chunks(), vec!["../etc"]);
+    }
+
+    #[test]
+    #[cfg(feature = "url_variables")]
+    fn route_paths_are_not_decoded() {
+        let route = PathBuf::parse("/users/:name").unwrap();
+        let request = PathBuf::parse_request("/users/Ada%20Lovelace").unwrap();
+        let vars = route.check_matches(&request).unwrap();
+        assert_eq!(vars.get("name"), Some("Ada Lovelace"));
+        assert_eq!(*PathBuf::parse("/a%20b").unwrap().chunks(), vec!["a%20b"]);
     }
 
     #[test]

@@ -16,6 +16,13 @@ pub(crate) type RouterResult = Result<(), InvalidPathError>;
 /// the execution should go to the next similar route
 /// or not
 ///
+/// A request is answered once a handler returns `Flow::Stop`, or a route
+/// registered for its path and method has run, whether or not a body was
+/// set: `res.redirect("/")` or `res.status(StatusCode::NoContent)` alone is
+/// a complete response, sent with an empty body. Only a request that no
+/// route matched, that no handler stopped and that has no body gets
+/// Octane's `404`, or a `405` when the path has routes for other methods.
+///
 /// # Example
 ///
 /// ```
@@ -221,6 +228,10 @@ pub(crate) struct Indexed<T> {
 /// A handler that matched a request, with the url variables of its path
 pub(crate) struct Matched<'a, T> {
     pub(crate) data: &'a T,
+    // a route registered for the request's path, not middleware. The
+    // WASIp3 router doesn't need it, its handlers answer by sending
+    #[cfg_attr(not(feature = "std"), allow(dead_code))]
+    pub(crate) is_route: bool,
     // where it was registered, which is the order handlers run in
     index: usize,
     #[cfg(feature = "url_variables")]
@@ -298,6 +309,7 @@ impl<T> Routes<T> {
                 node.find(path, &mut |route| {
                     matched.push(Matched {
                         data: &route.data.data,
+                        is_route: true,
                         index: route.data.index,
                         #[cfg(feature = "url_variables")]
                         vars: route.vars,
@@ -307,6 +319,7 @@ impl<T> Routes<T> {
         }
         matched.extend(self.middlewares.iter().map(|middleware| Matched {
             data: &middleware.data,
+            is_route: false,
             index: middleware.index,
             #[cfg(feature = "url_variables")]
             vars: Vars::new(),

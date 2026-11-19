@@ -79,7 +79,7 @@ impl RequestLine {
     fn from_parts(method: &str, target: &str, version: &str, has_extra: bool) -> Option<Self> {
         // only the path is used for routing, the query is kept apart
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
-        let path = PathBuf::parse(path).ok()?;
+        let path = PathBuf::parse_request(path).ok()?;
         // `get` avoids slicing through a multi-byte character and handles
         // versions shorter than the `HTTP/` prefix without panicking.
         let ver = version.get(5..).unwrap_or("");
@@ -481,6 +481,28 @@ impl<'a> Request<'a> {
     /// ```
     pub fn get_query(&self) -> Query<'_> {
         Query::parse(&self.request_line.query)
+    }
+
+    /// Parse an `application/x-www-form-urlencoded` body, what an HTML
+    /// `<form method="post">` sends, into its decoded `name=value` pairs.
+    /// See [`Query`]. A body that isn't UTF-8 has no pairs: a form encodes
+    /// everything outside ASCII as `%XX`.
+    ///
+    /// ```
+    /// use octane::prelude::*;
+    ///
+    /// let mut app = Octane::new();
+    ///
+    /// app.post("/sign-up", route_stop!(|req, res| {
+    ///     let form = req.get_form();
+    ///     let name = form.get("name").unwrap_or("stranger");
+    ///     res.send(format!("Welcome, {}", name));
+    /// }));
+    /// ```
+    pub fn get_form(&self) -> Query<'_> {
+        str::from_utf8(self.body)
+            .map(Query::parse)
+            .unwrap_or_default()
     }
 
     /// Parse the extended query and return the key value pairs in the form

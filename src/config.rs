@@ -183,7 +183,9 @@ pub trait Config {
     /// ```
     fn with_ssl_config(&mut self, ssl_conf: Ssl);
     /// Returns the Ssl instance of the config and
-    /// sets the port number for TLS
+    /// sets the port number for TLS. TLS is served once both a
+    /// key and a certificate are set, with the `rustls` or
+    /// `openSSL` feature on. Without them only plain HTTP is served.
     ///
     /// # Example
     ///

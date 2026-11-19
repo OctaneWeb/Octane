@@ -152,7 +152,9 @@ impl Octane {
     }
     /// Start listening on the port specified, the listen
     /// function also starts the Ssl server if the features
-    /// are enabled and the key/certs are provided
+    /// are enabled and the key/certs are provided. A key or
+    /// certificate that can't be loaded, or a port that can't be
+    /// bound, is returned as an error before anything is served.
     ///
     /// The default connection deadline uses Tokio's time driver. A custom
     /// runtime must call `enable_time` or `enable_all`; runtimes created by
@@ -215,41 +217,34 @@ impl Octane {
         S: Future<Output = ()>,
     {
         let max_connections = checked_connection_limit(self.settings.max_connections)?;
+        // Everything that can fail happens before anything is served: the TLS
+        // key and certificate are loaded and both ports bound, so `listen`
+        // returns the error instead of running without one of them.
+        #[cfg(any(feature = "openSSL", feature = "rustls"))]
+        let tls = Octane::bind_tls(&self.settings)?;
+        let listener = ServerBuilder::new(port)?;
         let server = Arc::new(self);
         let connections = Arc::new(Semaphore::new(max_connections));
-        let mut _ssl = false;
 
         #[cfg(any(feature = "openSSL", feature = "rustls"))]
-        {
+        if let Some((tls_listener, acceptor)) = tls {
             use crate::task;
-            let clone = Arc::clone(&server);
-            let tls_connections = Arc::clone(&connections);
-            _ssl = true;
-
-            async fn listen_ssl(
-                server: Arc<Octane>,
-                connections: Arc<Semaphore>,
-            ) -> Result<(), Box<dyn StdError>> {
-                let server_builder = ServerBuilder::new(server.settings.ssl.port);
-                server_builder?
+            let server = Arc::clone(&server);
+            let connections = Arc::clone(&connections);
+            task!({
+                tls_listener
                     .listen_ssl(
+                        acceptor,
                         |stream, server| async { Octane::serve(stream, server).await },
                         server,
                         connections,
                     )
-                    .await?;
-                Ok(())
-            }
-
-            task!({
-                if let Err(x) = listen_ssl(clone, tls_connections).await {
-                    println!("WARNING: {}", x);
-                }
+                    .await
             });
         }
         exec();
         let shutdown = Arc::clone(&server.shutdown);
-        let accepting = ServerBuilder::new(port)?.listen(
+        let accepting = listener.listen(
             move |stream, server| async move { Octane::serve(stream, server).await },
             server,
             Arc::clone(&connections),
@@ -276,6 +271,40 @@ impl Octane {
             open -= batch;
         }
         Ok(())
+    }
+
+    /// The TLS listener and the acceptor for its connections, `None` when
+    /// TLS isn't set up: neither a key nor a certificate was given. Giving
+    /// only one of them is an error, as is a key or certificate that can't
+    /// be loaded.
+    #[cfg(any(feature = "openSSL", feature = "rustls"))]
+    fn bind_tls(
+        settings: &OctaneConfig,
+    ) -> Result<Option<(ServerBuilder, crate::tls::Acceptor)>, Box<dyn StdError>> {
+        let ssl = &settings.ssl;
+        match (
+            ssl.key.as_os_str().is_empty(),
+            ssl.cert.as_os_str().is_empty(),
+        ) {
+            (true, true) => return Ok(None),
+            (false, false) => {}
+            _ => {
+                return Err("TLS needs both a key and a certificate, \
+                    set them with `app.ssl(port).key(..).cert(..)`"
+                    .into())
+            }
+        }
+        let acceptor = crate::tls::acceptor(settings).map_err(|error| {
+            format!(
+                "can't load the TLS certificate {} and key {}: {}",
+                ssl.cert.display(),
+                ssl.key.display(),
+                error
+            )
+        })?;
+        let listener = ServerBuilder::new(ssl.port)
+            .map_err(|error| format!("can't listen on the TLS port {}: {}", ssl.port, error))?;
+        Ok(Some((listener, acceptor)))
     }
 
     /// Register a task that stops when the server shuts down
@@ -482,24 +511,9 @@ impl Octane {
         let version = request.request_line.version;
         let keep_alive = settings.keep_alive.is_some() && request.keep_alive();
         let mut res = Response::new_empty();
-        // run closures
-        server.router.run(&request, &mut res).await;
+        server.route(request, &mut res).await;
         // a shutdown that started while the handler ran ends the connection
         let keep_alive = keep_alive && !server.shutdown.started();
-        if !res.has_body() {
-            // nothing answered: the path doesn't exist, or not for this
-            // method, which gets a 405 naming the ones it has (RFC 9110
-            // section 15.5.6)
-            let allowed = server.router.allowed(&request.request_line.path);
-            let method = request.request_line.method;
-            if allowed.is_empty() || allowed.contains(&method) {
-                res = Error::response(StatusCode::NotFound);
-            } else {
-                let names: Vec<&str> = allowed.iter().map(RequestMethod::as_str).collect();
-                res = Error::response(StatusCode::MethodNotAllowed);
-                res.headers.set("Allow", names.join(", "));
-            }
-        }
         if !keep_alive {
             res.headers.set("Connection", "close");
         } else if version == HttpVersion::Http10 {
@@ -530,10 +544,25 @@ impl Octane {
         Ok(false)
     }
 
-    /// Run the router for a parsed request, filling `res`. Exposed for the
-    /// HTTP/2 driver (a separate module) which cannot reach the private router.
+    /// Run the router for a parsed request, filling `res`. A request that
+    /// nothing answered (see [`Flow`](crate::router::Flow)) gets a 404, or
+    /// a 405 naming the methods its path has. Also used by the HTTP/2
+    /// driver (a separate module) which cannot reach the private router.
     pub(crate) async fn route(&self, request: Request<'_>, res: &mut Response<'_>) {
-        self.router.run(&request, res).await;
+        if self.router.run(&request, res).await || res.has_body() {
+            return;
+        }
+        // the path doesn't exist, or not for this method, which gets a 405
+        // naming the ones it has (RFC 9110 section 15.5.6)
+        let allowed = self.router.allowed(&request.request_line.path);
+        let method = request.request_line.method;
+        if allowed.is_empty() || allowed.contains(&method) {
+            *res = Error::response(StatusCode::NotFound);
+        } else {
+            let names: Vec<&str> = allowed.iter().map(RequestMethod::as_str).collect();
+            *res = Error::response(StatusCode::MethodNotAllowed);
+            res.headers.set("Allow", names.join(", "));
+        }
     }
 
     /// Write a response, without its body when `head_only` (the answer to a

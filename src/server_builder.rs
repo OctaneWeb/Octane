@@ -111,15 +111,14 @@ impl ServerBuilder {
     #[cfg(feature = "openSSL")]
     pub async fn listen_ssl<C, T>(
         self,
+        acceptor: crate::tls::Acceptor,
         exec: C,
         server: Arc<Octane>,
         connections: Arc<Semaphore>,
-    ) -> Result<()>
-    where
+    ) where
         T: Future + Send + 'static,
         C: FnOnce(SslStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
-        let acceptor = crate::tls::openssl::acceptor(&server.settings)?;
         let shutdown = server.watch_shutdown();
         while let Some((tcp_stream, permit)) =
             accept_bounded(&self.socket, &connections, &shutdown).await
@@ -136,21 +135,19 @@ impl ServerBuilder {
                 }
             });
         }
-        Ok(())
     }
 
     #[cfg(feature = "rustls")]
     pub async fn listen_ssl<C, T>(
         self,
+        acceptor: crate::tls::Acceptor,
         exec: C,
         server: Arc<Octane>,
         connections: Arc<Semaphore>,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>>
-    where
+    ) where
         T: Future + Send + 'static,
         C: FnOnce(TlsStream<TcpStream>, Arc<Octane>) -> T + Send + 'static + Copy,
     {
-        let acceptor = crate::tls::rustls::acceptor(&server.settings)?;
         let shutdown = server.watch_shutdown();
         while let Some((tcp_stream, permit)) =
             accept_bounded(&self.socket, &connections, &shutdown).await
@@ -167,7 +164,6 @@ impl ServerBuilder {
                 }
             });
         }
-        Ok(())
     }
 }
 

@@ -95,7 +95,8 @@ pub fn connect(port: u16) -> TcpStream {
 
 /// Read one response off `stream`, and nothing past it: the body is as long
 /// as its `Content-Length`, or runs to the end of the stream without one.
-/// The answer to a `HEAD` request (`head_only`) has no body.
+/// The answer to a `HEAD` request (`head_only`) has no body, nor do 1xx,
+/// `204` and `304` responses.
 #[allow(dead_code)]
 pub fn read_response(stream: &mut TcpStream, head_only: bool) -> Response {
     // a byte at a time, so the start of the next response stays unread
@@ -123,7 +124,7 @@ pub fn read_response(stream: &mut TcpStream, head_only: bool) -> Response {
         head,
         body: Vec::new(),
     };
-    if !head_only {
+    if !head_only && !matches!(status, 100..=199 | 204 | 304) {
         match response.header("content-length") {
             Some(len) => {
                 response.body = vec![0; len.parse().expect("bad Content-Length")];

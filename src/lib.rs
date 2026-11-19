@@ -116,6 +116,11 @@ pub(crate) mod constants;
 #[cfg(feature = "cookies")]
 /// Module for cookie parsing and handling
 pub mod cookie;
+#[cfg(any(
+    feature = "std",
+    all(feature = "wasm", target_os = "wasi", target_env = "p3")
+))]
+pub(crate) mod decode;
 #[cfg(feature = "std")]
 pub(crate) mod error;
 #[cfg(feature = "std")]
@@ -136,7 +141,8 @@ pub(crate) mod method;
 ))]
 pub(crate) mod path;
 #[cfg(feature = "std")]
-pub(crate) mod query;
+/// Decoding query strings, form bodies and url components
+pub mod query;
 #[cfg(feature = "std")]
 /// Request module contains the ongoing request and methods to read from it
 pub mod request;

@@ -136,8 +136,10 @@ impl Router {
     }
 
     // Fetch the handlers matching the request path and run them in
-    // registration order until one returns `Flow::Stop`.
-    pub(crate) async fn run(&self, request: &Request<'_>, res: &mut Response<'_>) {
+    // registration order until one returns `Flow::Stop`. Returns whether
+    // that answered the request: a handler stopped, or a route for the
+    // path and method ran (middleware alone doesn't answer).
+    pub(crate) async fn run(&self, request: &Request<'_>, res: &mut Response<'_>) -> bool {
         let line = &request.request_line;
         let routes = self.routes.matched(line.method, &line.path);
         #[cfg(feature = "url_variables")]
@@ -148,15 +150,18 @@ impl Router {
         #[cfg(not(feature = "url_variables"))]
         let matched = MatchedRequest { request };
 
+        let mut answered = false;
         for route in routes {
+            answered |= route.is_route;
             #[cfg(feature = "url_variables")]
             {
                 matched.vars = route.vars;
             }
             if !route.data.call(&matched, res).await.should_continue() {
-                break;
+                return true;
             }
         }
+        answered
     }
 }
 

@@ -116,9 +116,10 @@ impl Router {
     /// returns [`Flow::Stop`]
     pub async fn run(&self, request: &Request<'_>, res: &mut Responder<'_>) {
         let method = RequestMethod::from(request.method);
-        // the parser already refused `..` segments, so this can't fail by
-        // climbing above the root
-        let path = match PathBuf::parse(request.path) {
+        // segments are percent-decoded for routing and url variables. The
+        // parser already refused `..` segments, but an encoded one (`%2e%2e`)
+        // above the root fails here and the request gets a 404.
+        let path = match PathBuf::parse_request(request.path) {
             Ok(path) => path,
             Err(_) => return,
         };

@@ -2,11 +2,11 @@ use std::borrow::Cow;
 #[cfg(feature = "extended_queries")]
 use std::collections::HashMap;
 
-/// The query of a request, its `name=value` pairs in order, decoded the
-/// way browsers encode them (`application/x-www-form-urlencoded`: `+` is a
-/// space and `%XX` the byte XX, read as UTF-8). A pair without `=` has an
-/// empty value. Names and values with nothing to decode are borrowed from
-/// the request rather than copied.
+/// The query of a request or a form body, its `name=value` pairs in order,
+/// decoded the way browsers encode them (`application/x-www-form-urlencoded`:
+/// `+` is a space and `%XX` the byte XX, read as UTF-8), see [`decode`]. A
+/// pair without `=` has an empty value. Names and values with nothing to
+/// decode are borrowed from the request rather than copied.
 ///
 /// ```
 /// use octane::prelude::*;
@@ -78,57 +78,31 @@ impl<'a> Query<'a> {
     }
 }
 
-/// Decode a query component, see [`Query`]. A `%` that isn't followed by
-/// two hex digits is kept as it is, and invalid UTF-8 becomes U+FFFD. It is
-/// borrowed when there is nothing to decode.
+/// Decode a query string or form body component, the way browsers encode
+/// them: `+` is a space and `%XX` the byte XX, read as UTF-8. A `%` that
+/// isn't followed by two hex digits is kept as it is, and invalid UTF-8
+/// becomes U+FFFD. It is borrowed when there is nothing to decode.
+///
+/// ```
+/// use octane::query::decode;
+///
+/// assert_eq!(decode("Ada+Lovelace%21"), "Ada Lovelace!");
+/// ```
 pub fn decode(string: &str) -> Cow<'_, str> {
-    if string.bytes().any(|b| b == b'%' || b == b'+') {
-        Cow::Owned(unescape(string))
-    } else {
-        Cow::Borrowed(string)
-    }
+    crate::decode::unescape(string, true)
 }
 
-fn unescape(string: &str) -> String {
-    let bytes = string.as_bytes();
-    let mut ret = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'+' => ret.push(b' '),
-            b'%' => {
-                let hex = |at: usize| bytes.get(at).and_then(|&b| from_hex(b as char));
-                match (hex(i + 1), hex(i + 2)) {
-                    (Some(h1), Some(h2)) => {
-                        ret.push(h1 * 16 + h2);
-                        i += 2;
-                    }
-                    _ => ret.push(b'%'),
-                }
-            }
-            b => ret.push(b),
-        }
-        i += 1;
-    }
-    // valid UTF-8 keeps the buffer it was decoded into
-    String::from_utf8(ret).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
-}
-
-pub fn from_hex(chr: char) -> Option<u8> {
-    if chr > 'f' {
-        return None;
-    }
-    let c = chr as u8;
-    if c >= b'0' && c <= b'9' {
-        return Some(c - b'0');
-    }
-    if c >= b'A' && c <= b'F' {
-        return Some(c - b'A' + 10);
-    }
-    if c >= b'a' && c <= b'f' {
-        return Some(c - b'a' + 10);
-    }
-    None
+/// Decode the `%XX` escapes of a url path segment. Unlike [`decode`] a
+/// `+` stays a `+`, it only means a space in queries and forms. Url
+/// variables are already decoded with it.
+///
+/// ```
+/// use octane::query::percent_decode;
+///
+/// assert_eq!(percent_decode("caf%C3%A9+cr%C3%A8me"), "café+crème");
+/// ```
+pub fn percent_decode(string: &str) -> Cow<'_, str> {
+    crate::decode::unescape(string, false)
 }
 
 #[cfg(feature = "extended_queries")]
@@ -186,7 +160,7 @@ impl QueryValue {
 }
 
 #[cfg(feature = "extended_queries")]
-pub fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
+pub(crate) fn parse_extended_query(query: &str) -> HashMap<String, QueryValue> {
     let toks = query.split('&');
     let mut ret: HashMap<String, QueryValue> = HashMap::new();
     for tok in toks {

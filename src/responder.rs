@@ -167,18 +167,11 @@ impl<'a> Response<'a> {
         self.default_type();
         self
     }
-    // `Content-Type: text/html`, unless a type was set
+    // `Content-Type: text/html`, unless a type was set. A charset is added
+    // when the head is written, see `charset`
     fn default_type(&mut self) {
         if !self.headers.contains("Content-Type") {
-            match &self.charset {
-                Some(charset) => {
-                    let mut format = String::from("text/html");
-                    write!(&mut format, " ;charset={:?}", charset)
-                        .expect("writing a charset to a String cannot fail");
-                    self.headers.set("Content-Type", format);
-                }
-                None => self.headers.set("Content-Type", "text/html"),
-            }
+            self.headers.set("Content-Type", "text/html");
         }
     }
     /// Modify the `Content-Type` header as passed
@@ -358,7 +351,8 @@ impl<'a> Response<'a> {
     /// Sets the http `Content-Disposition` header field
     /// to `attachment` with the filename and automatically
     /// updates the content type with the extension
-    /// provided in the filename
+    /// provided in the filename. A name outside ASCII is sent the way
+    /// browsers read it (`filename*`, RFC 8187), with an ASCII fallback.
     ///
     /// # Example
     ///
@@ -369,18 +363,16 @@ impl<'a> Response<'a> {
     /// app.get(
     ///     "/",
     ///     route!(|req, res| {
+    ///         // Content-Disposition: attachment; filename="image.png"
     ///         res.attachment_with_filename("image.png");
     ///         Flow::Stop
     ///     }),
     /// );
     /// ```
-    pub fn attachment_with_filename(&mut self, file_name: &'static str) -> &mut Self {
-        let extension = FileHandler::get_extension(&PathBuf::from(file_name));
-        self.set(
-            "Content-Disposition",
-            &format!("attachment; filename = {:?}", file_name),
-        );
-        self.set("Content-Type", &extension);
+    pub fn attachment_with_filename(&mut self, file_name: &str) -> &mut Self {
+        let content_type = FileHandler::get_extension(&PathBuf::from(file_name));
+        self.set("Content-Disposition", &content_disposition(file_name));
+        self.set("Content-Type", &content_type);
         self
     }
     /// Sets the Location header with a status code `302 FOUND`
@@ -432,7 +424,11 @@ impl<'a> Response<'a> {
         self.cookies.push(cookie.into());
         self
     }
-    /// Sets the content type charset
+    /// Sets the charset of the `Content-Type`, whichever type it is and
+    /// whenever it's set: `Content-Type: text/html; charset=utf-8`. A type
+    /// that already names a charset keeps its own. A charset that isn't a
+    /// valid token (letters, digits and `-`, `_`, `.` and the like) is
+    /// ignored.
     ///
     /// # Example
     ///
@@ -449,7 +445,9 @@ impl<'a> Response<'a> {
     /// );
     /// ```
     pub fn charset(&mut self, charset: &str) -> &mut Self {
-        self.charset = Some(charset.to_owned());
+        if !charset.is_empty() && charset.bytes().all(is_tchar) {
+            self.charset = Some(charset.to_owned());
+        }
         self
     }
     pub(crate) fn has_body(&self) -> bool {
@@ -561,6 +559,11 @@ impl<'a> Response<'a> {
                 has_length = true;
             } else if name.eq_ignore_ascii_case("date") {
                 has_date = true;
+            } else if name.eq_ignore_ascii_case("content-type") {
+                if let Some(charset) = self.charset.as_deref().filter(|_| !has_charset(value)) {
+                    push_header(out, name, &format!("{}; charset={}", value, charset));
+                    continue;
+                }
             }
             push_header(out, name, value);
         }
@@ -680,6 +683,53 @@ fn push_number(out: &mut Vec<u8>, mut n: usize) {
 // Push a `name: value` line. A name that isn't a token is skipped and control
 // characters in the value, CR and LF included, are replaced by spaces, so no
 // value can start another header line or end the head early.
+// A character of a token (RFC 9110 section 5.6.2)
+fn is_tchar(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte)
+}
+
+// Whether a `Content-Type` value names its charset
+fn has_charset(content_type: &str) -> bool {
+    content_type.split(';').skip(1).any(|param| {
+        let param = param.trim_start().as_bytes();
+        param.len() >= 8 && param[..8].eq_ignore_ascii_case(b"charset=")
+    })
+}
+
+// `attachment; filename="..."` (RFC 6266). The quoted name keeps the
+// printable ASCII of the name with `"` and `\` escaped, anything else
+// becomes `_`. When that changed the name it is also sent exactly, as UTF-8
+// percent-encoded in `filename*` (RFC 8187), which browsers prefer.
+fn content_disposition(file_name: &str) -> String {
+    let mut out = String::from("attachment; filename=\"");
+    let mut exact = true;
+    for c in file_name.chars() {
+        match c {
+            '"' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            ' '..='~' => out.push(c),
+            _ => {
+                out.push('_');
+                exact = false;
+            }
+        }
+    }
+    out.push('"');
+    if !exact {
+        out.push_str("; filename*=UTF-8''");
+        for byte in file_name.bytes() {
+            if byte.is_ascii_alphanumeric() || b"!#$&+-.^_`|~".contains(&byte) {
+                out.push(byte as char);
+            } else {
+                write!(out, "%{:02X}", byte).expect("writing to a String cannot fail");
+            }
+        }
+    }
+    out
+}
+
 fn push_header(out: &mut Vec<u8>, name: &str, value: &str) {
     if !is_token(name) {
         return;
@@ -733,6 +783,69 @@ mod test {
         // default response should provide OK 200 Code
         let req = data_to_string(Response::new_from_slice(b"").get_data()).await;
         assert_eq!(req, "HTTP/1.1 200 OK\r\n\r\n");
+    }
+
+    // the head as it would be sent, after `frame`
+    fn head(mut res: Response<'_>) -> String {
+        res.frame();
+        res.into_parts().0
+    }
+
+    #[test]
+    fn charset_is_added_to_the_content_type() {
+        let mut res = Response::new_empty();
+        res.charset("utf-8").send("Hello");
+        assert!(head(res).contains("Content-Type: text/html; charset=utf-8\r\n"));
+
+        // whatever the order, and whatever the type
+        let mut res = Response::new_empty();
+        res.send("Hello");
+        res.with_type("text/plain").charset("UTF-8");
+        assert!(head(res).contains("Content-Type: text/plain; charset=UTF-8\r\n"));
+    }
+
+    #[test]
+    fn charset_keeps_a_named_one_and_ignores_invalid_ones() {
+        let mut res = Response::new_empty();
+        res.with_type("text/plain; Charset=latin1")
+            .charset("utf-8")
+            .send("");
+        assert!(head(res).contains("Content-Type: text/plain; Charset=latin1\r\n"));
+
+        let mut res = Response::new_empty();
+        res.charset("utf-8; boundary=x").send("");
+        assert!(head(res).contains("Content-Type: text/html\r\n"));
+    }
+
+    #[test]
+    fn attachment_filenames() {
+        assert_eq!(
+            content_disposition("report.pdf"),
+            r#"attachment; filename="report.pdf""#
+        );
+        assert_eq!(
+            content_disposition(r#"say "hi"\.txt"#),
+            r#"attachment; filename="say \"hi\"\\.txt""#
+        );
+        assert_eq!(
+            content_disposition("résumé 1.pdf"),
+            r#"attachment; filename="r_sum_ 1.pdf"; filename*=UTF-8''r%C3%A9sum%C3%A9%201.pdf"#
+        );
+        // a line break can't end the header early
+        assert_eq!(
+            content_disposition("a\r\nb"),
+            r#"attachment; filename="a__b"; filename*=UTF-8''a%0D%0Ab"#
+        );
+    }
+
+    #[test]
+    fn attachment_sets_the_type() {
+        let mut res = Response::new_empty();
+        res.attachment_with_filename(&String::from("data.json"))
+            .send("{}");
+        let head = head(res);
+        assert!(head.contains("Content-Disposition: attachment; filename=\"data.json\"\r\n"));
+        assert!(head.contains("Content-Type: application/json\r\n"));
     }
 
     #[tokio::test]
